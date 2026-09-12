@@ -556,6 +556,7 @@ function estHours() {   // hours (0-24, fractional) in US Eastern time
   catch (e) { const d = new Date(); return d.getUTCHours() - 5 + d.getUTCMinutes() / 60; }
 }
 const DAY_SKY = new THREE.Color(0x8fd0f5), DUSK_SKY = new THREE.Color(0xf3a56b), NIGHT_SKY = new THREE.Color(0x0c1230);
+const LIGHT_SCALE = 0.6;   // overall scene shading (balls compensate with emissive so they stay the same brightness)
 let isNight = false;
 function updateDayNight(force) {
   const h = estHours(); const day = h >= 8 && h < 20; isNight = !day;
@@ -565,11 +566,11 @@ function updateDayNight(force) {
   SUN_DIR.set(Math.cos(a) * 0.9, Math.max(0.05, el), -0.35).normalize();   // rises in the east, sets in the west, over the sea side
   sunMesh.visible = day; moonMesh.visible = !day;
   if (day) {
-    sun.intensity = 0.25 + 0.55 * el; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff4e0); hemi.intensity = 0.3 + 0.3 * el;
+    sun.intensity = (0.25 + 0.55 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff4e0); hemi.intensity = (0.3 + 0.3 * el) * LIGHT_SCALE;
     const sky = el < 0.25 ? DUSK_SKY.clone().lerp(DAY_SKY, el / 0.25) : DAY_SKY;
     if (S.scene === 'lobby') { scene.background = sky; if (scene.fog) scene.fog.color = sky; }
   } else {
-    sun.intensity = 0.05; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.045;
+    sun.intensity = 0.05 * LIGHT_SCALE; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.045 * LIGHT_SCALE;
     if (S.scene === 'lobby') { scene.background = NIGHT_SKY; if (scene.fog) scene.fog.color = NIGHT_SKY; }
   }
 }
@@ -629,12 +630,12 @@ function jerseyMats(variant) {
 }
 const POSES = {
   idle:        { shL: [0, 0, 3], shR: [0, 0, -3], elL: [-6, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
-  air:         { shL: [-35, 0, 25], shR: [-35, 0, -25], elL: [-20, 0, 0], elR: [-20, 0, 0], hipL: [15, 0, 0], hipR: [15, 0, 0], knL: [115, 0, 0], knR: [115, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
+  air:         { shL: [45, 0, 18], shR: [45, 0, -18], elL: [-15, 0, 0], elR: [-15, 0, 0], hipL: [15, 0, 0], hipR: [15, 0, 0], knL: [115, 0, 0], knR: [115, 0, 0], spine: [-4, 0, 0], neck: [0, 0, 0] },   // arms thrown back, legs curled
   bump:        { shL: [-60, 0, 3], shR: [-60, 0, -3], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-28, 0, 0], hipR: [-28, 0, 0], knL: [40, 0, 0], knR: [40, 0, 0], spine: [20, 0, 0], neck: [-12, 0, 0] },
   set:         { shL: [-125, 0, 22], shR: [-125, 0, -22], elL: [-55, 0, 0], elR: [-55, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [14, 0, 0], knR: [14, 0, 0], spine: [-2, 0, 0], neck: [-18, 0, 0] },
   block:       { shL: [-172, 0, 12], shR: [-172, 0, -12], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [16, 0, 0], knR: [16, 0, 0], spine: [-3, 0, 0], neck: [-8, 0, 0] },
   spikeCharge: { shL: [-130, 0, 16], shR: [-105, 0, -70], elL: [-15, 0, 0], elR: [-110, 0, 0], hipL: [-18, 0, 0], hipR: [-32, 0, 0], knL: [36, 0, 0], knR: [55, 0, 0], spine: [-12, 0, -10], neck: [-8, 0, 0] },
-  spikeHit:    { shL: [-35, 0, 18], shR: [-30, 0, -6], elL: [-25, 0, 0], elR: [-5, 0, 0], hipL: [-55, 0, 0], hipR: [-55, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [24, 0, 8], neck: [8, 0, 0] },
+  spikeHit:    { shL: [-35, 0, 18], shR: [-30, 0, -6], elL: [-25, 0, 0], elR: [-5, 0, 0], hipL: [-55, 0, 0], hipR: [-55, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [20, 0, 8], neck: [8, 0, 0] },
   tip:         { shL: [-65, 0, 18], shR: [-160, 0, -6], elL: [-25, 0, 0], elR: [-12, 0, 0], hipL: [-18, 0, 0], hipR: [-18, 0, 0], knL: [36, 0, 0], knR: [36, 0, 0], spine: [-3, 0, 0], neck: [-12, 0, 0] },
   dive:        { shL: [-100, 0, 8], shR: [-100, 0, -8], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [6, 0, 0], hipR: [6, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [0, 0, 0], neck: [-25, 0, 0] },
   diveL:       { shL: [-20, 0, 95], shR: [-30, 0, 35], elL: [0, 0, 0], elR: [-20, 0, 0], hipL: [-10, 0, 20], hipR: [-25, 0, 5], knL: [20, 0, 0], knR: [45, 0, 0], spine: [0, 0, 12], neck: [0, 0, 20] },
@@ -643,13 +644,14 @@ const POSES = {
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
-const FACE_TEX = canvasTex(128, 128, (g, W, H) => {
-  g.clearRect(0, 0, W, H); g.fillStyle = '#222';
+const faceTex = (skinHex) => canvasTex(128, 128, (g, W, H) => {
+  g.fillStyle = skinHex; g.fillRect(0, 0, W, H); g.fillStyle = '#222';
   g.beginPath(); g.ellipse(42, 56, 6, 9, 0, 0, Math.PI * 2); g.fill(); g.beginPath(); g.ellipse(86, 56, 6, 9, 0, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#4c8ce6'; g.beginPath(); g.ellipse(42, 58, 3.5, 5, 0, 0, Math.PI * 2); g.fill(); g.beginPath(); g.ellipse(86, 58, 3.5, 5, 0, 0, Math.PI * 2); g.fill();
   g.strokeStyle = '#222'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(50, 86); g.quadraticCurveTo(64, 96, 78, 86); g.stroke();
   g.lineWidth = 3; g.beginPath(); g.moveTo(32, 40); g.lineTo(52, 44); g.moveTo(96, 40); g.lineTo(76, 44); g.stroke();
 });
+const FACE_TEX = faceTex('#f3d1b0'), FACE_TEX_DARK = faceTex('#6b4a30');
 class Rig {
   constructor(variant = 'white') {
     this.root = new THREE.Group(); this.root.scale.setScalar(RIG_SCALE);
@@ -663,7 +665,7 @@ class Rig {
     this.torso = box(0.56, TORSO_H, 0.3, jm.torso, 0, TORSO_H / 2, 0, spine);
     const neck = joint('neck', spine, 0, TORSO_H, 0);
     const skinM = dealer ? mat(0x6b4a30) : SKIN;
-    const skinFace = mat(dealer ? 0x6b4a30 : 0xf3d1b0, { map: FACE_TEX, transparent: true });
+    const skinFace = mat(0xffffff, { map: dealer ? FACE_TEX_DARK : FACE_TEX });
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.23; head.castShadow = true; neck.add(head);
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.46, 0.14, 0.46, mat(0x111111), 0, 0.42, 0, neck); box(0.44, 0.05, 0.22, mat(0x111111), 0, 0.37, 0.3, neck);
@@ -955,7 +957,7 @@ const SKINS = {
   chromatic:  { name: 'Chromatic', price: 10000 },
 };
 const AURAS = [];   // chromatic auras (colour cycles every frame)
-const SKIN_CACHE = {};
+const SKIN_CACHE = {}; const BALL_GLOW = 0.32;   // keeps balls at their old brightness under the darker lighting
 function skinMaterial(id) {
   if (SKIN_CACHE[id]) return SKIN_CACHE[id];
   let m;
@@ -967,19 +969,19 @@ function skinMaterial(id) {
       g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
       for (let i = 0; i < 4; i++) { const x = i * 128 + 64; g.beginPath(); g.moveTo(x - 40, 0); g.quadraticCurveTo(x + 30, h / 2, x - 40, h); g.stroke(); }
     });
-    m = mat(0xffffff, { map: tex, roughness: .8 });
-  } else if (id === 'chromatic') m = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: .35, roughness: .3 });
-  else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true });
+    m = mat(0xffffff, { map: tex, roughness: .8, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
+  } else if (id === 'chromatic') m = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: .35 + BALL_GLOW, roughness: .3 });
+  else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true, emissive: 0xc4e3ea, emissiveIntensity: BALL_GLOW });
   else if (id === 'fire') {
     const tex = canvasTex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffdd55'); gr.addColorStop(0.5, '#ff6a1f'); gr.addColorStop(1, '#8a0f0f'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = '#2a0a05'; g.lineWidth = 8; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128 + 60, h); g.stroke(); } });
-    m = mat(0xffffff, { map: tex, roughness: .5 });
-  } else if (id === 'gold') m = mat(0xffc63a, { metalness: .9, roughness: .25 });
+    m = mat(0xffffff, { map: tex, roughness: .5, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
+  } else if (id === 'gold') m = mat(0xffc63a, { metalness: .9, roughness: .25, emissive: 0xffc63a, emissiveIntensity: BALL_GLOW });
   else if (id === 'beach') {
     const tex = canvasTex(512, 256, (g, w, h) => { const cols = ['#ffffff', '#e5484d', '#f5c542', '#3b8ff0', '#ffffff', '#3ecf5a', '#e5484d', '#f5c542']; for (let i = 0; i < 8; i++) { g.fillStyle = cols[i]; g.fillRect(i * 64, 0, 64, h); } });
-    m = mat(0xffffff, { map: tex, roughness: .7 });
+    m = mat(0xffffff, { map: tex, roughness: .7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
   } else {
     const tex = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#f6f6f6'; g.fillRect(0, 0, w, h); for (let i = 0; i < 4; i++) { g.fillStyle = '#2f6bff'; g.fillRect(i * 128, 0, 44, h); g.fillStyle = '#ffd000'; g.fillRect(i * 128 + 44, 0, 44, h); } g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, 118, w, 20); });
-    m = mat(0xffffff, { map: tex, roughness: .7 });
+    m = mat(0xffffff, { map: tex, roughness: .7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
   }
   return SKIN_CACHE[id] = m;
 }
@@ -1189,11 +1191,12 @@ function blockContact() {
   hitBall('block', vel, g);
 }
 function chargeAt(dt) { return dt <= 0.1875 ? dt / 0.1875 * 0.5 : clamp(0.5 + (dt - 0.1875) / 0.375 * 0.5, 0, 1); }   // 0.19s to half, 0.56s to full
-function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0; P.rig.setPose('spikeCharge'); $('#chargeBar').classList.remove('hidden'); }
+function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0; $('#chargeBar').classList.remove('hidden'); }   // stays in the jump pose while charging; the swing plays on release
 function releaseSpike() {
   P.charging = false; $('#chargeBar').classList.add('hidden');
   const c = chargeAt(T - P.chargeStart);
-  if (c <= 0.3) doTip(); else doSpike(c);           // quick tap (<= 150ms) = tip
+  if (c <= 0.3) { P.rig.setPose('tip', T + 0.4); doTip(); }
+  else { P.rig.setPose('spikeCharge', T + 0.07); P.swingAt = T + 0.07; doSpike(c); }   // quick wind-up, then the swing (arms exactly as before, legs thrown forward)
 }
 function netAhead(from, fwd) {                 // distance to the nearest net in front of the ball (Infinity if none)
   let best = Infinity;
@@ -1217,7 +1220,6 @@ function spikeGeom() {
   return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
-  P.rig.setPose('spikeHit', T + 0.4);
   if (!ballReach(highPos(), REACH_A, 0.75)) return;                    // spike hitbox: 75% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
@@ -1243,7 +1245,6 @@ function doSpike(c) {
   hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c);
 }
 function doTip() {
-  P.rig.setPose('tip', T + 0.4);
   if (!ballReach(highPos(), REACH_A, 0.75)) return;
   if (B.serve) return doSpike(0.3);                              // a tap on a serve toss = soft serve
   const { tz, fwd } = spikeGeom();
@@ -1308,6 +1309,7 @@ function updatePlayer(dt) {
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
+  if (P.swingAt && T >= P.swingAt) { P.swingAt = 0; if (!P.onGround) P.rig.setPose('spikeHit', T + 0.4); }
   if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
@@ -1344,7 +1346,7 @@ function updatePlayer(dt) {
     P.pos.y = 0; P.vel.y = 0;
     if (!P.onGround) {
       P.onGround = true; P.airUsed = false; P.blockUntil = 0;
-      if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
+      if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
       P.rig.base = P.holding ? 'hold' : 'idle'; P.rig.setPose(P.rig.base);
       if (P.act && P.act.type === 'jset') P.act = null;
     }
