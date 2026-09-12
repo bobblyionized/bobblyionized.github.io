@@ -30,6 +30,7 @@ input:focus{border-color:#fff}
 #online b{color:#fff}
 #online .dot{width:8px;height:8px;border-radius:50%;background:#777}
 #online .dot.on{background:var(--green)}
+#ballMsg{position:absolute;transform:translate(-50%,-100%);background:#e5484d;color:#fff;font-weight:900;font-size:13px;padding:4px 8px;pointer-events:none;white-space:nowrap}
 #npcPrompt{position:absolute;transform:translate(-50%,-100%);background:var(--bg);border:2px solid var(--line);padding:6px 10px;font-weight:800;font-size:13px;pointer-events:none;white-space:nowrap}
 #npcPrompt b{background:#fff;color:#111;padding:1px 6px;margin-right:6px}
 #shopPanel .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -146,6 +147,7 @@ input:focus{border-color:#fff}
   <div id="chargeBar" class="hidden"><i></i><em></em></div>
   <div id="serveAim" class="hidden"><div class="ghost"></div><svg viewBox="0 0 100 100" width="140" height="140"><g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"><polygon points="50,4 62,20 54,20 54,46 46,46 46,20 38,20"/><polygon points="50,96 62,80 54,80 54,54 46,54 46,80 38,80"/><polygon points="4,50 20,38 20,46 46,46 46,54 20,54 20,62"/><polygon points="96,50 80,38 80,46 54,46 54,54 80,54 80,62"/></g></svg></div>
   <div id="utilCards" class="hidden"></div>
+  <div id="ballMsg" class="hidden">TOO LOW</div>
   <div id="npcPrompt" class="hidden"><b>E</b>Talk to Lil Man Dealer</div>
   <div id="crosshair" class="hidden"></div>
   <div id="actions"></div>
@@ -630,7 +632,7 @@ function jerseyMats(variant) {
 }
 const POSES = {
   idle:        { shL: [0, 0, 3], shR: [0, 0, -3], elL: [-6, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
-  air:         { shL: [45, 0, 18], shR: [45, 0, -18], elL: [-15, 0, 0], elR: [-15, 0, 0], hipL: [15, 0, 0], hipR: [15, 0, 0], knL: [115, 0, 0], knR: [115, 0, 0], spine: [-4, 0, 0], neck: [0, 0, 0] },   // arms thrown back, legs curled
+  air:         { shL: [-70, 0, 14], shR: [55, 0, -22], elL: [-30, 0, 0], elR: [-25, 0, 0], hipL: [30, 0, 0], hipR: [30, 0, 0], knL: [100, 0, 0], knR: [100, 0, 0], spine: [4, 0, 0], neck: [-6, 0, 0] },   // left arm forward, right arm back, legs swept back
   bump:        { shL: [-60, 0, 3], shR: [-60, 0, -3], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-28, 0, 0], hipR: [-28, 0, 0], knL: [40, 0, 0], knR: [40, 0, 0], spine: [20, 0, 0], neck: [-12, 0, 0] },
   set:         { shL: [-125, 0, 22], shR: [-125, 0, -22], elL: [-55, 0, 0], elR: [-55, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [14, 0, 0], knR: [14, 0, 0], spine: [-2, 0, 0], neck: [-18, 0, 0] },
   block:       { shL: [-172, 0, 12], shR: [-172, 0, -12], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [16, 0, 0], knR: [16, 0, 0], spine: [-3, 0, 0], neck: [-8, 0, 0] },
@@ -1009,7 +1011,7 @@ function makeBallMesh(skin = 'default') {
    ===================================================================== */
 const V3 = THREE.Vector3;
 const G = 14;
-const MOVE_SPEED = 6.5, JUMP_V = 8.6, GROUND_CD = 0.7, DIVE_CD = 1.0;
+const MOVE_SPEED = 6.5, JUMP_V = 8.6, GROUND_CD = 0.7, DIVE_CD = 0.3;   // dive recovery halved
 const REACH_G = 1.9, REACH_A = 1.8;
 const TEAM_VARIANT = { A: 'black', B: 'white', L: 'white' };
 
@@ -1242,6 +1244,15 @@ function doSpike(c) {
     }
     pitch = lerp(pitch, pf, Math.min(1, far / 0.3)); g = gFar;
   }
+  // TOO LOW: decided once, right here at the swing - if this spike would go into the net it becomes a high, airy ball over instead
+  if (isFinite(toNet) && toNet < 40) {
+    const tN = toNet / Math.max(0.5, sp * Math.cos(pitch)); const yN = B.pos.y + sp * Math.sin(pitch) * tN - 0.5 * BALL_G * g * tN * tN;
+    if (yN < NET_H + BALL_R) {
+      const tg = B.pos.clone().addScaledVector(fwd, toNet + 4.5); tg.y = 0;
+      hitBall('spike', launchTo(B.pos, tg, Math.max(B.pos.y + 4.5, NET_H + 3.5)), 1, c);
+      showBallMsg('TOO LOW', B.pos); return;
+    }
+  }
   hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c);
 }
 function doTip() {
@@ -1426,6 +1437,16 @@ function updateBalls(dt) {
   if (T < P.blockUntil && !P.blockHit && ballReach(highPos(), 1.6, 1, true) && B.hitter !== SID && B.vel.dot(cf()) < 0) blockContact();   // blocks may reach over the net
   if (P.dive && !P.dive.hit && ballReach(P.pos.clone().add(new V3(0, 0.6, 0)).addScaledVector(P.dive.dir, 1.0), 1.8)) diveContact();
 }
+/* ---- "TOO LOW" popup at the ball ---- */
+let ballMsg = null;
+function showBallMsg(text, pos) { ballMsg = { pos: pos.clone(), until: performance.now() + 1500 }; const el = $('#ballMsg'); el.textContent = text; el.classList.remove('hidden'); }
+function projectBallMsg() {
+  const el = $('#ballMsg'); if (!ballMsg) return;
+  if (performance.now() > ballMsg.until) { ballMsg = null; el.classList.add('hidden'); return; }
+  if (B && B.active) ballMsg.pos.copy(B.pos);
+  _v.copy(ballMsg.pos); _v.y += 0.8; _v.project(camera);
+  el.style.display = _v.z < 1 ? '' : 'none'; el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+}
 /* ---- serve aim arrows (under the ball while steering a serve toss) ---- */
 function projectServeAim() {
   const el = $('#serveAim');
@@ -1494,7 +1515,7 @@ function updateRemotes(dt) {
       let i = buf.length - 1; while (i > 0 && buf[i - 1].t > rt) i--;
       const a = buf[i - 1], b = buf[i];
       if (rt <= b.t) { const f = (rt - a.t) / Math.max(0.001, b.t - a.t); p.set(lerp(a.x, b.x, f), lerp(a.y, b.y, f), lerp(a.z, b.z, f)); let dr = b.ry - a.ry; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); ry = a.ry + dr * f; }
-      else { const ex = Math.min(rt - b.t, 0.12); const span = Math.max(0.05, b.t - a.t); p.set(b.x + (b.x - a.x) / span * ex, b.y, b.z + (b.z - a.z) / span * ex); ry = b.ry; }   // brief extrapolation if a packet is late
+      else { const late = rt - b.t; const ex = late < 0.3 ? Math.min(late, 0.1) : 0; const span = Math.max(0.05, b.t - a.t); p.set(b.x + (b.x - a.x) / span * ex, b.y, b.z + (b.z - a.z) / span * ex); ry = b.ry; }   // brief extrapolation only right after a packet
     }
     r.rig.root.rotation.y = ry;
     r.speed = lerp(r.speed, Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 0.001), Math.min(1, dt * 10));
@@ -1601,11 +1622,13 @@ function equipSkin(id) {
    NETWORK: lobby, pads, queue, matches
    ===================================================================== */
 const lobbyRef = db.ref('lobby/' + SID);
-let lastSync = 0, lastSyncSig = '';
+let lastSync = 0, lastSyncSig = '', lastChangeT = 0;
 function syncSelf() {
-  if (!S.online || T - lastSync < 0.125) return; lastSync = T;
+  if (!S.online || T - lastSync < 0.1) return;
   const st = myState(); const sig = JSON.stringify(st);
-  if (sig === lastSyncSig) return; lastSyncSig = sig;                   // nothing changed: skip the write
+  if (sig !== lastSyncSig) lastChangeT = T;
+  else if (T - lastChangeT > 0.45) return;                              // settled: after a few repeat packets, stop writing
+  lastSync = T; lastSyncSig = sig;
   if (S.scene === 'lobby') lobbyRef.set(st);
   else if (S.match && !S.match.local) db.ref(`matches/${S.match.id}/players/${SID}`).set(st);
 }
@@ -1829,7 +1852,7 @@ function beginMatch(M) {
     on('serve', 'value', s => { M.serve = s.val(); });
     on('serveIdx', 'value', s => { M.serveIdx = s.val() || M.serveIdx; });
     on('msg', 'value', s => { M.msg = s.val() || ''; });
-    on(null, 'value', s => { if (!s.exists() && S.match && S.match.id === M.id) { toast('Match ended'); leaveMatch(); } });
+    on('mode', 'value', s => { if (!s.exists() && S.match && S.match.id === M.id) { toast('Match ended'); leaveMatch(); } });
     matchUnsubs = subs;
   }
 }
@@ -1886,7 +1909,7 @@ function tick(nowMs) {
   if (!S.booted) return;
   if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } return; }
   acc = 0; simulate(Math.min(dt, 1 / 30));            // one step per rendered frame: smooth at 60, 120 or 144 Hz
-  updateCamera(); projectTags(); projectServeAim(); updateCards(); updateMarks(); projectNpc(); updateAuras(T);
+  updateCamera(); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T);
   if (S.scene === 'match') updateMatchHud();
   syncSelf();
   renderer.shadowMap.needsUpdate = (frameNo++ % 2) === 0;   // shadows refresh every other frame (cheaper)
