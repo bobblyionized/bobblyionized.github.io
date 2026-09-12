@@ -629,12 +629,12 @@ function jerseyMats(variant) {
 }
 const POSES = {
   idle:        { shL: [0, 0, 3], shR: [0, 0, -3], elL: [-6, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
-  air:         { shL: [-35, 0, 25], shR: [-35, 0, -25], elL: [-20, 0, 0], elR: [-20, 0, 0], hipL: [-20, 0, 0], hipR: [-20, 0, 0], knL: [40, 0, 0], knR: [40, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
+  air:         { shL: [-35, 0, 25], shR: [-35, 0, -25], elL: [-20, 0, 0], elR: [-20, 0, 0], hipL: [15, 0, 0], hipR: [15, 0, 0], knL: [115, 0, 0], knR: [115, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   bump:        { shL: [-60, 0, 3], shR: [-60, 0, -3], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-28, 0, 0], hipR: [-28, 0, 0], knL: [40, 0, 0], knR: [40, 0, 0], spine: [20, 0, 0], neck: [-12, 0, 0] },
   set:         { shL: [-125, 0, 22], shR: [-125, 0, -22], elL: [-55, 0, 0], elR: [-55, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [14, 0, 0], knR: [14, 0, 0], spine: [-2, 0, 0], neck: [-18, 0, 0] },
   block:       { shL: [-172, 0, 12], shR: [-172, 0, -12], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [16, 0, 0], knR: [16, 0, 0], spine: [-3, 0, 0], neck: [-8, 0, 0] },
   spikeCharge: { shL: [-130, 0, 16], shR: [-105, 0, -70], elL: [-15, 0, 0], elR: [-110, 0, 0], hipL: [-18, 0, 0], hipR: [-32, 0, 0], knL: [36, 0, 0], knR: [55, 0, 0], spine: [-12, 0, -10], neck: [-8, 0, 0] },
-  spikeHit:    { shL: [-35, 0, 18], shR: [-30, 0, -6], elL: [-25, 0, 0], elR: [-5, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [26, 0, 0], knR: [26, 0, 0], spine: [20, 0, 8], neck: [8, 0, 0] },
+  spikeHit:    { shL: [-35, 0, 18], shR: [-30, 0, -6], elL: [-25, 0, 0], elR: [-5, 0, 0], hipL: [-55, 0, 0], hipR: [-55, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [24, 0, 8], neck: [8, 0, 0] },
   tip:         { shL: [-65, 0, 18], shR: [-160, 0, -6], elL: [-25, 0, 0], elR: [-12, 0, 0], hipL: [-18, 0, 0], hipR: [-18, 0, 0], knL: [36, 0, 0], knR: [36, 0, 0], spine: [-3, 0, 0], neck: [-12, 0, 0] },
   dive:        { shL: [-100, 0, 8], shR: [-100, 0, -8], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [6, 0, 0], hipR: [6, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [0, 0, 0], neck: [-25, 0, 0] },
   diveL:       { shL: [-20, 0, 95], shR: [-30, 0, 35], elL: [0, 0, 0], elR: [-20, 0, 0], hipL: [-10, 0, 20], hipR: [-25, 0, 5], knL: [20, 0, 0], knR: [45, 0, 0], spine: [0, 0, 12], neck: [0, 0, 20] },
@@ -710,7 +710,7 @@ class Rig {
     for (const k in this.j) {
       const p = pose[k] || [0, 0, 0]; const tg = this.target[k]; tg.set(p[0] * D, p[1] * D, p[2] * D);
       if (this.anim === 'idle' && this.moveSpeed > 0.5) {         // run cycle: slower, bigger swings
-        this.runPhase += dt * 4.2 * Math.min(1, this.moveSpeed / 6);
+        this.runPhase += dt * 3.4 * Math.min(1, this.moveSpeed / 6);
         const s = Math.sin(this.runPhase), c = -s;
         if (k === 'shL') { tg.x = s * 58 * D; tg.z = 6 * D; } if (k === 'shR') { tg.x = c * 58 * D; tg.z = -6 * D; }
         if (k === 'elL') tg.x = (-35 - Math.max(0, s) * 40) * D; if (k === 'elR') tg.x = (-35 - Math.max(0, c) * 40) * D;
@@ -946,32 +946,33 @@ function drawScore(a, b, mode) {
 const BALL_R = 0.3, BALL_G = 12.5;   // slightly floaty ball gravity
 /* ball skins: same radius / hitbox for every skin, looks only */
 const SKINS = {
-  default: { name: 'Classic', price: 0 },
-  galaxy:  { name: 'Galaxy', price: 2000 },
-  lowpoly: { name: 'Low Poly', price: 1500 },
-  fire:    { name: 'Fire', price: 2500 },
-  neon:    { name: 'Neon', price: 3000 },
-  gold:    { name: 'Gold', price: 5000 },
-  beach:   { name: 'Beach', price: 1000 },
+  default:    { name: 'Classic', price: 0 },
+  basketball: { name: 'Basketball', price: 2000 },
+  lowpoly:    { name: 'Low Poly', price: 1500 },
+  fire:       { name: 'Fire', price: 2500 },
+  gold:       { name: 'Gold', price: 5000 },
+  beach:      { name: 'Beach', price: 1000 },
+  chromatic:  { name: 'Chromatic', price: 10000 },
 };
+const AURAS = [];   // chromatic auras (colour cycles every frame)
 const SKIN_CACHE = {};
 function skinMaterial(id) {
   if (SKIN_CACHE[id]) return SKIN_CACHE[id];
   let m;
-  if (id === 'galaxy') {
+  if (id === 'basketball') {
     const tex = canvasTex(512, 256, (g, w, h) => {
-      g.fillStyle = '#1b2a8c'; g.fillRect(0, 0, w, h);
-      for (let i = 0; i < 260; i++) { const x = Math.random() * w, y = Math.random() * h, r = Math.random() * 1.6 + 0.3; g.fillStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.65})`; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-      g.strokeStyle = '#d3262e'; g.lineWidth = 6; for (let i = 0; i < 3; i++) { const x = i * w / 3 + 40; g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + 70, h * 0.3, x - 70, h * 0.7, x, h); g.stroke(); }
+      g.fillStyle = '#e8702a'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#1a1a1a'; g.lineWidth = 7;
+      for (let i = 0; i < 4; i++) { const x = i * 128; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+      g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+      for (let i = 0; i < 4; i++) { const x = i * 128 + 64; g.beginPath(); g.moveTo(x - 40, 0); g.quadraticCurveTo(x + 30, h / 2, x - 40, h); g.stroke(); }
     });
-    m = mat(0xffffff, { map: tex, roughness: .35, metalness: .15 });
-  } else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true });
+    m = mat(0xffffff, { map: tex, roughness: .8 });
+  } else if (id === 'chromatic') m = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: .35, roughness: .3 });
+  else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true });
   else if (id === 'fire') {
     const tex = canvasTex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffdd55'); gr.addColorStop(0.5, '#ff6a1f'); gr.addColorStop(1, '#8a0f0f'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = '#2a0a05'; g.lineWidth = 8; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128 + 60, h); g.stroke(); } });
     m = mat(0xffffff, { map: tex, roughness: .5 });
-  } else if (id === 'neon') {
-    const tex = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, w, h); g.strokeStyle = '#39ff7a'; g.lineWidth = 10; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, 0); g.lineTo(i * 128 + 20, h); g.stroke(); } g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke(); });
-    m = mat(0xffffff, { map: tex, emissive: 0x1aff66, emissiveMap: tex, emissiveIntensity: .8, roughness: .4 });
   } else if (id === 'gold') m = mat(0xffc63a, { metalness: .9, roughness: .25 });
   else if (id === 'beach') {
     const tex = canvasTex(512, 256, (g, w, h) => { const cols = ['#ffffff', '#e5484d', '#f5c542', '#3b8ff0', '#ffffff', '#3ecf5a', '#e5484d', '#f5c542']; for (let i = 0; i < 8; i++) { g.fillStyle = cols[i]; g.fillRect(i * 64, 0, 64, h); } });
@@ -983,7 +984,19 @@ function skinMaterial(id) {
   return SKIN_CACHE[id] = m;
 }
 const BALL_GEO = new THREE.SphereGeometry(BALL_R, 20, 16), BALL_GEO_LP = new THREE.IcosahedronGeometry(BALL_R, 1);
-function applySkin(mesh, id) { id = SKINS[id] ? id : 'default'; mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id; }
+function applySkin(mesh, id) {
+  id = SKINS[id] ? id : 'default'; mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
+  // chromatic: glowing rainbow aura around the ball (visual only - hitbox is unchanged)
+  const old = mesh.getObjectByName('aura'); if (old) { mesh.remove(old); const i = AURAS.indexOf(old.material); if (i >= 0) AURAS.splice(i, 1); }
+  if (id === 'chromatic') {
+    const am = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending });
+    const aura = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * 1.45, 20, 16), am); aura.name = 'aura'; mesh.add(aura);
+    const am2 = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending });
+    const aura2 = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * 1.9, 20, 16), am2); aura2.name = 'aura'; aura.add(aura2);
+    AURAS.push(am, am2);
+  }
+}
+function updateAuras(t) { if (!AURAS.length) return; for (let i = 0; i < AURAS.length; i++) AURAS[i].color.setHSL((t * 0.35 + i * 0.08) % 1, 1, 0.55); }
 function makeBallMesh(skin = 'default') {
   const m = new THREE.Mesh(BALL_GEO, skinMaterial('default')); applySkin(m, skin); m.castShadow = true;
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.2, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .35 })); shadow.rotation.x = -Math.PI / 2;
@@ -1023,9 +1036,25 @@ function makeBall(id, sceneName, skin = 'default') {
   b.mesh.visible = b.shadow.visible = false; balls.set(id, b); return b;
 }
 function removeBall(id) { const b = balls.get(id); if (!b) return; scene.remove(b.mesh); scene.remove(b.shadow); balls.delete(id); if (B === b) B = null; }
-function ballReach(center, r) {                 // nearest reachable ball in this scene becomes B
+function acrossNet(a, b) {                       // true if the segment a->b passes through a net
+  for (const n of netsFor()) {
+    const da = (a.x - n.cx) * n.nx + (a.z - n.cz) * n.nz, db = (b.x - n.cx) * n.nx + (b.z - n.cz) * n.nz;
+    if (Math.sign(da) === Math.sign(db) || da === 0) continue;
+    const f = da / (da - db); const x = a.x + (b.x - a.x) * f, z = a.z + (b.z - a.z) * f;
+    const lat = -(x - n.cx) * n.nz + (z - n.cz) * n.nx;
+    if (Math.abs(lat) < n.half + 0.3) return true;
+  }
+  return false;
+}
+function ballReach(center, r, vScale = 1, allowAcross = false) {   // nearest reachable ball in this scene becomes B (vScale squashes the reach vertically)
   let best = null, bd = r;
-  for (const b of balls.values()) { if (b.scene !== S.scene || !b.active || b.held || b.frozen) continue; const d = b.pos.distanceTo(center); if (d <= bd) { bd = d; best = b; } }
+  for (const b of balls.values()) {
+    if (b.scene !== S.scene || !b.active || b.held || b.frozen) continue;
+    const dx = b.pos.x - center.x, dy = (b.pos.y - center.y) / vScale, dz = b.pos.z - center.z; const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d > bd) continue;
+    if (!allowAcross && acrossNet(P.pos, b.pos)) continue;                   // can't play a ball that's on the other side of the net
+    bd = d; best = b;
+  }
   if (best) B = best; return !!best;
 }
 
@@ -1189,9 +1218,9 @@ function spikeGeom() {
 }
 function doSpike(c) {
   P.rig.setPose('spikeHit', T + 0.4);
-  if (!ballReach(highPos(), REACH_A)) return;
+  if (!ballReach(highPos(), REACH_A, 0.75)) return;                    // spike hitbox: 75% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
-  const sp = 13 + 22 * c;
+  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
     const pitch = lerp(20, 5, c) * D, ss = 12 + 8 * c;         // softer serves arc higher; full charge is flat and lands near the far back line
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
@@ -1215,7 +1244,7 @@ function doSpike(c) {
 }
 function doTip() {
   P.rig.setPose('tip', T + 0.4);
-  if (!ballReach(highPos(), REACH_A)) return;
+  if (!ballReach(highPos(), REACH_A, 0.75)) return;
   if (B.serve) return doSpike(0.3);                              // a tap on a serve toss = soft serve
   const { tz, fwd } = spikeGeom();
   let sp = 7, pitch = 32 * D;
@@ -1228,7 +1257,7 @@ function doDive() {
   const side = dir.dot(cr()), fwd = dir.dot(cf());
   let pose = 'dive', pitch = 1.25, roll = 0;
   if (Math.abs(fwd) >= Math.abs(side)) { if (fwd < 0) { pose = 'diveB'; pitch = -0.95; } }
-  else if (side > 0) { pose = 'diveR'; pitch = 0; roll = -1.15; } else { pose = 'diveL'; pitch = 0; roll = 1.15; }
+  else if (side > 0) { pose = 'diveR'; pitch = 0; roll = 1.15; } else { pose = 'diveL'; pitch = 0; roll = -1.15; }   // +roll = body rolls onto its right side
   P.rig.setPose(pose); P.rig.pitchTarget = pitch; P.rig.rollTarget = roll; P.diveAnim = { pitch, roll };
 }
 function diveContact() {
@@ -1282,7 +1311,7 @@ function updatePlayer(dt) {
   if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
-    else { const sp = 7.5 * (1 - e * 0.6); P.vel.x = P.dive.dir.x * sp; P.vel.z = P.dive.dir.z * sp; }
+    else { const sp = 15 * (1 - e * 0.6); P.vel.x = P.dive.dir.x * sp; P.vel.z = P.dive.dir.z * sp; }   // ~2x dive distance
   } else if (P.onGround) {
     const mv = steering ? new V3() : camF().multiplyScalar(iz).add(camR().multiplyScalar(ix));
     if (mv.lengthSq() > 0) { mv.normalize(); P.vel.x = mv.x * MOVE_SPEED; P.vel.z = mv.z * MOVE_SPEED; P.moveDir.copy(mv); P.moving = true; }
@@ -1392,7 +1421,7 @@ function updateBalls(dt) {
     b.shadow.position.set(b.pos.x, 0.015, b.pos.z); b.shadow.material.opacity = clamp(0.45 - b.pos.y * 0.04, 0.08, 0.45);
   }
   // local player contact actions (block / dive) against any reachable ball
-  if (T < P.blockUntil && !P.blockHit && ballReach(highPos(), 1.6) && B.hitter !== SID && B.vel.dot(cf()) < 0) blockContact();
+  if (T < P.blockUntil && !P.blockHit && ballReach(highPos(), 1.6, 1, true) && B.hitter !== SID && B.vel.dot(cf()) < 0) blockContact();   // blocks may reach over the net
   if (P.dive && !P.dive.hit && ballReach(P.pos.clone().add(new V3(0, 0.6, 0)).addScaledVector(P.dive.dir, 1.0), 1.8)) diveContact();
 }
 /* ---- serve aim arrows (under the ball while steering a serve toss) ---- */
@@ -1855,7 +1884,7 @@ function tick(nowMs) {
   if (!S.booted) return;
   if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } return; }
   acc = 0; simulate(Math.min(dt, 1 / 30));            // one step per rendered frame: smooth at 60, 120 or 144 Hz
-  updateCamera(); projectTags(); projectServeAim(); updateCards(); updateMarks(); projectNpc();
+  updateCamera(); projectTags(); projectServeAim(); updateCards(); updateMarks(); projectNpc(); updateAuras(T);
   if (S.scene === 'match') updateMatchHud();
   syncSelf();
   renderer.shadowMap.needsUpdate = (frameNo++ % 2) === 0;   // shadows refresh every other frame (cheaper)
