@@ -30,7 +30,16 @@ input:focus{border-color:#fff}
 #online b{color:#fff}
 #online .dot{width:8px;height:8px;border-radius:50%;background:#777}
 #online .dot.on{background:var(--green)}
-#hintBar{position:absolute;bottom:150px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000;opacity:.85;white-space:nowrap}
+#npcPrompt{position:absolute;transform:translate(-50%,-100%);background:var(--bg);border:2px solid var(--line);padding:6px 10px;font-weight:800;font-size:13px;pointer-events:none;white-space:nowrap}
+#npcPrompt b{background:#fff;color:#111;padding:1px 6px;margin-right:6px}
+#shopPanel .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#shopPanel .item{background:var(--bg2);padding:10px;text-align:center}
+#shopPanel .item img{width:96px;height:96px;display:block;margin:0 auto 6px;background:rgba(0,0,0,.25)}
+#shopPanel .item .nm{font-weight:900;font-size:14px}
+#shopPanel .item .pr{font-size:12px;color:var(--green);font-weight:800;margin:2px 0 8px}
+#shopPanel .item button{width:100%;padding:8px}
+#shopPanel .item.owned button{background:var(--blue)}
+#shopPanel .item.equipped button{background:var(--green);color:#0c2412}
 
 /* hud */
 #stateBox{position:absolute;bottom:14px;left:14px;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800}
@@ -137,8 +146,8 @@ input:focus{border-color:#fff}
   <div id="chargeBar" class="hidden"><i></i><em></em></div>
   <div id="serveAim" class="hidden"><div class="ghost"></div><svg viewBox="0 0 100 100" width="140" height="140"><g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"><polygon points="50,4 62,20 54,20 54,46 46,46 46,20 38,20"/><polygon points="50,96 62,80 54,80 54,54 46,54 46,80 38,80"/><polygon points="4,50 20,38 20,46 46,46 46,54 20,54 20,62"/><polygon points="96,50 80,38 80,46 54,46 54,54 80,54 80,62"/></g></svg></div>
   <div id="utilCards" class="hidden"></div>
+  <div id="npcPrompt" class="hidden"><b>E</b>Talk to Lil Man Dealer</div>
   <div id="crosshair" class="hidden"></div>
-  <div id="hintBar">SHIFT = shift lock  |  Hold right click = look</div>
   <div id="actions"></div>
   <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small>Shift lock is on. ESC frees the cursor.</small></div></div>
 
@@ -196,6 +205,12 @@ input:focus{border-color:#fff}
       <div class="card2"><h3>Requests <span id="frReqCount"></span></h3><div class="flist" id="frReqs"></div></div>
       <div class="card2"><h3>Friends</h3><div class="flist" id="frList"></div></div>
     </div>
+  </div>
+
+  <div id="shopPanel" class="panel hidden" style="width:560px">
+    <h2><span>Lil Man Dealer</span><span style="font-size:14px;color:var(--green)" id="shopMoney">$0</span><button class="x" data-close>X</button></h2>
+    <div id="shopNote" style="font-size:12px;opacity:.7;font-weight:600;margin-bottom:10px">Ball skins. Same size, same hitbox - looks only.</div>
+    <div class="grid" id="shopGrid"></div>
   </div>
 
   <div id="queuePanel" class="hidden">
@@ -274,16 +289,16 @@ const snow = () => Date.now() + serverOffset;
 
 const S = { online: false, scene: 'lobby', padId: null, queue: null, match: null, booted: false };
 const SID = 's' + rnd() + Date.now().toString(36);   // unique per tab
-const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null };
+const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default' };
 
 /* ---------------- Keybinds ---------------- */
 const KEY_DEFAULTS = {
   block: 'KeyQ', bump: 'KeyQ', dive: 'ControlLeft', jumpSet: 'KeyE',
-  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space'
+  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE'
 };
 const KEY_LABELS = {
   block: 'Block', bump: 'Bump', dive: 'Dive', jumpSet: 'Jump Set', groundSet: 'Ground Set',
-  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump'
+  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact'
 };
 let KEYS = Object.assign({}, KEY_DEFAULTS);
 try { const s = JSON.parse(localStorage.getItem('vg_keys') || 'null'); if (s) KEYS = Object.assign({}, KEY_DEFAULTS, s); } catch (e) { }
@@ -318,7 +333,7 @@ function setBind(code) {
 $('#kbReset').onclick = () => { KEYS = Object.assign({}, KEY_DEFAULTS); localStorage.removeItem('vg_keys'); renderKeys(); toast('Keybinds reset'); };
 
 /* ---------------- Panels ---------------- */
-const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel'];
+const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel'];
 function openPanel(sel) { PANELS.forEach(p => $(p).classList.add('hidden')); if (sel) { $(sel).classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); } }
 function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); rebinding = null; }
 function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')); }
@@ -352,7 +367,7 @@ function writePresence() {
   presenceRef.onDisconnect().remove();
 }
 async function becomeGuest() {
-  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {};
+  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {}; me.skins = {}; me.skin = 'default';
   me.name = await pickGuestName();
   localStorage.removeItem('vg_session');
   applyIdentityUI(); writePresence(); onIdentityChanged();
@@ -455,7 +470,7 @@ function onIdentityChanged() {
   if (profileUnsub) profileUnsub(); if (friendsUnsub) friendsUnsub(); if (reqUnsub) reqUnsub();
   profileUnsub = friendsUnsub = reqUnsub = null;
   if (!me.guest) {
-    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); } });
+    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; me.skins = v.skins || {}; me.skin = v.skin || 'default'; applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); if (typeof renderShop === 'function' && !$('#shopPanel').classList.contains('hidden')) renderShop(); } });
     profileUnsub = () => pr.off('value', cb);
     const fr = db.ref('friends/' + me.id); const cb2 = fr.on('value', s => { me.friends = s.val() || {}; renderFriends(); });
     friendsUnsub = () => fr.off('value', cb2);
@@ -533,6 +548,32 @@ const hemi = new THREE.HemisphereLight(0xdff2ff, 0xc9b08a, 0.5); scene.add(hemi)
 const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = true;
 sun.shadow.mapSize.set(1536, 1536); sun.shadow.camera.left = -28; sun.shadow.camera.right = 28; sun.shadow.camera.top = 28; sun.shadow.camera.bottom = -28; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90; sun.shadow.bias = -0.0005;
 sun.position.set(14, 26, 10); scene.add(sun); scene.add(sun.target);
+const SUN_DIR = new THREE.Vector3(0.5, 0.8, -0.3).normalize();
+const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(7, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff1a8, fog: false })); scene.add(sunMesh);
+const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false })); scene.add(moonMesh);
+function estHours() {   // hours (0-24, fractional) in US Eastern time
+  try { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date()); const g = t => +(p.find(x => x.type === t) || {}).value || 0; return (g('hour') % 24) + g('minute') / 60 + g('second') / 3600; }
+  catch (e) { const d = new Date(); return d.getUTCHours() - 5 + d.getUTCMinutes() / 60; }
+}
+const DAY_SKY = new THREE.Color(0x8fd0f5), DUSK_SKY = new THREE.Color(0xf3a56b), NIGHT_SKY = new THREE.Color(0x0c1230);
+let isNight = false;
+function updateDayNight(force) {
+  const h = estHours(); const day = h >= 8 && h < 20; isNight = !day;
+  let a, el;
+  if (day) { a = (h - 8) / 12 * Math.PI; el = Math.sin(a); }
+  else { a = (((h - 20) + 24) % 24) / 12 * Math.PI; el = Math.sin(a); }
+  SUN_DIR.set(Math.cos(a) * 0.9, Math.max(0.05, el), -0.35).normalize();   // rises in the east, sets in the west, over the sea side
+  sunMesh.visible = day; moonMesh.visible = !day;
+  if (day) {
+    sun.intensity = 0.25 + 0.55 * el; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff4e0); hemi.intensity = 0.3 + 0.3 * el;
+    const sky = el < 0.25 ? DUSK_SKY.clone().lerp(DAY_SKY, el / 0.25) : DAY_SKY;
+    if (S.scene === 'lobby') { scene.background = sky; if (scene.fog) scene.fog.color = sky; }
+  } else {
+    sun.intensity = 0.05; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.045;
+    if (S.scene === 'lobby') { scene.background = NIGHT_SKY; if (scene.fog) scene.fog.color = NIGHT_SKY; }
+  }
+}
+setInterval(updateDayNight, 15000);
 
 /* ---- helpers ---- */
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 1, metalness: 0 }, extra));
@@ -596,6 +637,9 @@ const POSES = {
   spikeHit:    { shL: [-35, 0, 18], shR: [-30, 0, -6], elL: [-25, 0, 0], elR: [-5, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [26, 0, 0], knR: [26, 0, 0], spine: [20, 0, 8], neck: [8, 0, 0] },
   tip:         { shL: [-65, 0, 18], shR: [-160, 0, -6], elL: [-25, 0, 0], elR: [-12, 0, 0], hipL: [-18, 0, 0], hipR: [-18, 0, 0], knL: [36, 0, 0], knR: [36, 0, 0], spine: [-3, 0, 0], neck: [-12, 0, 0] },
   dive:        { shL: [-100, 0, 8], shR: [-100, 0, -8], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [6, 0, 0], hipR: [6, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [0, 0, 0], neck: [-25, 0, 0] },
+  diveL:       { shL: [-20, 0, 95], shR: [-30, 0, 35], elL: [0, 0, 0], elR: [-20, 0, 0], hipL: [-10, 0, 20], hipR: [-25, 0, 5], knL: [20, 0, 0], knR: [45, 0, 0], spine: [0, 0, 12], neck: [0, 0, 20] },
+  diveR:       { shL: [-30, 0, -35], shR: [-20, 0, -95], elL: [-20, 0, 0], elR: [0, 0, 0], hipL: [-25, 0, -5], hipR: [-10, 0, -20], knL: [45, 0, 0], knR: [20, 0, 0], spine: [0, 0, -12], neck: [0, 0, -20] },
+  diveB:       { shL: [-150, 0, 20], shR: [-150, 0, -20], elL: [-10, 0, 0], elR: [-10, 0, 0], hipL: [-35, 0, 0], hipR: [-35, 0, 0], knL: [55, 0, 0], knR: [55, 0, 0], spine: [-10, 0, 0], neck: [-20, 0, 0] },
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
@@ -612,60 +656,72 @@ class Rig {
     this.tilt = new THREE.Group(); this.tilt.position.y = HIP_Y; this.root.add(this.tilt);
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
-    const jm = jerseyMats(variant);
+    const dealer = variant === 'dealer';
+    const jm = dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     this.torso = box(0.56, TORSO_H, 0.3, jm.torso, 0, TORSO_H / 2, 0, spine);
     const neck = joint('neck', spine, 0, TORSO_H, 0);
-    const skinFace = mat(0xf3d1b0, { map: FACE_TEX, transparent: true });
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), [SKIN, SKIN, SKIN, SKIN, skinFace, SKIN]); head.position.y = 0.23; head.castShadow = true; neck.add(head);
+    const skinM = dealer ? mat(0x6b4a30) : SKIN;
+    const skinFace = mat(dealer ? 0x6b4a30 : 0xf3d1b0, { map: FACE_TEX, transparent: true });
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.23; head.castShadow = true; neck.add(head);
+    if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
+      box(0.46, 0.14, 0.46, mat(0x111111), 0, 0.42, 0, neck); box(0.44, 0.05, 0.22, mat(0x111111), 0, 0.37, 0.3, neck);
+      box(0.44, 0.09, 0.05, mat(0x050505), 0, 0.27, 0.22, neck);
+      box(0.3, 0.05, 0.05, mat(0xf5c542), 0, 0.52, 0.17, spine);
+      box(0.6, 0.16, 0.34, mat(0x111111), 0, 0.5, -0.02, spine);
+      this.torso.material = jm.torso;
+    } else {
     // hair: simple blond cap + bangs, blue tips on the sides (head stays visible)
     box(0.46, 0.12, 0.46, HAIR, 0, 0.42, 0, neck);
     box(0.46, 0.1, 0.06, HAIR, 0, 0.37, 0.22, neck);
     box(0.06, 0.16, 0.22, HAIR_TIP, 0.24, 0.3, -0.06, neck); box(0.06, 0.16, 0.22, HAIR_TIP, -0.24, 0.3, -0.06, neck);
+    }
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
       const sh = joint('sh' + n, spine, sx * 0.41, SHOULDER_Y - HIP_Y, 0);
       box(0.25, 0.3, 0.25, jm.sleeve, 0, -0.15, 0, sh);
       const el = joint('el' + n, sh, 0, -0.3, 0);
-      box(0.24, 0.3, 0.24, SKIN, 0, -0.15, 0, el);
-      this['hand' + n] = box(0.24, 0.04, 0.24, SKIN, 0, -0.31, 0, el);
+      box(0.24, 0.3, 0.24, dealer ? jm.sleeve : SKIN, 0, -0.15, 0, el);
+      this['hand' + n] = box(0.24, 0.04, 0.24, skinM, 0, -0.31, 0, el);
       const hip = joint('hip' + n, this.body, sx * 0.145, HIP_Y, 0);
       box(0.26, 0.32, 0.26, jm.shorts, 0, -0.16, 0, hip);
       const kn = joint('kn' + n, hip, 0, -0.32, 0);
-      box(0.25, 0.3, 0.25, SKIN, 0, -0.14, 0, kn);
+      box(0.25, 0.3, 0.25, dealer ? jm.shorts : SKIN, 0, -0.14, 0, kn);
       box(0.26, 0.08, 0.3, SHOE, 0, -0.27, 0.02, kn);
     }
     this.cur = {}; this.target = {};
     for (const k in J) { this.cur[k] = new THREE.Vector3(); this.target[k] = new THREE.Vector3(); }
     this.anim = 'idle'; this.animUntil = 0; this.base = 'idle'; this.runPhase = 0; this.moveSpeed = 0;
-    this.tiltX = 0; this.tiltZ = 0; this.pitch = 0; this.pitchTarget = 0;
+    this.tiltX = 0; this.tiltZ = 0; this.pitch = 0; this.pitchTarget = 0; this.roll = 0; this.rollTarget = 0;
+    if (dealer) this.root.scale.setScalar(RIG_SCALE * 0.82);
     this.setPose('idle');
   }
   setPose(name, until = 0) { this.anim = POSES[name] ? name : 'idle'; this.animUntil = until; }
-  snap() { for (const k in this.j) { const p = (POSES[this.anim] || POSES.idle)[k] || [0, 0, 0]; this.cur[k].set(p[0] * D, p[1] * D, p[2] * D); this.j[k].rotation.set(this.cur[k].x, this.cur[k].y, this.cur[k].z); } this.pitch = this.pitchTarget; this.applyTilt(); }
+  snap() { for (const k in this.j) { const p = (POSES[this.anim] || POSES.idle)[k] || [0, 0, 0]; this.cur[k].set(p[0] * D, p[1] * D, p[2] * D); this.j[k].rotation.set(this.cur[k].x, this.cur[k].y, this.cur[k].z); } this.pitch = this.pitchTarget; this.roll = this.rollTarget; this.applyTilt(); }
   applyTilt() {
     this.tilt.rotation.x = this.tiltZ * 0.5 + this.pitch;
-    this.tilt.rotation.z = this.tiltX * 0.45;                                // lean toward the tilt side
-    this.tilt.position.y = HIP_Y - Math.sin(Math.max(0, this.pitch)) * 0.42;  // dive: body drops to the floor instead of floating
+    this.tilt.rotation.z = this.tiltX * 0.45 + this.roll;                    // lean toward the tilt side (+ dive roll)
+    const drop = Math.max(Math.sin(Math.abs(this.pitch)), Math.sin(Math.abs(this.roll)));
+    this.tilt.position.y = HIP_Y - drop * 0.42;                              // dives: body drops toward the floor
   }
   update(dt, t) {
     if (this.animUntil && t > this.animUntil) { this.anim = this.base; this.animUntil = 0; }
     const pose = POSES[this.anim] || POSES.idle;
     for (const k in this.j) {
       const p = pose[k] || [0, 0, 0]; const tg = this.target[k]; tg.set(p[0] * D, p[1] * D, p[2] * D);
-      if (this.anim === 'idle' && this.moveSpeed > 0.5) {         // run cycle
-        this.runPhase += dt * 5.5 * Math.min(1, this.moveSpeed / 6);
+      if (this.anim === 'idle' && this.moveSpeed > 0.5) {         // run cycle: slower, bigger swings
+        this.runPhase += dt * 4.2 * Math.min(1, this.moveSpeed / 6);
         const s = Math.sin(this.runPhase), c = -s;
-        if (k === 'shL') tg.x = s * 40 * D; if (k === 'shR') tg.x = c * 40 * D;
-        if (k === 'elL' || k === 'elR') tg.x = -30 * D;
-        if (k === 'hipL') tg.x = c * 38 * D; if (k === 'hipR') tg.x = s * 38 * D;
-        if (k === 'knL') tg.x = Math.max(0, s) * 50 * D; if (k === 'knR') tg.x = Math.max(0, c) * 50 * D;
-        if (k === 'spine') tg.x = 5 * D;
+        if (k === 'shL') { tg.x = s * 58 * D; tg.z = 6 * D; } if (k === 'shR') { tg.x = c * 58 * D; tg.z = -6 * D; }
+        if (k === 'elL') tg.x = (-35 - Math.max(0, s) * 40) * D; if (k === 'elR') tg.x = (-35 - Math.max(0, c) * 40) * D;
+        if (k === 'hipL') tg.x = c * 55 * D; if (k === 'hipR') tg.x = s * 55 * D;
+        if (k === 'knL') tg.x = Math.max(0, s) * 75 * D; if (k === 'knR') tg.x = Math.max(0, c) * 75 * D;
+        if (k === 'spine') tg.x = 8 * D; if (k === 'neck') tg.x = -6 * D;
       } else if (this.anim === 'idle' && k === 'spine') { tg.x = Math.sin(t * 2) * 1.0 * D; }
       const cu = this.cur[k]; cu.lerp(tg, Math.min(1, dt * 14));
       this.j[k].rotation.set(cu.x, cu.y, cu.z);
     }
-    this.pitch = lerp(this.pitch, this.pitchTarget, Math.min(1, dt * 10));
+    this.pitch = lerp(this.pitch, this.pitchTarget, Math.min(1, dt * 10)); this.roll = lerp(this.roll, this.rollTarget, Math.min(1, dt * 10));
     this.applyTilt();
   }
   handPos(side, out) { return this['hand' + side].getWorldPosition(out || new THREE.Vector3()); }
@@ -679,12 +735,15 @@ function renderPoseIcons() {
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 20); cam.position.set(1.6, 1.5, 2.9); cam.lookAt(0, 0.85, 0);
   const rig = new Rig('white'); sc.add(rig.root);
   const specs = { bump: {}, set: {}, dive: { pitch: 1.25 }, block: {}, spikeCharge: {}, spikeHit: {}, hold: {}, toss: {}, tip: {} };
+  rig.rollTarget = 0;
   for (const name in specs) {
     rig.setPose(name); rig.pitchTarget = specs[name].pitch || 0; rig.pitch = rig.pitchTarget;
     rig.root.position.y = name === 'dive' ? 0.15 : 0; rig.snap();
     r2.render(sc, cam); ICONS[name] = r2.domElement.toDataURL('image/png');
   }
-  rig.root.visible = false; const bm = makeBallMesh(); bm.mesh.position.set(0, 0.85, 0); bm.mesh.scale.setScalar(2.2); sc.add(bm.mesh); r2.render(sc, cam); ICONS.ball = r2.domElement.toDataURL('image/png');
+  rig.root.visible = false;
+  for (const id of Object.keys(SKINS)) { const bm = makeBallMesh(id); bm.mesh.position.set(0, 0.85, 0); bm.mesh.scale.setScalar(2.2); sc.add(bm.mesh); r2.render(sc, cam); ICONS['skin_' + id] = r2.domElement.toDataURL('image/png'); sc.remove(bm.mesh); }
+  ICONS.ball = ICONS.skin_default;
   r2.dispose();
 }
 
@@ -724,6 +783,7 @@ function makePad(id, label, cap, x, z, yaw, mode, practice) {
    ===================================================================== */
 const lobby = new THREE.Group();
 const WALK = []; let INDOOR_COUNT = 0;
+let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -796,6 +856,8 @@ function buildLobby() {
   box(1.8, 0.1, 1.0, darkWood, 0, 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, 0.22, lz, lobby);
   const rug = new THREE.Mesh(new THREE.CircleGeometry(3.6, 8), mat(0xe3d3b4)); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.01, 1.2); rug.receiveShadow = true; lobby.add(rug);
   box(4, 1.0, 1.0, darkWood, 0, 0.5, 11, lobby); box(4.4, 0.1, 1.3, mat(0xf5ead6), 0, 1.05, 11, lobby);          // front counter
+  box(1.2, 0.5, 0.8, darkWood, 0, 0.25, 12.2, lobby);                                                        // step behind the counter
+  NPC = new Rig('dealer'); NPC.root.position.set(0, 0.5, 12.2); NPC.root.rotation.y = Math.PI; lobby.add(NPC.root);
   const plant = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
   plant(-11.5, 11.5); plant(11.5, 11.5); plant(-11.5, -4.5); plant(11.5, 4.5); plant(-39.5, 9.5); plant(-17, 9.5); plant(17, 7.5); plant(31.5, 7.5);
   const board = box(0.12, 2.4, 0.6, mat(0xf07a5a), 12.4, 1.25, 9.5, lobby); board.rotation.z = -0.15;                 // surfboard
@@ -828,12 +890,12 @@ function buildNet(parent, x, z, yaw, half, antX) {
 /* ---- landing marks ---- */
 const MARKS = [];
 function landingMark(x, z, inCourt) {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(0.55, 28), new THREE.MeshBasicMaterial({ color: inCourt ? 0x3ecf5a : 0xe5484d, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+  const m = new THREE.Mesh(new THREE.CircleGeometry(BALL_R, 28), new THREE.MeshBasicMaterial({ color: inCourt ? 0x3ecf5a : 0xe5484d, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); scene.add(m); MARKS.push({ m, t0: performance.now() });
 }
 function updateMarks() {
   const now = performance.now();
-  for (let i = MARKS.length - 1; i >= 0; i--) { const k = MARKS[i]; const a = (now - k.t0) / 2500; if (a >= 1) { scene.remove(k.m); k.m.geometry.dispose(); k.m.material.dispose(); MARKS.splice(i, 1); } else { k.m.material.opacity = 0.95 * (1 - a); k.m.scale.setScalar(1 + a * 0.6); } }
+  for (let i = MARKS.length - 1; i >= 0; i--) { const k = MARKS[i]; const a = (now - k.t0) / 2500; if (a >= 1) { scene.remove(k.m); k.m.geometry.dispose(); k.m.material.dispose(); MARKS.splice(i, 1); } else { k.m.material.opacity = 0.95 * (1 - a); } }
 }
 
 /* =====================================================================
@@ -882,9 +944,48 @@ function drawScore(a, b, mode) {
    BALL
    ===================================================================== */
 const BALL_R = 0.3, BALL_G = 12.5;   // slightly floaty ball gravity
-function makeBallMesh() {
-  const tex = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#f6f6f6'; g.fillRect(0, 0, w, h); for (let i = 0; i < 4; i++) { g.fillStyle = '#2f6bff'; g.fillRect(i * 128, 0, 44, h); g.fillStyle = '#ffd000'; g.fillRect(i * 128 + 44, 0, 44, h); } g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, 118, w, 20); });
-  const m = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 20, 16), mat(0xffffff, { map: tex, roughness: .7 })); m.castShadow = true;
+/* ball skins: same radius / hitbox for every skin, looks only */
+const SKINS = {
+  default: { name: 'Classic', price: 0 },
+  galaxy:  { name: 'Galaxy', price: 2000 },
+  lowpoly: { name: 'Low Poly', price: 1500 },
+  fire:    { name: 'Fire', price: 2500 },
+  neon:    { name: 'Neon', price: 3000 },
+  gold:    { name: 'Gold', price: 5000 },
+  beach:   { name: 'Beach', price: 1000 },
+};
+const SKIN_CACHE = {};
+function skinMaterial(id) {
+  if (SKIN_CACHE[id]) return SKIN_CACHE[id];
+  let m;
+  if (id === 'galaxy') {
+    const tex = canvasTex(512, 256, (g, w, h) => {
+      g.fillStyle = '#1b2a8c'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 260; i++) { const x = Math.random() * w, y = Math.random() * h, r = Math.random() * 1.6 + 0.3; g.fillStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.65})`; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = '#d3262e'; g.lineWidth = 6; for (let i = 0; i < 3; i++) { const x = i * w / 3 + 40; g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + 70, h * 0.3, x - 70, h * 0.7, x, h); g.stroke(); }
+    });
+    m = mat(0xffffff, { map: tex, roughness: .35, metalness: .15 });
+  } else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true });
+  else if (id === 'fire') {
+    const tex = canvasTex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffdd55'); gr.addColorStop(0.5, '#ff6a1f'); gr.addColorStop(1, '#8a0f0f'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = '#2a0a05'; g.lineWidth = 8; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128 + 60, h); g.stroke(); } });
+    m = mat(0xffffff, { map: tex, roughness: .5 });
+  } else if (id === 'neon') {
+    const tex = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, w, h); g.strokeStyle = '#39ff7a'; g.lineWidth = 10; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, 0); g.lineTo(i * 128 + 20, h); g.stroke(); } g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke(); });
+    m = mat(0xffffff, { map: tex, emissive: 0x1aff66, emissiveMap: tex, emissiveIntensity: .8, roughness: .4 });
+  } else if (id === 'gold') m = mat(0xffc63a, { metalness: .9, roughness: .25 });
+  else if (id === 'beach') {
+    const tex = canvasTex(512, 256, (g, w, h) => { const cols = ['#ffffff', '#e5484d', '#f5c542', '#3b8ff0', '#ffffff', '#3ecf5a', '#e5484d', '#f5c542']; for (let i = 0; i < 8; i++) { g.fillStyle = cols[i]; g.fillRect(i * 64, 0, 64, h); } });
+    m = mat(0xffffff, { map: tex, roughness: .7 });
+  } else {
+    const tex = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#f6f6f6'; g.fillRect(0, 0, w, h); for (let i = 0; i < 4; i++) { g.fillStyle = '#2f6bff'; g.fillRect(i * 128, 0, 44, h); g.fillStyle = '#ffd000'; g.fillRect(i * 128 + 44, 0, 44, h); } g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, 118, w, 20); });
+    m = mat(0xffffff, { map: tex, roughness: .7 });
+  }
+  return SKIN_CACHE[id] = m;
+}
+const BALL_GEO = new THREE.SphereGeometry(BALL_R, 20, 16), BALL_GEO_LP = new THREE.IcosahedronGeometry(BALL_R, 1);
+function applySkin(mesh, id) { id = SKINS[id] ? id : 'default'; mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id; }
+function makeBallMesh(skin = 'default') {
+  const m = new THREE.Mesh(BALL_GEO, skinMaterial('default')); applySkin(m, skin); m.castShadow = true;
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.2, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .35 })); shadow.rotation.x = -Math.PI / 2;
   return { mesh: m, shadow };
 }
@@ -916,9 +1017,9 @@ let T = 0;
    B = the ball the local player is currently engaged with (holding / last reached). */
 const balls = new Map();
 let B = null;
-function makeBall(id, sceneName) {
-  const bm = makeBallMesh(); scene.add(bm.mesh); scene.add(bm.shadow);
-  const b = { id, scene: sceneName, active: false, held: null, frozen: false, pos: new V3(), vel: new V3(), g: 1, seq: 0, t: 0, hitter: null, hitType: null, prevHitter: null, prevType: null, touches: 0, sideTeam: 'A', spin: new V3(), landed: false, serve: false, tossedBy: null, mesh: bm.mesh, shadow: bm.shadow };
+function makeBall(id, sceneName, skin = 'default') {
+  const bm = makeBallMesh(skin); scene.add(bm.mesh); scene.add(bm.shadow);
+  const b = { id, scene: sceneName, active: false, held: null, frozen: false, pos: new V3(), vel: new V3(), g: 1, seq: 0, t: 0, hitter: null, hitType: null, prevHitter: null, prevType: null, touches: 0, sideTeam: 'A', spin: new V3(), landed: false, serve: false, tossedBy: null, skin, mesh: bm.mesh, shadow: bm.shadow };
   b.mesh.visible = b.shadow.visible = false; balls.set(id, b); return b;
 }
 function removeBall(id) { const b = balls.get(id); if (!b) return; scene.remove(b.mesh); scene.remove(b.shadow); balls.delete(id); if (B === b) B = null; }
@@ -960,7 +1061,7 @@ document.addEventListener('mousemove', e => {
 function toggleShiftLock() {
   shiftLock = !shiftLock;
   if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement) document.exitPointerLock();
-  updateLockHint(); toast('Shift lock ' + (shiftLock ? 'ON' : 'OFF'), '', 1200);
+  updateLockHint();
 }
 $('#lockHint').onclick = () => canvas.requestPointerLock();
 document.addEventListener('pointerlockchange', updateLockHint);
@@ -969,11 +1070,11 @@ function updateLockHint() {
   $('#lockHint').classList.add('hidden');
   if (!shiftLock && !locked) rightDrag = false;
   $('#crosshair').classList.toggle('hidden', !(shiftLock && locked));
-  $('#hintBar').textContent = shiftLock ? 'SHIFT = shift lock off  |  ESC = free cursor' : 'SHIFT = shift lock  |  Hold right click = look';
 }
 
 /* ---------------- Actions ---------------- */
 function onPress(code) {
+  if (code === KEYS.interact && P.onGround && nearNPC()) { openShop(); return; }
   if (code === KEYS.jump) tryJump();
   if (code === KEYS.serve) trySpawnBall(true);
   else if (code === KEYS.spawnBall) trySpawnBall(false);
@@ -1049,7 +1150,7 @@ function blockContact() {
   const s = B.vel.length(); const tz = P.tilt.y, tx = P.tilt.x; const nd = netDir();
   let vel, g = 1;
   if (tz >= 0) {
-    if (s >= 13) { const dir = withLateral(nd, tx, 30); const sp = s * 0.88; const ang = 52 * D; vel = new V3(dir.x * Math.cos(ang) * sp, -Math.sin(ang) * sp, dir.z * Math.cos(ang) * sp); g = 0.35; }
+    if (s >= 13) { const dir = withLateral(nd, tx, 30); const sp = s * 0.5; const ang = 52 * D; vel = new V3(dir.x * Math.cos(ang) * sp, -Math.sin(ang) * sp, dir.z * Math.cos(ang) * sp); g = 0.35; }
     else { const tg = P.pos.clone().addScaledVector(withLateral(nd, tx, 30), 5.5); tg.y = 0; vel = launchTo(B.pos, tg, B.pos.y + 3.6); }
   } else {
     const f = clamp((s - 6) / 22, 0, 1); const dist = 1.5 + 6.5 * f;
@@ -1065,15 +1166,26 @@ function releaseSpike() {
   const c = chargeAt(T - P.chargeStart);
   if (c <= 0.3) doTip(); else doSpike(c);           // quick tap (<= 150ms) = tip
 }
+function netAhead(from, fwd) {                 // distance to the nearest net in front of the ball (Infinity if none)
+  let best = Infinity;
+  for (const n of netsFor()) {
+    const dn = fwd.x * n.nx + fwd.z * n.nz; if (Math.abs(dn) < 0.2) continue;
+    const dist = -((from.x - n.cx) * n.nx + (from.z - n.cz) * n.nz) / dn; if (dist < 0.3) continue;
+    const lat = -(from.x + fwd.x * dist - n.cx) * n.nz + (from.z + fwd.z * dist - n.cz) * n.nx;
+    if (Math.abs(lat) < n.half + 2) best = Math.min(best, dist);
+  }
+  return best;
+}
+// pitch (rad) that lands a shot of speed s under gravity gg at horizontal distance R with height change h (low trajectory); null if unreachable
+function ballisticPitch(s, gg, R, h) { const disc = s * s * s * s - gg * (gg * R * R + 2 * h * s * s); if (disc < 0) return null; return Math.atan((s * s - Math.sqrt(disc)) / (gg * R)); }
 function spikeGeom() {
   const tz = P.tilt.y; const fwd = P.jumpFwd.clone().normalize();      // aim = facing at the moment you jumped; tilt never steers it
-  let dMid = 7, clearPitch = -Math.PI / 2;
-  if (S.match && !S.match.practice) {
-    const toNet = Math.abs(B.pos.z) / Math.max(0.3, Math.abs(fwd.z)); dMid = clamp(toNet + COURT_L / 4, 3, 18);
-    clearPitch = Math.atan2((NET_H + 0.35) - B.pos.y, toNet);
-  }
+  let toNet = netAhead(B.pos, fwd); if (!isFinite(toNet)) toNet = 7;
+  const dMid = clamp(toNet + COURT_L / 4, 3, 18);
+  const clearPitch = Math.atan2((NET_H + 0.35) - B.pos.y, toNet);
   const neutralPitch = Math.max(Math.atan2(-B.pos.y, dMid), clearPitch);
-  return { tz, fwd, neutralPitch, clearPitch };
+  const far = clamp((toNet - 3) / 8, 0, 1);                              // 0 at the net, 1 from the back line
+  return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
   P.rig.setPose('spikeHit', T + 0.4);
@@ -1085,9 +1197,21 @@ function doSpike(c) {
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
     return;
   }
-  let pitch = tz >= 0 ? lerp(neutralPitch, -60 * D, tz) : lerp(neutralPitch, neutralPitch * 0.4, -tz);   // S tilt: flatter, but never lifted
+  const { toNet, far } = spikeGeom();
+  let pitch = tz >= 0 ? lerp(neutralPitch, -60 * D, tz) : lerp(neutralPitch, neutralPitch * 0.4, -tz);   // near the net: as before
   if (tz < 0.35) pitch = Math.max(pitch, clearPitch);
-  hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), 0.18, c);
+  let g = 0.18;
+  if (far > 0) {                                                        // far from the net: aim higher with more gravity so every tilt can still land in
+    const gFar = lerp(0.18, 2.6, far); const gg = BALL_G * gFar;      // heavier and heavier the further back you are
+    const R = tz >= 0 ? lerp(toNet + COURT_L / 4, toNet + 1.5, tz) : lerp(toNet + COURT_L / 4, toNet + COURT_L / 2 - 0.8, -tz);
+    let pf = ballisticPitch(sp, gg, R, -B.pos.y); if (pf === null) pf = 40 * D;
+    for (let i = 0; i < 6; i++) {                                       // make sure it clears the net on the way
+      const t = toNet / (sp * Math.cos(pf)); const y = B.pos.y + sp * Math.sin(pf) * t - 0.5 * gg * t * t;
+      if (y >= NET_H + 0.4) break; pf += 4 * D;
+    }
+    pitch = lerp(pitch, pf, Math.min(1, far / 0.3)); g = gFar;
+  }
+  hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c);
 }
 function doTip() {
   P.rig.setPose('tip', T + 0.4);
@@ -1098,7 +1222,15 @@ function doTip() {
   if (tz > 0) { sp = lerp(7, 5.0, tz); pitch = lerp(32, 62, tz) * D; } else if (tz < 0) { sp = lerp(7, 9.0, -tz); pitch = lerp(32, 22, -tz) * D; }
   hitBall('tip', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), 1);
 }
-function doDive() { P.dive = { t0: T, dur: 0.55, dir: cf(), hit: false }; P.rig.setPose('dive'); P.rig.pitchTarget = 1.25; }
+function doDive() {
+  const dir = P.moving ? P.moveDir.clone() : cf();
+  P.dive = { t0: T, dur: 0.55, dir, hit: false };
+  const side = dir.dot(cr()), fwd = dir.dot(cf());
+  let pose = 'dive', pitch = 1.25, roll = 0;
+  if (Math.abs(fwd) >= Math.abs(side)) { if (fwd < 0) { pose = 'diveB'; pitch = -0.95; } }
+  else if (side > 0) { pose = 'diveR'; pitch = 0; roll = -1.15; } else { pose = 'diveL'; pitch = 0; roll = 1.15; }
+  P.rig.setPose(pose); P.rig.pitchTarget = pitch; P.rig.rollTarget = roll; P.diveAnim = { pitch, roll };
+}
 function diveContact() {
   P.dive.hit = true; const tg = P.pos.clone().addScaledVector(cf(), 2.5); tg.y = 0;
   hitBall('dive', launchTo(B.pos, tg, Math.max(5.5, B.pos.y + 3)), 1);
@@ -1109,10 +1241,9 @@ function trySpawnBall(serveMode) {
   const M = S.match; let b;
   if (!M) b = balls.get(SID) || makeBall(SID, 'lobby'); else b = balls.get('match');
   if (!b) return;
-  B = b; const inHand = !!serveMode || !!(M && !M.practice);
+  B = b; b.skin = me.skin || 'default'; applySkin(b.mesh, b.skin);
   b.active = true; b.frozen = false; b.vel.set(0, 0, 0); b.hitter = null; b.hitType = null; b.prevHitter = null; b.touches = 0; b.sideTeam = P.team; b.serve = false; b.tossedBy = null; b.landed = false; b.seq++; b.t = snow();
-  if (inHand) { P.holding = true; P.serveMode = true; P.serveAim = null; b.held = SID; P.rig.base = 'hold'; P.rig.setPose('hold'); }
-  else { b.held = null; b.pos.copy(P.pos).add(new V3(0, 6.5, 0)).addScaledVector(cf(), 0.6); b.t = snow(); }   // drops in from high above
+  P.holding = true; P.serveMode = !!serveMode || !!(M && !M.practice); P.serveAim = null; b.held = SID; P.rig.base = 'hold'; P.rig.setPose('hold');
   writeBall(b);
 }
 function doToss() {
@@ -1124,7 +1255,7 @@ function doToss() {
     const a = P.serveAim || new THREE.Vector2(); const m = Math.min(1, a.length());
     const w = camR().multiplyScalar(a.x).add(camF().multiplyScalar(a.y)); if (m > 0.01) w.normalize();
     b.serve = true; hitBall('toss', w.multiplyScalar(0.8 + 2.4 * m).add(new V3(0, 9.4, 0)), 1);
-  } else { b.serve = false; hitBall('toss', cf().multiplyScalar(0.4).add(new V3(0, 8.8, 0)), 1); }
+  } else { b.serve = false; hitBall('toss', cf().multiplyScalar(0.4).add(new V3(0, Math.sqrt(2 * BALL_G * (P.pos.y + 1.7 + 5 - b.pos.y)), 0)), 1); }   // apex 5 m over the head
   P.serveMode = false; P.serveAim = null;
   const M = S.match; if (M && !M.practice && M.state === 'serve') mwrite('state', 'rally');
 }
@@ -1150,7 +1281,7 @@ function updatePlayer(dt) {
   tryAct();
   if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
-    if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.setPose('idle'); P.rig.base = 'idle'; }
+    if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
     else { const sp = 7.5 * (1 - e * 0.6); P.vel.x = P.dive.dir.x * sp; P.vel.z = P.dive.dir.z * sp; }
   } else if (P.onGround) {
     const mv = steering ? new V3() : camF().multiplyScalar(iz).add(camR().multiplyScalar(ix));
@@ -1275,7 +1406,7 @@ function projectServeAim() {
 }
 
 /* ---------------- Ball sync ---------------- */
-function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, by: SID }; }
+function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, skin: b.skin || 'default', by: SID }; }
 function writeBall(b) {
   if (!b || !S.online) return;
   if (b.id === 'match') { const r = mref('ball'); if (r) r.set(ballRecord(b)); }
@@ -1287,6 +1418,7 @@ function receiveBall(b, v) {
   b.seq = v.seq; b.active = !!v.active; b.held = v.held || null; b.frozen = !!v.frozen; b.g = v.g || 1; b.t = v.t || snow();
   b.hitter = v.hitter || null; b.hitType = v.hitType || null; b.prevHitter = v.prevHitter || null; b.prevType = v.prevType || null; b.touches = v.touches || 0; b.sideTeam = v.sideTeam || 'A';
   b.serve = !!v.serve; b.tossedBy = v.tossedBy || null; b.landed = false;
+  if (v.skin && v.skin !== b.skin) { b.skin = v.skin; applySkin(b.mesh, b.skin); }
   if (P.holding && B === b && b.held !== SID) { P.holding = false; P.serveMode = false; P.serveAim = null; P.rig.base = P.onGround ? 'idle' : 'air'; P.rig.setPose(P.rig.base); }
   if (b.active && !b.held) {
     b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz);
@@ -1310,28 +1442,37 @@ function remoteUpsert(sid, d) {
   if (!r) {
     const rig = new Rig(variant); scene.add(rig.root); rig.root.position.set(d.x || 0, d.y || 0, d.z || 0);
     const tag = document.createElement('div'); tag.className = 'tag'; $('#tags').appendChild(tag);
-    r = { rig, tag, target: new V3(d.x || 0, d.y || 0, d.z || 0), ry: d.ry || 0, data: d, speed: 0, lastPos: new V3(d.x || 0, 0, d.z || 0), lastT: T };
+    r = { rig, tag, buf: [], data: d, speed: 0 };
     remotes.set(sid, r);
   }
-  const moved = Math.hypot((d.x || 0) - r.lastPos.x, (d.z || 0) - r.lastPos.z); const dtT = Math.max(0.05, T - r.lastT);
-  r.speed = moved / dtT; r.lastPos.set(d.x || 0, 0, d.z || 0); r.lastT = T;
-  r.target.set(d.x || 0, d.y || 0, d.z || 0); r.ry = d.ry || 0; r.data = d;
+  r.buf.push({ t: T, x: d.x || 0, y: d.y || 0, z: d.z || 0, ry: d.ry || 0 }); if (r.buf.length > 12) r.buf.shift();
+  r.data = d;
   if (r.rig.anim !== d.anim) r.rig.setPose(d.anim || 'idle');
-  r.rig.tiltX = d.tx || 0; r.rig.tiltZ = d.tz || 0; r.rig.pitchTarget = d.pt || 0;
+  r.rig.tiltX = d.tx || 0; r.rig.tiltZ = d.tz || 0; r.rig.pitchTarget = d.pt || 0; r.rig.rollTarget = d.rl || 0;
   r.tag.textContent = d.name || '?';
 }
 function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
+const INTERP_DELAY = 0.2;                       // render other players 200 ms in the past so their movement is smooth
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
-    r.rig.root.position.lerp(r.target, Math.min(1, dt * 12));
-    let d = r.ry - r.rig.root.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); r.rig.root.rotation.y += d * Math.min(1, dt * 12);
+    const buf = r.buf; if (!buf.length) continue;
+    const rt = T - INTERP_DELAY; const p = r.rig.root.position; let px = p.x, pz = p.z, ry = r.rig.root.rotation.y;
+    if (buf.length === 1 || rt <= buf[0].t) { const a = buf[0]; p.set(a.x, a.y, a.z); ry = a.ry; }
+    else {
+      let i = buf.length - 1; while (i > 0 && buf[i - 1].t > rt) i--;
+      const a = buf[i - 1], b = buf[i];
+      if (rt <= b.t) { const f = (rt - a.t) / Math.max(0.001, b.t - a.t); p.set(lerp(a.x, b.x, f), lerp(a.y, b.y, f), lerp(a.z, b.z, f)); let dr = b.ry - a.ry; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); ry = a.ry + dr * f; }
+      else { const ex = Math.min(rt - b.t, 0.12); const span = Math.max(0.05, b.t - a.t); p.set(b.x + (b.x - a.x) / span * ex, b.y, b.z + (b.z - a.z) / span * ex); ry = b.ry; }   // brief extrapolation if a packet is late
+    }
+    r.rig.root.rotation.y = ry;
+    r.speed = lerp(r.speed, Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 0.001), Math.min(1, dt * 10));
     r.rig.moveSpeed = r.rig.anim === 'idle' ? r.speed : 0;
     r.rig.update(dt, T);
   }
 }
 function myState() {
-  return { name: me.name, id: me.id, team: S.scene === 'match' ? P.team : 'L', x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), ry: +P.ry.toFixed(2), anim: P.rig.anim, tx: +P.tilt.x.toFixed(2), tz: +P.tilt.y.toFixed(2), pt: P.dive ? 1.25 : 0 };
+  return { name: me.name, id: me.id, team: S.scene === 'match' ? P.team : 'L', x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), ry: +P.ry.toFixed(2), anim: P.rig.anim, tx: +P.tilt.x.toFixed(2), tz: +P.tilt.y.toFixed(2), pt: P.diveAnim ? P.diveAnim.pitch : 0, rl: P.diveAnim ? P.diveAnim.roll : 0 };
 }
 
 /* ---------------- Tags / charge bar projection ---------------- */
@@ -1360,7 +1501,9 @@ function updateCamera() {
   const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : COURT_COLL, false);
   if (hits.length) pos.copy(target).addScaledVector(dirC, Math.max(0.6, hits[0].distance - 0.35));
   camera.position.lerp(pos, hits.length ? 1 : 0.5); camera.lookAt(target.add(f.multiplyScalar(1.5)));
-  sun.target.position.copy(P.pos); sun.position.set(P.pos.x + 14, 26, P.pos.z + 10);
+  sun.target.position.copy(P.pos); sun.position.copy(P.pos).addScaledVector(SUN_DIR, 40);
+  sunMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230); moonMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230);
+  sunMesh.visible = !isNight && S.scene === 'lobby'; moonMesh.visible = isNight && S.scene === 'lobby';
 }
 
 /* ---------------- Action cards ---------------- */
@@ -1379,6 +1522,48 @@ function updateCards() {
   const show = (S.match && S.match.practice) || (S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z));
   const usig = (show ? 1 : 0) + '|' + KEYS.spawnBall + KEYS.serve;
   if (usig !== utilSig) { utilSig = usig; $('#utilCards').classList.toggle('hidden', !show); $('#utilCards').innerHTML = show ? cardHtml('spawnBall', 'SPAWN BALL', 'ball') + cardHtml('serve', 'SERVE', 'ball') : ''; }
+}
+
+/* ---------------- Lil Man Dealer (NPC) + shop ---------------- */
+function nearNPC() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC_POS.x, P.pos.z - NPC_POS.z) < 4.2; }
+let npcTag = null;
+function projectNpc() {
+  if (!npcTag) { npcTag = document.createElement('div'); npcTag.className = 'tag'; npcTag.textContent = 'Lil Man Dealer'; $('#tags').appendChild(npcTag); }
+  const showTag = S.scene === 'lobby' && P.pos.distanceTo(NPC_POS) < 30;
+  npcTag.style.display = showTag ? '' : 'none';
+  if (showTag) { _v.copy(NPC_POS); _v.y += 1.75; _v.project(camera); const vis = _v.z < 1; npcTag.style.display = vis ? '' : 'none'; npcTag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; npcTag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
+  const el = $('#npcPrompt'); const on = nearNPC() && !uiOpen();
+  el.classList.toggle('hidden', !on); if (!on) return;
+  el.querySelector('b').textContent = keyName(KEYS.interact);
+  _v.copy(NPC_POS); _v.y += 2.15; _v.project(camera);
+  el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+}
+function openShop() { openPanel('#shopPanel'); renderShop(); }
+function renderShop() {
+  $('#shopMoney').textContent = me.guest ? 'Sign in to buy' : '$' + (me.dollars || 0).toLocaleString();
+  const grid = $('#shopGrid'); grid.innerHTML = '';
+  for (const id of Object.keys(SKINS)) {
+    if (id === 'default') continue;
+    const sk = SKINS[id]; const owned = !!(me.skins && me.skins[id]); const eq = me.skin === id;
+    const d = document.createElement('div'); d.className = 'item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '');
+    d.innerHTML = `<img src="${ICONS['skin_' + id] || ''}" alt=""><div class="nm">${sk.name}</div><div class="pr">${owned ? 'OWNED' : '$' + sk.price.toLocaleString()}</div><button>${eq ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}</button>`;
+    d.querySelector('button').onclick = () => owned ? equipSkin(eq ? 'default' : id) : buySkin(id);
+    grid.appendChild(d);
+  }
+  const d = document.createElement('div'); d.className = 'item' + (me.skin === 'default' ? ' equipped' : ' owned');
+  d.innerHTML = `<img src="${ICONS.skin_default || ''}" alt=""><div class="nm">Classic</div><div class="pr">FREE</div><button>${me.skin === 'default' ? 'EQUIPPED' : 'EQUIP'}</button>`;
+  d.querySelector('button').onclick = () => equipSkin('default'); grid.appendChild(d);
+}
+async function buySkin(id) {
+  if (me.guest) { toast('Sign in to buy skins', 'err'); return; }
+  const price = SKINS[id].price;
+  const res = await db.ref('profiles/' + me.id).transaction(pr => { if (!pr) return pr; if ((pr.dollars || 0) < price) return; pr.dollars = (pr.dollars || 0) - price; pr.skins = pr.skins || {}; pr.skins[id] = true; pr.skin = id; return pr; });
+  if (!res.committed) { toast(`Not enough dollars ($${price.toLocaleString()} needed)`, 'err'); return; }
+  toast('Bought ' + SKINS[id].name + '!', 'ok');
+}
+function equipSkin(id) {
+  if (me.guest) { me.skin = id; renderShop(); return; }
+  db.ref('profiles/' + me.id + '/skin').set(id);
 }
 
 /* =====================================================================
@@ -1591,7 +1776,7 @@ function beginMatch(M) {
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
   if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }
   removeBall(SID);
-  scene.remove(lobby); scene.add(court); scene.background = new THREE.Color(0xdfe6ee); scene.fog = null;
+  scene.remove(lobby); scene.add(court); scene.background = new THREE.Color(0xdfe6ee); scene.fog = null; sunMesh.visible = moonMesh.visible = false;
   P.team = M.teams.B && M.teams.B[SID] ? 'B' : 'A';
   const mates = Object.keys(M.teams[P.team] || {}).sort(); const idx = Math.max(0, mates.indexOf(SID));
   P.pos.copy(spawnPos(P.team, idx, mates.length)); P.vel.set(0, 0, 0); P.onGround = true; P.ry = camYaw = P.team === 'A' ? 0 : Math.PI; camPitch = 0.3;
@@ -1632,7 +1817,7 @@ function leaveMatch() {
     const r = db.ref('matches/' + M.id); const pref = r.child('players/' + SID); pref.onDisconnect().cancel(); pref.remove().then(() => r.child('players').once('value')).then(s => { if (!s.exists()) r.remove(); });
   }
   S.match = null; S.scene = 'lobby'; remotesClear(); removeBall('match'); B = null;
-  scene.remove(court); scene.add(lobby); scene.background = new THREE.Color(SKY); scene.fog = new THREE.Fog(SKY, 60, 160);
+  scene.remove(court); scene.add(lobby); scene.background = new THREE.Color(SKY); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true);
   P.pos.set(0, 0, 8); P.vel.set(0, 0, 0); P.ry = camYaw = Math.PI; P.onGround = true; P.holding = false; P.serveMode = false; P.dive = null; P.charging = false; setMyRig('white'); P.rig.base = 'idle'; P.rig.setPose('idle');
   $('#chargeBar').classList.add('hidden');
   $('#matchHud').classList.add('hidden'); $('#bigMsg').textContent = '';
@@ -1668,10 +1853,9 @@ function simulate(dt) {
 function tick(nowMs) {
   let dt = (nowMs - last) / 1000; last = nowMs;
   if (!S.booted) return;
-  acc += Math.min(dt, document.hidden ? 6 : 0.25);   // long catch-up only when tabbed out; no hitch spirals while playing
-  let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; }
-  if (document.hidden) return;
-  updateCamera(); projectTags(); projectServeAim(); updateCards(); updateMarks();
+  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } return; }
+  acc = 0; simulate(Math.min(dt, 1 / 30));            // one step per rendered frame: smooth at 60, 120 or 144 Hz
+  updateCamera(); projectTags(); projectServeAim(); updateCards(); updateMarks(); projectNpc();
   if (S.scene === 'match') updateMatchHud();
   syncSelf();
   renderer.shadowMap.needsUpdate = (frameNo++ % 2) === 0;   // shadows refresh every other frame (cheaper)
@@ -1692,7 +1876,7 @@ async function cleanupStale() {
 }
 async function boot(online) {
   if (S.booted) return; S.online = online;
-  buildLobby(); buildCourt(); renderPoseIcons();
+  buildLobby(); buildCourt(); renderPoseIcons(); updateDayNight(true);
   LOBBY_COLL = COLLIDERS.filter(c => c.parent === lobby); COURT_COLL = COLLIDERS.filter(c => c.parent === court);
   setMyRig('white');
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
