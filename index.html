@@ -692,7 +692,7 @@ const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign(
    and every other per-face texture rely on that), but the edges are filleted and the shoulder normals are
    computed analytically so shading flows across the seams instead of breaking at them.
    Grid lines are placed only where the fillet needs them, so a 12 m wall costs the same as a 20 cm limb. */
-const BEVEL = 0.13;                                   // fillet radius as a fraction of the smallest side
+const BEVEL = 0.06;                                   // fillet radius as a fraction of the smallest side
 function roundedBoxGeo(w, h, d, rr, k = 2) {
   const r = Math.min(rr, w * 0.495, h * 0.495, d * 0.495);
   if (!(r > 1e-4)) return new THREE.BoxGeometry(w, h, d);
@@ -728,7 +728,7 @@ function roundedBoxGeo(w, h, d, rr, k = 2) {
 }
 const GEO_CACHE = new Map();
 function boxGeo(w, h, d, rr) {
-  const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.08) : rr;
+  const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.04) : rr;
   const k = Math.min(w, h, d) < 0.7 ? 2 : 1;              // characters and props get a rounder fillet; walls and floors chamfer once
   const key = w + ',' + h + ',' + d + ',' + r.toFixed(4) + ',' + k;
   let g = GEO_CACHE.get(key); if (!g) { g = roundedBoxGeo(w, h, d, r, k); GEO_CACHE.set(key, g); }
@@ -859,7 +859,7 @@ class Rig {
     cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
     const neck = joint('neck', spine, 0, TORSO_H + 0.04, 0);
     const skinFace = mat(0xffffff, { map: dealer ? FACE_TEX_DARK : (girl ? FACE_TEX_GIRL : FACE_TEX) });
-    const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.05), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
+    const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.025), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
       box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck);
@@ -1629,7 +1629,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys.delete(e.code); if (!uiOpen()) onRelease(e.code); });
 addEventListener('blur', () => { keys.clear(); rightDrag = false; });
-document.addEventListener('contextmenu', e => { if (e.target === canvas || document.pointerLockElement) e.preventDefault(); });
+document.addEventListener('contextmenu', e => e.preventDefault());   // never show the browser's right-click menu
 canvas.addEventListener('mousedown', e => {
   const code = 'Mouse' + e.button;
   if (rebinding) { setBind(code); return; }
@@ -1646,7 +1646,7 @@ document.addEventListener('mousemove', e => {
 });
 function toggleShiftLock() {
   shiftLock = !shiftLock;
-  if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement) document.exitPointerLock();
+  if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement && !rightDrag) document.exitPointerLock();   // a held right click keeps looking after shift lock comes off
   updateLockHint();
 }
 $('#lockHint').onclick = () => canvas.requestPointerLock();
@@ -1654,7 +1654,6 @@ document.addEventListener('pointerlockchange', updateLockHint);
 function updateLockHint() {
   const locked = document.pointerLockElement === canvas;
   $('#lockHint').classList.add('hidden');
-  if (!shiftLock && !locked) rightDrag = false;
   $('#crosshair').classList.toggle('hidden', !(shiftLock && locked));
 }
 
@@ -1782,7 +1781,7 @@ function spikeGeom() {
   return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
-  if (!ballReach(highPos(), REACH_A, 0.75)) return false;                 // spike hitbox: 75% as tall
+  if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
@@ -1816,7 +1815,7 @@ function doSpike(c) {
   hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c); return true;
 }
 function doTip() {
-  if (!ballReach(highPos(), REACH_A, 0.75)) return false;
+  if (!ballReach(highPos(), REACH_A, 0.6)) return false;
   if (B.serve) return doSpike(0.3);                              // a tap on a serve toss = soft serve
   const { tz, fwd } = spikeGeom();
   let sp = 7, pitch = 32 * D;

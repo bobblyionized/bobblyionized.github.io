@@ -69,7 +69,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys.delete(e.code); if (!uiOpen()) onRelease(e.code); });
 addEventListener('blur', () => { keys.clear(); rightDrag = false; });
-document.addEventListener('contextmenu', e => { if (e.target === canvas || document.pointerLockElement) e.preventDefault(); });
+document.addEventListener('contextmenu', e => e.preventDefault());   // never show the browser's right-click menu
 canvas.addEventListener('mousedown', e => {
   const code = 'Mouse' + e.button;
   if (rebinding) { setBind(code); return; }
@@ -86,7 +86,7 @@ document.addEventListener('mousemove', e => {
 });
 function toggleShiftLock() {
   shiftLock = !shiftLock;
-  if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement) document.exitPointerLock();
+  if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement && !rightDrag) document.exitPointerLock();   // a held right click keeps looking after shift lock comes off
   updateLockHint();
 }
 $('#lockHint').onclick = () => canvas.requestPointerLock();
@@ -94,7 +94,6 @@ document.addEventListener('pointerlockchange', updateLockHint);
 function updateLockHint() {
   const locked = document.pointerLockElement === canvas;
   $('#lockHint').classList.add('hidden');
-  if (!shiftLock && !locked) rightDrag = false;
   $('#crosshair').classList.toggle('hidden', !(shiftLock && locked));
 }
 
@@ -222,7 +221,7 @@ function spikeGeom() {
   return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
-  if (!ballReach(highPos(), REACH_A, 0.75)) return false;                 // spike hitbox: 75% as tall
+  if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
@@ -256,7 +255,7 @@ function doSpike(c) {
   hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c); return true;
 }
 function doTip() {
-  if (!ballReach(highPos(), REACH_A, 0.75)) return false;
+  if (!ballReach(highPos(), REACH_A, 0.6)) return false;
   if (B.serve) return doSpike(0.3);                              // a tap on a serve toss = soft serve
   const { tz, fwd } = spikeGeom();
   let sp = 7, pitch = 32 * D;
