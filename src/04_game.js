@@ -107,6 +107,7 @@ function onPress(code) {
   if (P.emote) stopEmote();
   if (code === KEYS.interact && P.onGround && nearNPC()) { openShop(); return; }
   if (code === KEYS.interact && P.onGround && nearNPC2()) { openTraitShop(); return; }
+  if (code === KEYS.interact && P.onGround && nearNPC3()) { openShop('woman'); return; }
   if (code === KEYS.jump) tryJump();
   if (code === KEYS.ability) { tryDash(); return; }
   if (code === KEYS.serve) trySpawnBall(true);
@@ -411,7 +412,7 @@ function updatePlayer(dt) {
   const prevPos = P.pos.clone();
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
   if (S.scene === 'lobby') {
-    const py = P.pos.y; if (walkable(nx, nz, py)) { P.pos.x = nx; P.pos.z = nz; } else if (walkable(nx, P.pos.z, py)) P.pos.x = nx; else if (walkable(P.pos.x, nz, py)) P.pos.z = nz;
+    const py = P.pos.y, air = !P.onGround; if (walkable(nx, nz, py, air)) { P.pos.x = nx; P.pos.z = nz; } else if (walkable(nx, P.pos.z, py, air)) P.pos.x = nx; else if (walkable(P.pos.x, nz, py, air)) P.pos.z = nz;
   } else {
     const mb = matchBounds();
     P.pos.x = clamp(nx, -mb.x + 1, mb.x - 1);
@@ -706,7 +707,7 @@ function updateCamera() {
   const target = P.pos.clone().add(new V3(0, 1.5, 0));                     // shift lock keeps the character centered
   const off = f.clone().multiplyScalar(-camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0));
   const fl = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // the floor you are on (second floor included)
-  const pos = target.clone().add(off); pos.y = clamp(pos.y, fl + 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? fl + 4.6 : (S.match && S.match.map === 'beach' ? 40 : 10.5));
+  const pos = target.clone().add(off); pos.y = clamp(pos.y, fl + 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? fl + (fl > 1 ? F2H - 0.5 : 4.6) : (S.match && S.match.map === 'beach' ? 40 : 10.5));
   const dirC = pos.clone().sub(target); const len = dirC.length(); dirC.normalize();
   camRay.set(target, dirC); camRay.far = len;
   const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : (S.match && S.match.map === 'beach' ? [] : COURT_COLL), false);
@@ -740,7 +741,8 @@ function updateCards() {
 /* ---------------- Lil Man Dealer (NPC) + shop ---------------- */
 function nearNPC() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC_POS.x, P.pos.z - NPC_POS.z) < 4.2; }
 function nearNPC2() { return S.scene === 'lobby' && !nearNPC() && Math.abs(P.pos.y - NPC2_POS.y) < 2 && Math.hypot(P.pos.x - NPC2_POS.x, P.pos.z - NPC2_POS.z) < 3.4; }
-const NPCS = [{ name: 'Lil Man Dealer', pos: NPC_POS, tagY: 1.75, promptY: 2.15, near: nearNPC, tag: null }, { name: 'Big Man Dealer', pos: NPC2_POS, tagY: 1.75, promptY: 2.1, near: nearNPC2, tag: null }];
+function nearNPC3() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC3_POS.x, P.pos.z - NPC3_POS.z) < 3.2; }
+const NPCS = [{ name: 'Lil Man Dealer', pos: NPC_POS, tagY: 1.75, promptY: 2.15, near: nearNPC, tag: null }, { name: 'Big Man Dealer', pos: NPC2_POS, tagY: 1.75, promptY: 2.1, near: nearNPC2, tag: null }, { name: 'Lil Woman Dealer', pos: NPC3_POS, tagY: 1.75, promptY: 2.1, near: nearNPC3, tag: null }];
 function projectNpc() {
   const el = $('#npcPrompt'); let prompted = false;
   for (const n of NPCS) {
@@ -756,7 +758,8 @@ function projectNpc() {
   }
   if (!prompted) el.classList.add('hidden');
 }
-let shopTab = 'skins';
+let shopTab = 'skins', shopDealer = 'lil';
+const DEALER_TABS = { lil: ['skins', 'models', 'fx'], woman: ['emotes'] };   // Lil Man sells balls / characters / score effects; Lil Woman sells emotes
 const SHOP_KINDS = {
   skins:  { items: SKINS, icon: 'skin_', owned: () => me.skins, cur: () => me.skin, def: 'default', ownedKey: 'skins', curKey: 'skin', note: 'Ball skins. Same size, same hitbox - looks only.' },
   models: { items: MODELS, icon: 'model_', owned: () => me.models, cur: () => me.model, def: 'boy', ownedKey: 'models', curKey: 'model', note: 'Characters. Pick who you play as.' },
@@ -764,10 +767,10 @@ const SHOP_KINDS = {
   emotes: { items: EMOTES, icon: 'emote_', owned: () => me.emotes, cur: () => null, def: null, ownedKey: 'emotes', curKey: null, note: 'Emotes. Equipped emotes go on your emote wheel (8 slots) - open it with ' + 'the Emote Wheel key.', multi: true },
 };
 $$('#shopPanel .tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; renderShop(); });
-function openShop() { openPanel('#shopPanel'); renderShop(); }
+function openShop(dealer = 'lil') { shopDealer = dealer; if (!DEALER_TABS[dealer].includes(shopTab)) shopTab = DEALER_TABS[dealer][0]; $('#shopTitle').textContent = dealer === 'woman' ? 'Lil Woman Dealer' : 'Lil Man Dealer'; openPanel('#shopPanel'); renderShop(); }
 function renderShop() {
   $('#shopMoney').textContent = me.guest ? 'Sign in to buy' : '$' + (me.dollars || 0).toLocaleString();
-  $$('#shopPanel .tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === shopTab));
+  $$('#shopPanel .tabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === shopTab); b.classList.toggle('hidden', !DEALER_TABS[shopDealer].includes(b.dataset.tab)); });
   const K = SHOP_KINDS[shopTab]; $('#shopNote').textContent = K.note;
   const grid = $('#shopGrid'); grid.innerHTML = '';
   const ownedMap = K.owned() || {}; const cur = K.cur();
@@ -857,7 +860,7 @@ function renderInventory() {
   const K = SHOP_KINDS[invTab]; const ownedMap = K.owned() || {}; const cur = K.cur(); const onWheel = K.multi ? wheelSlots() : [];
   const ids = Object.keys(K.items).filter(id => !K.items[id].price || ownedMap[id]).sort((a, b) => (RARITY_ORDER[K.items[a].rarity] - RARITY_ORDER[K.items[b].rarity]) || (K.items[a].price - K.items[b].price));
   const grid = $('#invGrid'); grid.innerHTML = '';
-  if (!ids.length) grid.innerHTML = '<div id="invEmpty">Nothing here yet - visit Lil Man Dealer.</div>';
+  if (!ids.length) grid.innerHTML = `<div id="invEmpty">Nothing here yet - visit ${invTab === 'emotes' ? 'Lil Woman Dealer in the hut on the pier' : 'Lil Man Dealer'}.</div>`;
   if (invSel && !ids.includes(invSel)) invSel = null;
   if (!invSel) invSel = ids.find(id => K.multi ? onWheel.includes(id) : cur === id) || ids[0] || null;
   for (const id of ids) {
@@ -870,7 +873,7 @@ function renderInventory() {
   const det = $('#invDetail'); det.classList.toggle('none', !invSel);
   if (!invSel) { det.innerHTML = 'Select an item'; return; }
   const it = K.items[invSel]; const eq = K.multi ? onWheel.includes(invSel) : cur === invSel;
-  const src = it.price ? `Bought from Lil Man Dealer for $${it.price.toLocaleString()}` : 'Free for everyone';
+  const src = it.price ? `Bought from ${invTab === 'emotes' ? 'Lil Woman Dealer' : 'Lil Man Dealer'} for $${it.price.toLocaleString()}` : 'Free for everyone';
   det.innerHTML = `<div class="nm">${it.name}</div><img src="${ICONS[K.icon + invSel] || ''}" alt=""><div class="rar r-${it.rarity}">${it.rarity}</div><div class="desc">${src}</div><button class="btn ${eq ? 'red' : 'green'}">${K.multi ? (eq ? 'REMOVE FROM WHEEL' : 'ADD TO WHEEL') : (eq ? (invSel === K.def ? 'EQUIPPED' : 'UNEQUIP') : 'EQUIP')}</button>`;
   const btn = det.querySelector('button'); if (!K.multi && eq && invSel === K.def) btn.disabled = true;
   btn.onclick = () => K.multi ? equipEmote(invSel) : equipItem(invTab, eq ? K.def : invSel);
@@ -900,7 +903,7 @@ function renderTraitsTab() {
     const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button><button class="del" title="Delete this trait">X</button>');
     const d = w.firstChild; const [eqB, delB] = d.querySelectorAll('button'); eqB.onclick = (e) => { e.stopPropagation(); equipTrait(k); }; delB.onclick = (e) => { e.stopPropagation(); deleteTrait(k); }; bag.appendChild(d);
   }
-  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes upstairs (stairs behind the house).</div>';
+  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes upstairs.</div>';
 }
 function equipTrait(key) {
   const tr = (me.traits || {})[key]; if (!tr || !TRAITS[tr.id]) return;

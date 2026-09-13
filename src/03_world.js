@@ -227,8 +227,8 @@ class Rig {
     this.tilt = new THREE.Group(); this.tilt.position.y = HIP_Y; this.root.add(this.tilt);
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
-    const big = variant === 'bigdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
-    const jm = big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
+    const big = variant === 'bigdealer', wd = variant === 'wdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
+    const jm = wd ? { torso: mat(0xe0559a), sleeve: mat(0xe0559a), shorts: mat(0x2a2a2a) } : big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
@@ -258,13 +258,14 @@ class Rig {
       box(0.08, 0.12, 0.16, HAIR_TIP, 0.22, -0.11, -0.04, neck); box(0.08, 0.12, 0.16, HAIR_TIP, -0.22, -0.11, -0.04, neck);
       box(0.14, 0.1, 0.06, HAIR_BOW, 0.15, 0.47, 0.05, neck); box(0.05, 0.14, 0.06, HAIR_BOW, 0.15, 0.47, 0.05, neck);
     }
+    if (wd) { box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck); box(0.28, 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine); box(0.56, 0.14, 0.32, mat(0xe0559a), 0, 0.56, -0.02, spine); }   // Lil Woman Dealer: shades, chain, pink hood
     }
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
       const sh = joint('sh' + n, spine, sx * (girl ? 0.32 : 0.36), SHOULDER_Y - HIP_Y, 0);
       box(0.19, 0.13, 0.19, jm.sleeve, 0, -0.03, 0, sh);                                            // shoulder / sleeve cap
       box(0.17, 0.32, 0.17, jm.sleeve, 0, -0.17, 0, sh);                                            // upper arm
       const el = joint('el' + n, sh, 0, -0.33, 0);
-      box(0.15, 0.3, 0.15, dealer || tux ? jm.sleeve : SKIN, 0, -0.15, 0, el);                       // forearm
+      box(0.15, 0.3, 0.15, dealer || tux || wd ? jm.sleeve : SKIN, 0, -0.15, 0, el);                       // forearm
       this['hand' + n] = box(0.13, 0.12, 0.08, skinM, 0, -0.35, 0.01, el);                          // hand
       const hip = joint('hip' + n, this.body, sx * (girl ? 0.14 : 0.13), HIP_Y, 0);
       box(0.23, 0.44, 0.23, jm.shorts, 0, -0.22, 0, hip);                                            // thigh
@@ -398,7 +399,8 @@ function updateWind() {
   WIND.set(Math.cos(ang) * str, 0, Math.sin(ang) * str);
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
-let NPC2 = null; const F2 = 5.5, F2H = 4; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
+let NPC3 = null; const NPC3_POS = new THREE.Vector3(-60, 0.3, -61.2);   // Lil Woman Dealer, in the hut at the end of the pier
+let NPC2 = null; const F2 = 5.5, F2H = 6; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -424,8 +426,11 @@ function buildLobby() {
   palm(-16, -16, 6); palm(6, -17, 5); palm(20, -15.5, 6.5); palm(-48, -6, 5); palm(40, 12, 6); palm(-50, 20, 5.5); palm(45, 22, 6);
   for (const [x, z] of [[-6, -16], [14, -16.5], [-24, -15.5], [30, -16]]) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6), mat(0xc9c2b4)); r.position.set(x, 0.25, z); r.castShadow = true; lobby.add(r); }
   // --- center room 26x26 ---
-  floor(0, 0, 26, 26, woodM); ceil(0, 0, 26, 26, 5);
-  roof(0, 0, 30, 30);
+  floor(0, 0, 26, 26, woodM);
+  const HOLE = { x1: 7.4, x2: 12.6, z1: -13.2, z2: -9.7 };                                        // stairwell in the north-east corner
+  const around = (x1, x2, z1, z2, fn) => { fn(x1, HOLE.x1, z1, z2); fn(HOLE.x2, x2, z1, z2); if (HOLE.z1 > z1) fn(HOLE.x1, HOLE.x2, z1, HOLE.z1); fn(HOLE.x1, HOLE.x2, HOLE.z2, z2); };   // rects that tile (x1..x2, z1..z2) minus the hole
+  around(-13, 13, -13, 13, (a, b, c, d) => { if (b > a && d > c) ceil((a + b) / 2, (c + d) / 2, b - a, d - c, 5); });
+  around(-15, 15, -15, 15, (a, b, c, d) => { if (b > a && d > c) roof((a + b) / 2, (c + d) / 2, b - a, d - c); });
   wall(0, 13, 26, 0.4);                                                                  // south wall
   // north wall = window wall with a door in the middle out to the beach
   wall(-7.75, -13, 10.5, 0.4, 1.0); wall(7.75, -13, 10.5, 0.4, 1.0); wall(0, -13, 26, 0.4, 0.8, 4.2);
@@ -447,18 +452,20 @@ function buildLobby() {
   for (const x of [18, 24, 30]) { const gl = box(5.6, 3.2, 0.06, glassM, x, 2.6, -9, lobby); gl.castShadow = false; }
   wall(15, -5.75, 0.4, 6.5); wall(15, 5.75, 0.4, 6.5); wall(15, 0, 0.4, 5, 1.6, 3.4);
   WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5 }, { x1: -16, x2: -11, z1: -2.1, z2: 2.1 }, { x1: -40.5, x2: -15.5, z1: -10.5, z2: 10.5 }, { x1: 11, x2: 16, z1: -2.1, z2: 2.1 }, { x1: 15.5, x2: 32.5, z1: -8.5, z2: 8.5 });
-  WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5, y: F2 }, { x1: 9.6, x2: 11.4, z1: 12, z2: 13.9, y: F2 });   // second floor + its door
+  WALK.push({ x1: -12.5, x2: 12.5, z1: -10.2, z2: 12.5, y: F2 }, { x1: -12.5, x2: 7.4, z1: -12.5, z2: -10.2, y: F2 });   // second floor (minus the stairwell; overlaps the top of the stairs)
+  WALK.push({ x1: 2.4, x2: 12.4, z1: -12.4, z2: -10.0, ramp: 'x', h0: 0, h1: F2 });                            // the staircase
+  BLOCKED.push({ x1: 2.4, x2: 12.4, z1: -12.4, z2: -10.0, under: WALK[WALK.length - 1] });                       // nobody walks underneath the treads
   INDOOR_COUNT = WALK.length;
   // outside: the door, the beach in front, and around the house (water starts at z = -40); the south strip leaves room for the staircase
   WALK.push({ x1: -2.1, x2: 2.1, z1: -14.5, z2: -12 }, { x1: -95, x2: 95, z1: -39.2, z2: -13.6 }, { x1: -95, x2: -41.6, z1: -39.2, z2: 45 }, { x1: 33.6, x2: 95, z1: -39.2, z2: 45 });
-  WALK.push({ x1: -95, x2: 95, z1: 16.8, z2: 45 }, { x1: -95, x2: -9.5, z1: 13.6, z2: 16.8 }, { x1: 12.8, x2: 95, z1: 13.6, z2: 16.8 });
-  WALK.push({ x1: -9.5, x2: 9, z1: 13.8, z2: 16.4, ramp: 'x', h0: 0, h1: F2 }, { x1: 9, x2: 12.5, z1: 13.8, z2: 16.4, y: F2 });   // staircase + landing
+  WALK.push({ x1: -95, x2: 95, z1: 13.6, z2: 45 });
+  WALK.push({ x1: -61.1, x2: -58.9, z1: -57.6, z2: -39.2, y: 0.3 }, { x1: -60.75, x2: -59.25, z1: -58.2, z2: -57.4, y: 0.3 }, { x1: -62.6, x2: -57.4, z1: -63.1, z2: -58.2, y: 0.3 });   // pier, hut doorway, hut floor
   // beach courts (long axis along X, net across Z)
   const lineM = mat(0xffffff);
   for (const cx of [-34, 0, 34]) {
     const cz = -27.5, hx = COURT_L / 2, hz = COURT_W / 2;
     BEACH_COURTS.push({ cx, cz, hx, hz }); BEACH_NETS.push({ cx, cz, nx: 1, nz: 0, half: NET_HALF });
-    for (const [x, z, w, d] of [[cx, cz - hz, hx * 2, 0.12], [cx, cz + hz, hx * 2, 0.12], [cx - hx, cz, 0.12, hz * 2], [cx + hx, cz, 0.12, hz * 2], [cx, cz, 0.12, hz * 2]]) { const l = box(w, 0.03, d, lineM, x, 0.0, z, lobby); l.castShadow = false; }
+    for (const [x, z, w, d] of [[cx, cz - hz, hx * 2, 0.12], [cx, cz + hz, hx * 2, 0.12], [cx - hx, cz, 0.12, hz * 2], [cx + hx, cz, 0.12, hz * 2], [cx, cz, 0.12, hz * 2], [cx - hx / 3, cz, 0.12, hz * 2], [cx + hx / 3, cz, 0.12, hz * 2]]) { const l = box(w, 0.03, d, lineM, x, 0.0, z, lobby); l.castShadow = false; }   // incl. attack lines
     buildNet(lobby, cx, cz, Math.PI / 2, NET_HALF, COURT_W / 2);
   }
   // beach life: umbrellas, towels, chairs, boat, pier
@@ -509,47 +516,56 @@ function buildLobby() {
   box(4, 1.0, 1.0, darkWood, 0, 0.5, 11, lobby); box(4.4, 0.1, 1.3, mat(0xf5ead6), 0, 1.05, 11, lobby);          // front counter
   const counterBlock = box(4.8, 4, 2.6, wallM, 0, 2, 11.8, lobby); counterBlock.visible = false; COLLIDERS.push(counterBlock);   // invisible camera blocker: the camera never goes behind the counter
   box(1.2, 0.5, 0.8, darkWood, 0, 0.25, 12.2, lobby);                                                        // step behind the counter
-  // --- second floor: a glass lounge on top of the centre room, reached by an outside staircase on the south side ---
-  const slab = box(26.4, 0.3, 26.4, woodM, 0, F2 - 0.15, 0, lobby); COLLIDERS.push(slab);                       // its floor (top at F2)
+  // --- second floor: a tall glass lounge on top of the centre room, reached by a staircase inside along the north wall ---
+  around(-13.2, 13.2, -13.2, 13.2, (a, b, c, d) => { if (b > a && d > c) { const s = box(b - a, 0.3, d - c, woodM, (a + b) / 2, F2 - 0.15, (c + d) / 2, lobby); COLLIDERS.push(s); } });   // its floor (top at F2), minus the stairwell
   ceil(0, 0, 26, 26, F2 + F2H); const roof2 = box(30, 0.5, 30, trimM, 0, F2 + F2H + 0.25, 0, lobby); roof2.castShadow = roof2.receiveShadow = false;
-  const glassWall = (cx, cz, along, len, y) => {                                                              // low wall + posts + glass + top beam, along x or z
-    const horiz = along === 'x'; const w = horiz ? len : 0.4, d = horiz ? 0.4 : len;
-    wall(cx, cz, w, d, 1.0, y); wall(cx, cz, w, d, 0.8, y + 3.2);
+  const glassWall = (cx, cz, along, len, y) => {                                                              // low wall + posts + tall glass + top beam, along x or z
+    const horiz = along === 'x'; const w = horiz ? len : 0.4, d = horiz ? 0.4 : len; const gh = F2H - 1.8;
+    wall(cx, cz, w, d, 1.0, y); wall(cx, cz, w, d, 0.8, y + F2H - 0.8);
     const n = Math.round(len / 6.5); const seg = len / n;
     for (let i = 0; i <= n; i++) { const o = -len / 2 + i * seg; box(0.4, F2H, 0.4, wallM, horiz ? cx + o : cx, y + F2H / 2, horiz ? cz : cz + o, lobby); }
-    for (let i = 0; i < n; i++) { const o = -len / 2 + (i + 0.5) * seg; const gl = box(horiz ? seg - 0.4 : 0.06, 2.2, horiz ? 0.06 : seg - 0.4, glassM, horiz ? cx + o : cx, y + 2.1, horiz ? cz : cz + o, lobby); gl.castShadow = false; }
+    for (let i = 0; i < n; i++) { const o = -len / 2 + (i + 0.5) * seg; const gl = box(horiz ? seg - 0.4 : 0.06, gh, horiz ? 0.06 : seg - 0.4, glassM, horiz ? cx + o : cx, y + 1.0 + gh / 2, horiz ? cz : cz + o, lobby); gl.castShadow = false; }
   };
   glassWall(0, -13, 'x', 26, F2); glassWall(-13, 0, 'z', 26, F2); glassWall(13, 0, 'z', 26, F2);
-  wall(-1.75, 13, 22.5, 0.4, F2H, F2); wall(12.25, 13, 1.5, 0.4, F2H, F2); wall(10.5, 13, 2.5, 0.4, F2H - 2.3, F2 + 2.3);   // south wall with the door gap at x 9.5..11.5
-  box(2.9, 0.3, 0.5, darkWood, 10.5, F2 + 2.3, 13, lobby);                                                    // door lintel
-  const stairRise = F2, stairRun = 18.5, steps = 18;                                                          // outside staircase: x -9.5 -> 9, z 13.8..16.4
-  for (let i = 0; i < steps; i++) { const t = (i + 1) / steps; box(stairRun / steps + 0.02, 0.3, 2.6, darkWood, -9.5 + (i + 0.5) * stairRun / steps, t * stairRise - 0.15, 15.1, lobby); }
-  const under = box(stairRun, 0.35, 2.6, trimM, -0.25, stairRise / 2 - 0.35, 15.1, lobby); under.rotation.z = Math.atan2(stairRise, stairRun); under.castShadow = false;   // stringer under the treads
-  const rail = (z) => { const r = box(stairRun + 0.6, 0.12, 0.12, darkWood, -0.25, stairRise / 2 + 1.0, z, lobby); r.rotation.z = Math.atan2(stairRise, stairRun); for (let i = 0; i <= 6; i++) { const x = -9.5 + i * stairRun / 6; cyl(0.05, 0.05, 1.0, darkWood, x, x < -9.4 ? 0.5 : (x + 9.5) / stairRun * stairRise + 0.5, z, lobby, 6); } };
-  rail(16.35); rail(13.85);
-  box(3.6, 0.3, 2.6, darkWood, 10.75, F2 - 0.15, 15.1, lobby); for (const [px, pz] of [[9.3, 16.3], [12.4, 16.3], [12.4, 13.9]]) cyl(0.12, 0.12, F2 - 0.3, darkWood, px, (F2 - 0.3) / 2, pz, lobby, 6);   // landing + posts
-  box(3.6, 0.12, 0.12, darkWood, 10.75, F2 + 1.0, 16.35, lobby); box(0.12, 0.12, 2.6, darkWood, 12.55, F2 + 1.0, 15.1, lobby); for (const [px, pz] of [[10.75, 16.35], [12.55, 15.1]]) cyl(0.05, 0.05, 1.0, darkWood, px, F2 + 0.5, pz, lobby, 6);   // landing rails
+  wall(0, 13, 26, 0.4, F2H, F2);                                                                              // solid back wall
+  // indoor staircase: along the north wall, x 2.4 (bottom) -> 12.4 (top), z -12.4..-10
+  const stairRise = F2, stairRun = 10, steps = 18, sx0 = 2.4, sz = -11.2;
+  for (let i = 0; i < steps; i++) { const t = (i + 1) / steps; box(stairRun / steps + 0.02, 0.3, 2.4, darkWood, sx0 + (i + 0.5) * stairRun / steps, t * stairRise - 0.15, sz, lobby); }
+  const under = box(stairRun, 0.35, 2.4, trimM, sx0 + stairRun / 2, stairRise / 2 - 0.4, sz, lobby); under.rotation.z = Math.atan2(stairRise, stairRun); under.castShadow = false;   // stringer
+  const stairRail = (z) => { const r = box(stairRun + 0.4, 0.1, 0.1, darkWood, sx0 + stairRun / 2, stairRise / 2 + 1.0, z, lobby); r.rotation.z = Math.atan2(stairRise, stairRun); for (let i = 0; i <= 5; i++) { const x = sx0 + i * stairRun / 5; cyl(0.04, 0.04, 1.0, darkWood, x, (x - sx0) / stairRun * stairRise + 0.5, z, lobby, 6); } };
+  stairRail(-10.0);                                                                                           // open side only (the wall is on the other side)
+  box(0.1, 1.0, 3.5, darkWood, HOLE.x1 - 0.05, F2 + 0.5, (HOLE.z1 + HOLE.z2) / 2, lobby); for (const z of [-12.9, -11.5, -10.1]) cyl(0.04, 0.04, 1.0, darkWood, HOLE.x1 - 0.05, F2 + 0.5, z, lobby, 6);   // rail around the stairwell upstairs
+  box(HOLE.x2 - HOLE.x1, 0.1, 0.1, darkWood, (HOLE.x1 + HOLE.x2) / 2, F2 + 1.0, HOLE.z2 + 0.05, lobby); box(0.1, 1.0, 0.1, darkWood, HOLE.x1, F2 + 0.5, HOLE.z2 + 0.05, lobby);
   // upstairs furniture
   couch(0, 4.5, Math.PI, 0x7fb7d6, F2); couch(-5.5, -1, Math.PI / 2, 0xe8b86d, F2); couch(5.5, -1, -Math.PI / 2, 0xe8b86d, F2);
   box(1.8, 0.1, 1.0, darkWood, 0, F2 + 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, F2 + 0.22, lz, lobby);
   const rug2 = new THREE.Mesh(new THREE.CircleGeometry(3.6, 8), mat(0xd9c9e8)); rug2.rotation.x = -Math.PI / 2; rug2.position.set(0, F2 + 0.01, 1.2); rug2.receiveShadow = true; lobby.add(rug2);
   const plant2 = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, F2 + 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, F2 + 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
-  plant2(-11.5, 11.5); plant2(-11.5, -11); plant2(11.5, -11); plant2(6, 11.5);
-  const sign2 = box(4.2, 0.9, 0.12, darkWood, 0, F2 + 3.3, 12.75, lobby); const st2 = textPlane(3.9, 0.75, 'TRAIT LOUNGE', { size: 120, color: '#fff9ee' }); st2.position.set(0, 0, -0.07); st2.rotation.y = Math.PI; sign2.add(st2);
-  // --- beach huts around the house ---
-  const thatchM = mat(0xc9a961), hutM = [mat(0xf2d9b1), mat(0xe8c9a0), mat(0xf7e4c2)];
-  const hut = (x, z, ry, k = 0) => {
-    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; lobby.add(g);
-    const body = box(4.2, 2.6, 3.6, hutM[k % 3], 0, 1.3, 0, g); COLLIDERS.push(body);
-    const rf = new THREE.Mesh(new THREE.ConeGeometry(3.7, 1.7, 4), thatchM); rf.position.y = 2.6 + 0.85; rf.rotation.y = Math.PI / 4; rf.castShadow = true; g.add(rf);
-    box(4.5, 0.12, 3.9, thatchM, 0, 2.62, 0, g);                                                              // eave
-    box(0.9, 1.8, 0.1, darkWood, 0.6, 0.9, 1.82, g); box(0.16, 0.16, 0.04, mat(0xf5c542), 0.9, 0.95, 1.9, g);   // door + knob
-    const win = box(0.9, 0.7, 0.06, glassM, -1.1, 1.5, 1.82, g); win.castShadow = false; box(1.0, 0.08, 0.1, darkWood, -1.1, 1.12, 1.84, g);
-    for (const [sx, sz] of [[-1.9, 1.6], [1.9, 1.6]]) cyl(0.08, 0.08, 2.6, darkWood, sx, 1.3, sz, g, 6);
-    const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); const hx = 2.1 * c + 1.8 * s + 0.3, hz = 2.1 * s + 1.8 * c + 0.3;
-    BLOCKED.push({ x1: x - hx, x2: x + hx, z1: z - hz, z2: z + hz });
-  };
-  hut(-50, 12, 0.5, 0); hut(-52, 34, -0.3, 1); hut(-30, 31, 0.2, 2); hut(-8, 34, 0, 0); hut(14, 33, -0.15, 1); hut(40, 30, 0.35, 2); hut(48, 10, -0.6, 0); hut(-62, -8, 0.9, 1); hut(58, -8, -0.9, 2);
+  plant2(-11.5, 11.5); plant2(-11.5, -11); plant2(11.5, 11.5); plant2(6, 11.5);
+  const sign2 = box(4.2, 0.9, 0.12, darkWood, 0, F2 + 3.6, 12.75, lobby); const st2 = textPlane(3.9, 0.75, 'TRAIT LOUNGE', { size: 120, color: '#fff9ee' }); st2.position.set(0, 0, -0.07); st2.rotation.y = Math.PI; sign2.add(st2);
+  for (const [lx, lz] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) { const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe9c4 })); bulb.position.set(lx, F2 + F2H - 0.4, lz); lobby.add(bulb); cyl(0.02, 0.02, 0.3, darkWood, lx, F2 + F2H - 0.15, lz, lobby, 5); }
+  // --- the hut on the water: a thatched chill-out room at the end of the pier, home of Lil Woman Dealer (emotes) ---
+  const thatchM = mat(0xc9a961), hutM = mat(0xf2d9b1), HUT = { x: -60, z: -60.5, y: 0.3 };
+  {
+    const g = new THREE.Group(); g.position.set(HUT.x, 0, HUT.z); lobby.add(g);
+    for (const [px, pz] of [[-2.6, -2.6], [2.6, -2.6], [-2.6, 2.6], [2.6, 2.6], [0, -2.6], [0, 2.6]]) cyl(0.14, 0.14, 2.2, darkWood, px, -0.8, pz, g, 6);   // stilts in the water
+    const fl = box(6, 0.3, 6, woodM, 0, HUT.y - 0.15, 0, g); COLLIDERS.push(fl);
+    const wallH = 3.0, wy = HUT.y + wallH / 2;
+    for (const b of [box(6, wallH, 0.3, hutM, 0, wy, -2.85, g), box(0.3, wallH, 6, hutM, -2.85, wy, 0, g), box(0.3, wallH, 6, hutM, 2.85, wy, 0, g), box(2.2, wallH, 0.3, hutM, -1.9, wy, 2.85, g), box(2.2, wallH, 0.3, hutM, 1.9, wy, 2.85, g), box(1.6, 0.7, 0.3, hutM, 0, HUT.y + wallH - 0.35, 2.85, g)]) COLLIDERS.push(b);   // walls, doorway on the pier side
+    const rf = new THREE.Mesh(new THREE.ConeGeometry(5.4, 2.2, 4), thatchM); rf.position.y = HUT.y + wallH + 1.1; rf.rotation.y = Math.PI / 4; rf.castShadow = true; g.add(rf);
+    box(6.6, 0.14, 6.6, thatchM, 0, HUT.y + wallH + 0.02, 0, g);                                              // eave
+    for (const [wx, wz, ry] of [[-2.85, 0, Math.PI / 2], [2.85, 0, Math.PI / 2], [0, -2.85, 0]]) { const win = box(1.4, 0.9, 0.08, glassM, wx, HUT.y + 1.7, wz, g); win.rotation.y = ry; win.castShadow = false; }
+    const rug3 = new THREE.Mesh(new THREE.CircleGeometry(2.0, 8), mat(0xf4c2c2)); rug3.rotation.x = -Math.PI / 2; rug3.position.set(0, HUT.y + 0.01, 0.2); g.add(rug3);
+    const cushion = (cx, cz, col) => box(0.7, 0.25, 0.7, mat(col), cx, HUT.y + 0.125, cz, g);
+    cushion(-1.9, 1.4, 0xffb3c6); cushion(1.9, 1.4, 0xb3e0ff); cushion(-1.9, -0.6, 0xfff0a0); cushion(1.9, -0.6, 0xc8f5c8);
+    box(1.4, 0.08, 0.8, darkWood, 0, HUT.y + 0.45, -1.4, g); for (const [lx, lz] of [[-0.6, -1.7], [0.6, -1.7], [-0.6, -1.1], [0.6, -1.1]]) box(0.08, 0.45, 0.08, darkWood, lx, HUT.y + 0.22, lz, g);   // low table
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe0a8 })); lantern.position.set(0, HUT.y + 2.5, 0); g.add(lantern); cyl(0.02, 0.02, 0.5, darkWood, 0, HUT.y + 2.85, 0, g, 5);
+    const flagpole = cyl(0.05, 0.05, 2.0, mat(0xdddddd), 2.9, HUT.y + wallH + 2.0, 2.9, g, 5);
+    // the pier reaches the hut
+    for (let i = 8; i < 10; i++) box(2.4, 0.15, 1.9, darkWood, -60, 0.25, -40.5 - i * 2, lobby);
+  }
+  NPC3 = new Rig('wdealer', 'girl'); NPC3.root.position.set(NPC3_POS.x, NPC3_POS.y, NPC3_POS.z); NPC3.root.rotation.y = 0; NPC3.setPose('idle'); NPC3.snap(); lobby.add(NPC3.root);
+  AMBIENT.push({ update(t, dt) { NPC3.update(dt, t); NPC3.j.neck.rotation.y = Math.sin(t * 0.5) * 0.25; } });
   NPC = new Rig('dealer'); NPC.root.position.set(0, 0.5, 12.2); NPC.root.rotation.y = Math.PI; lobby.add(NPC.root);
   NPC2 = new Rig('bigdealer'); NPC2.root.scale.set(RIG_SCALE * 1.2 * 1.12, RIG_SCALE * 1.2, RIG_SCALE * 1.2 * 1.12);   // a big man: taller and broader
   NPC2.root.position.set(NPC2_POS.x, F2 - 0.22, NPC2_POS.z); NPC2.root.rotation.y = Math.PI; NPC2.setPose('sit'); NPC2.base = 'sit'; NPC2.snap(); lobby.add(NPC2.root);
@@ -577,9 +593,9 @@ function updateAmbient(t, dt) { updateWind(); for (const a of AMBIENT) a.update(
 const BLOCKED = [];   // footprints players cannot enter (huts)
 const inRect = (r, x, z) => x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2;
 function regionH(r, x, z) { if (!r.ramp) return r.y || 0; const t = clamp(r.ramp === 'x' ? (x - r.x1) / (r.x2 - r.x1) : (z - r.z1) / (r.z2 - r.z1), 0, 1); return r.h0 + (r.h1 - r.h0) * t; }   // floor height of a region at a point (ramps slope)
-function walkable(x, z, y = 0) {   // a spot is walkable at height y if some floor there is at most a step above you and not further below than a jump (so you cannot walk off the second floor)
-  if (BLOCKED.some(b => inRect(b, x, z))) return false;
-  return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return h <= y + 0.8 && h >= y - 3.8; });
+function walkable(x, z, y = 0, air = false) {   // on the ground: a floor within a step of your height (so you cannot walk off an edge); in the air: any floor at or below you to land on
+  if (BLOCKED.some(b => inRect(b, x, z) && (!b.under || y < regionH(b.under, x, z) - 0.8))) return false;   // (under a staircase: blocked unless you are on it)
+  return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return air ? h <= y + 0.8 : Math.abs(h - y) <= 0.8; });
 }
 function groundHeight(x, z, y) { let g = -Infinity; for (const r of WALK) if (inRect(r, x, z)) { const h = regionH(r, x, z); if (h <= y + 0.8 && h > g) g = h; } return g === -Infinity ? 0 : g; }   // the highest floor under you
 function indoors(x, z) { for (let i = 0; i < INDOOR_COUNT; i++) { const r = WALK[i]; if (x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2) return true; } return false; }
@@ -1015,7 +1031,7 @@ function buildBeachCourt() {
   const water = new THREE.Mesh(new THREE.PlaneGeometry(300, 160), mat(0x3fb4e6, { roughness: .8 })); water.rotation.x = -Math.PI / 2; water.position.set(100 + 30, -0.02, 0); beachCourt.add(water);   // sea along the +x side
   const shore = new THREE.Mesh(new THREE.PlaneGeometry(3, 300), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45, depthWrite: false })); shore.rotation.x = -Math.PI / 2; shore.position.set(50, 0.01, 0); beachCourt.add(shore);
   const lineM = mat(0xffffff); const hx = COURT_W / 2, hz = COURT_L / 2;
-  for (const [x, z, w, dd] of [[0, -hz, hx * 2, 0.12], [0, hz, hx * 2, 0.12], [-hx, 0, 0.12, hz * 2], [hx, 0, 0.12, hz * 2], [0, 0, hx * 2, 0.12]]) { const l = box(w, 0.03, dd, lineM, x, 0.0, z, beachCourt); l.castShadow = false; }
+  for (const [x, z, w, dd] of [[0, -hz, hx * 2, 0.12], [0, hz, hx * 2, 0.12], [-hx, 0, 0.12, hz * 2], [hx, 0, 0.12, hz * 2], [0, 0, hx * 2, 0.12], [0, -hz / 3, hx * 2, 0.12], [0, hz / 3, hx * 2, 0.12]]) { const l = box(w, 0.03, dd, lineM, x, 0.0, z, beachCourt); l.castShadow = false; }   // incl. attack lines
   buildNet(beachCourt, 0, 0, 0, NET_HALF, COURT_W / 2);
   const trunkM = mat(0xa9764f), leafM = mat(0x4fae5b);
   const palm = (x, z, h = 5) => { const t = cyl(0.18, 0.28, h, trunkM, x, h / 2, z, beachCourt, 7); t.rotation.z = 0.08; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const leaf = box(2.6, 0.08, 0.7, leafM, x + Math.cos(a) * 1.3, h - 0.15, z + Math.sin(a) * 1.3, beachCourt); leaf.rotation.y = -a; leaf.rotation.z = 0.35; } };
