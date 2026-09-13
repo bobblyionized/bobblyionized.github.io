@@ -2063,7 +2063,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
     P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
     if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
-  } else { P.moveDir.copy(dir); P.moving = true; }
+  } else { P.moveDir.copy(dir); P.moving = true; P.cd = 0; P.landLock = 0; P.act = null; }   // and the ground: set, dash, set again
   P.rig.setPose('dash', T + 0.15); lightningFx(P.pos.clone().add(new V3(0, 0.9, 0)), dir.clone().negate(), 0xfff1a0, 0xffe066, 6);   // yellow lightning crackles off you
 }
 function doDive() {
@@ -2553,7 +2553,7 @@ const TRAITS = {
   b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.3x power, lightning on contact.' },
   b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
   b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
-  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). In the air it cancels your fall and refreshes your air action: spike, dash, spike again.' },
+  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It refreshes your action - set, dash, set again - and in the air it also cancels your fall.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
