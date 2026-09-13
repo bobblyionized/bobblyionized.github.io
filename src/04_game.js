@@ -297,12 +297,12 @@ function tryDash() {                          // Dash (ability trait): a burst i
   const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
   const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
-  P.dash = { t0: T, dur: 0.24, dir }; P.dashReady = T + 3; P.vel.y = 0;
+  P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 5; P.vel.y = 0;
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
     P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
     if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
   } else { P.moveDir.copy(dir); P.moving = true; }
-  P.rig.setPose('dash', T + 0.24); lightningFx(P.pos.clone().add(new V3(0, 0.9, 0)), dir.clone().negate(), 0xfff1a0, 0xffe066, 6);   // yellow lightning crackles off you
+  P.rig.setPose('dash', T + 0.15); lightningFx(P.pos.clone().add(new V3(0, 0.9, 0)), dir.clone().negate(), 0xfff1a0, 0xffe066, 6);   // yellow lightning crackles off you
 }
 function doDive() {
   const dir = P.moving ? P.moveDir.clone() : cf();
@@ -369,7 +369,7 @@ function updatePlayer(dt) {
   if (P.dash) {
     const e = (T - P.dash.t0) / P.dash.dur;
     if (e >= 1) { P.dash = null; if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); } else { P.rig.base = 'air'; P.rig.setPose('air'); } }
-    else { const sp = 24 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
+    else { const sp = 38.5 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
   } else if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
@@ -710,7 +710,7 @@ const CARD_SETS = {
   hold: [['toss', 'TOSS', 'toss']],
 };
 let cardSig = '', utilSig = '';
-function cardHtml(act, label, pose, hold, cd = 0) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div>${cd > 0 ? `<div class="cdov" style="height:${Math.min(100, cd / 3 * 100).toFixed(0)}%"></div><div class="cdt">${cd.toFixed(1)}</div>` : ''}<div class="lbl">${label}</div></div>`; }
+function cardHtml(act, label, pose, hold, cd = 0) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div>${cd > 0 ? `<div class="cdov" style="height:${Math.min(100, cd / 5 * 100).toFixed(0)}%"></div><div class="cdt">${cd.toFixed(1)}</div>` : ''}<div class="lbl">${label}</div></div>`; }
 function updateCards() {
   const set = P.holding ? 'hold' : P.onGround ? 'ground' : 'air';
   const dash = set !== 'hold' && hasTrait('b3a'); const dcd = dash ? Math.max(0, (P.dashReady || 0) - T) : 0;
@@ -791,7 +791,7 @@ const TRAITS = {
   b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.3x power, lightning on contact.' },
   b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
   b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
-  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (3 s cooldown). In the air it cancels your fall and refreshes your air action: spike, dash, spike again.' },
+  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). In the air it cancels your fall and refreshes your air action: spike, dash, spike again.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
@@ -925,7 +925,7 @@ function playOpen(tier, tid) {                      // inventory steps aside, th
   const fx = $('#openFx'), chest = $('#openChest'), burst = $('#openBurst'), card = $('#openCard'), msg = $('#openMsg'), done = $('#openDone');
   fx.classList.remove('hidden'); fx.querySelectorAll('.spark').forEach(s => s.remove());
   chest.src = ICONS['box_' + tier] || ''; chest.classList.remove('shake'); void chest.offsetWidth; chest.classList.add('shake');
-  burst.classList.remove('go'); card.classList.remove('fly'); card.style.opacity = 0; msg.style.opacity = 0; done.style.opacity = 0; done.disabled = true;
+  burst.classList.remove('go'); card.classList.remove('fly'); card.style.opacity = 0; msg.style.opacity = 0; done.style.opacity = 0; done.classList.remove('ready'); fx.classList.remove('ready');
   card.className = 'tcard ' + (t.type === 'ability' ? 'abl' : 'pas'); card.querySelector('.ty').textContent = t.type; card.querySelector('.sym').textContent = t.sym; card.querySelector('.tn').textContent = t.name; card.querySelector('.td').textContent = t.desc;
   const stage = $('#openStage');
   setTimeout(() => {
@@ -933,10 +933,13 @@ function playOpen(tier, tid) {                      // inventory steps aside, th
     chest.src = ICONS['boxopen_' + tier] || chest.src; chest.classList.remove('shake');
     burst.classList.add('go'); card.classList.add('fly'); card.style.opacity = '';
     for (let i = 0; i < 18; i++) { const s = document.createElement('div'); s.className = 'spark'; const a = Math.random() * Math.PI * 2, r = 90 + Math.random() * 130; s.style.setProperty('--dx', Math.cos(a) * r + 'px'); s.style.setProperty('--dy', (Math.sin(a) * r - 60) + 'px'); s.style.background = i % 3 ? 'var(--yellow)' : '#fff'; stage.appendChild(s); }
-    setTimeout(() => { msg.innerHTML = `${t.name}<small>${t.type === 'ability' ? 'Ability trait' : 'Passive trait'} - added to your inventory</small>`; msg.style.opacity = 1; done.style.opacity = 1; done.disabled = false; }, 900);
+    setTimeout(() => { msg.innerHTML = `${t.name}<small>${t.type === 'ability' ? 'Ability trait' : 'Passive trait'} - added to your inventory</small>`; msg.style.opacity = 1; done.style.opacity = 1; done.classList.add('ready'); fx.classList.add('ready'); }, 900);
   }, 950);
 }
-$('#openDone').onclick = () => { $('#openFx').classList.add('hidden'); opening = false; openInventory('traits'); };
+function finishOpen() { $('#openFx').classList.add('hidden'); $('#openFx').classList.remove('ready'); opening = false; openInventory('traits'); }
+$('#openDone').onclick = (e) => { e.stopPropagation(); finishOpen(); };
+$('#openFx').addEventListener('click', e => { if (e.currentTarget.classList.contains('ready')) finishOpen(); });   // once the card is revealed, a click anywhere also continues
+document.addEventListener('keydown', e => { if (!$('#openFx').classList.contains('hidden') && $('#openFx').classList.contains('ready') && (e.code === 'Space' || e.code === 'Enter')) finishOpen(); });
 
 function groundDustColor() { return S.scene === 'match' ? 0xd9c7a8 : (indoors(P.pos.x, P.pos.z) ? 0xd8c4a0 : 0xf3e4bb); }
 /* ---------------- Wind HUD ---------------- */
