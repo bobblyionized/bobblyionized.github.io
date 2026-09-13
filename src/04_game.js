@@ -248,7 +248,7 @@ function doSpike(c) {
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.3 : 1);   // W tilt trades power for steepness; Double Spike hits 30% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
     const pitch = lerp(20, 5, c) * D, ss = (13 + 22 * c) * (P.doubleSpike ? 1.3 : 1) * (hasTrait('b3p1') ? 1.1 : 1);   // serve speed IS your spike power, uncapped (35 m/s at full charge); every spike modifier carries over; King Serve +10%
-    hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
+    hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), lerp(1, 2.0, c), c);   // the harder the serve, the heavier it falls (full charge ~ far back line)
     return true;
   }
   const { toNet, far } = spikeGeom();
@@ -336,7 +336,7 @@ function doToss() {
   if (P.serveMode) {                                                                  // second press: toss where the arrows point
     const a = P.serveAim || new THREE.Vector2(); const m = Math.min(1, a.length());
     const w = camR().multiplyScalar(a.x).add(camF().multiplyScalar(a.y)); if (m > 0.01) w.normalize();
-    b.serve = true; hitBall('toss', w.multiplyScalar(0.8 + 2.4 * m).add(new V3(0, 9.8, 0)), 0.7);   // floaty toss: ~5.5 m up under 70% gravity
+    b.serve = true; hitBall('toss', w.multiplyScalar(0.35 + 1.2 * m).add(new V3(0, 9.8, 0)), 0.7);   // floaty toss: ~5.5 m up under 70% gravity, drifting ~0.8 m (up to ~3.5 m when aimed)
   } else { b.serve = false; hitBall('toss', cf().multiplyScalar(0.4).add(new V3(0, Math.sqrt(2 * BALL_G * (P.pos.y + 1.7 + 5 - b.pos.y)), 0)), 1); }   // apex 5 m over the head
   P.serveMode = false; P.serveAim = null;
   const M = S.match; if (M && !M.practice && M.state === 'serve') mwrite('state', 'rally');
