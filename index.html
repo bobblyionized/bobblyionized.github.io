@@ -692,7 +692,7 @@ const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign(
    and every other per-face texture rely on that), but the edges are filleted and the shoulder normals are
    computed analytically so shading flows across the seams instead of breaking at them.
    Grid lines are placed only where the fillet needs them, so a 12 m wall costs the same as a 20 cm limb. */
-const BEVEL = 0.24;                                   // fillet radius as a fraction of the smallest side
+const BEVEL = 0.13;                                   // fillet radius as a fraction of the smallest side
 function roundedBoxGeo(w, h, d, rr, k = 2) {
   const r = Math.min(rr, w * 0.495, h * 0.495, d * 0.495);
   if (!(r > 1e-4)) return new THREE.BoxGeometry(w, h, d);
@@ -728,7 +728,7 @@ function roundedBoxGeo(w, h, d, rr, k = 2) {
 }
 const GEO_CACHE = new Map();
 function boxGeo(w, h, d, rr) {
-  const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.13) : rr;
+  const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.08) : rr;
   const k = Math.min(w, h, d) < 0.7 ? 2 : 1;              // characters and props get a rounder fillet; walls and floors chamfer once
   const key = w + ',' + h + ',' + d + ',' + r.toFixed(4) + ',' + k;
   let g = GEO_CACHE.get(key); if (!g) { g = roundedBoxGeo(w, h, d, r, k); GEO_CACHE.set(key, g); }
@@ -859,7 +859,7 @@ class Rig {
     cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
     const neck = joint('neck', spine, 0, TORSO_H + 0.04, 0);
     const skinFace = mat(0xffffff, { map: dealer ? FACE_TEX_DARK : (girl ? FACE_TEX_GIRL : FACE_TEX) });
-    const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.1), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
+    const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.05), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
       box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck);
