@@ -331,9 +331,9 @@ function diveContact() {
   P.dive.hit = true; const tg = P.pos.clone().addScaledVector(cf(), 2.5); tg.y = 0;
   hitBall('dive', launchTo(B.pos, tg, Math.max(5.5, B.pos.y + 3)), 1);
 }
-function canSpawnHere() { const M = S.match; if (!M) return S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z); return M.practice || (M.state === 'serve' && M.serve && M.serve.sid === SID); }
-function trySpawnBall(serveMode) {
-  if (!canSpawnHere() || P.holding) return;
+function canSpawnHere() { const M = S.match; if (!M) return S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z); return M.practice; }
+function trySpawnBall(serveMode, force = false) {
+  if ((!force && !canSpawnHere()) || P.holding) return;
   const M = S.match; let b;
   if (!M) b = balls.get(SID) || makeBall(SID, 'lobby'); else b = balls.get('match');
   if (!b) return;
@@ -361,7 +361,7 @@ function hitBall(type, vel, g, charge = 0) {
   b.prevHitter = b.hitter; b.prevType = b.hitType; b.hitter = SID; b.hitType = type; b.fx = me.fx || 'none'; b.hm = me.model || 'boy'; b.hitterPos = { x: P.pos.x, z: P.pos.z };
   if (type === 'toss' || type === 'block') { b.touches = 0; b.sideTeam = P.team; }
   else { if (b.sideTeam !== P.team) { b.sideTeam = P.team; b.touches = 1; } else b.touches++; }
-  if (type !== 'toss') b.serve = false;
+  if (type !== 'toss') { b.serve = false; P.serving = false; }                                       // the serve is away: you may step into the court again
   b.spin.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(vel.length() * 0.4);
   b.landed = false;
   b.ds = type === 'spike' && !!P.doubleSpike;                                                         // lightning spike: everyone sees the bolts
@@ -427,6 +427,7 @@ function updatePlayer(dt) {
     P.pos.x = clamp(nx, -mb.x + 1, mb.x - 1);
     let z = clamp(nz, -mb.z + 1, mb.z - 1);
     if (S.match && !S.match.practice) z = P.team === 'A' ? Math.min(z, -0.45) : Math.max(z, 0.45);
+    if (P.serving && P.onGround) { const back = courtDims().l / 2 + 0.35; z = P.team === 'A' ? Math.min(z, -back) : Math.max(z, back); }   // foot fault: no stepping over the back line until the serve is hit
     P.pos.z = z;
   }
   blockNetCrossing(prevPos, P.pos);
@@ -506,7 +507,7 @@ function simBall(b, dt) {
         b.landed = true; const inC = inAnyCourt(b.pos.x, b.pos.z); landingMark(b.pos.x, b.pos.z, inC);
         if (inC && b.fx && b.fx !== 'none' && b.hitter && b.hitterPos && b.hitType !== 'toss' && acrossNet(new V3(b.hitterPos.x, 0, b.hitterPos.z), b.pos)) playScoreFx(b.fx, b.pos.x, b.pos.z, b.hm || 'boy');
       }
-      if (b.id === 'match' && M && !M.practice && M.state === 'rally') { if (isHost()) hostBallLanded(); b.frozen = true; return; }
+      if (b.id === 'match' && M && !M.practice && M.state === 'rally' && isHost()) hostBallLanded();   // the point is decided, but the ball keeps its physics until the next serve
       if (Math.abs(b.vel.y) < 1.2) { b.vel.y = 0; b.vel.x *= 0.97; b.vel.z *= 0.97; } else b.vel.y *= -0.55;
       b.vel.x *= 0.85; b.vel.z *= 0.85;
     }
@@ -1250,7 +1251,7 @@ async function matchmake(mode, qid) {
   const teamA = {}, teamB = {};
   for (const sid in (all[qid].players || {})) teamA[sid] = all[qid].players[sid];
   for (const sid in (all[other].players || {})) teamB[sid] = all[other].players[sid];
-  await db.ref('matches/' + mid).set({ mode, practice: false, created: firebase.database.ServerValue.TIMESTAMP, teams: { A: teamA, B: teamB }, state: 'serve', score: { A: 0, B: 0 }, serve: { team: 'A', sid: Object.keys(teamA)[0] }, serveIdx: { A: 0, B: -1 }, msg: '' });
+  await db.ref('matches/' + mid).set({ mode, practice: false, created: firebase.database.ServerValue.TIMESTAMP, teams: { A: teamA, B: teamB }, state: 'serve', score: { A: 0, B: 0 }, serve: { team: 'A', sid: Object.keys(teamA)[0] }, serveIdx: { A: 0, B: -1 }, msg: '', serveAt: firebase.database.ServerValue.TIMESTAMP });
   const res = await db.ref(`queue/${mode}/${other}/match`).transaction(c => c ? undefined : mid);
   if (!res.committed) { db.ref('matches/' + mid).remove(); return; }
   await db.ref(`queue/${mode}/${qid}/match`).set(mid);
@@ -1264,7 +1265,7 @@ setInterval(() => { if (S.queue) { const s = Math.floor(T - queueStart); $('#que
 let matchUnsubs = [];
 const mref = p => (S.match && !S.match.local && S.online) ? db.ref(`matches/${S.match.id}` + (p ? '/' + p : '')) : null;
 function mwrite(p, v) { const r = mref(p); if (r) r.set(v); if (S.match) applyMatchField(p, v); }
-function applyMatchField(p, v) { const M = S.match; if (!M) return; if (p === 'state') onStateChange(v); else if (p === 'score') M.score = v; else if (p === 'serve') M.serve = v; else if (p === 'msg') M.msg = v; else if (p === 'serveIdx') M.serveIdx = v; }
+function applyMatchField(p, v) { const M = S.match; if (!M) return; if (p === 'state') onStateChange(v); else if (p === 'score') M.score = v; else if (p === 'serve') M.serve = v; else if (p === 'msg') M.msg = v; else if (p === 'serveIdx') M.serveIdx = v; else if (p === 'serveAt') M.serveAt = v; }
 function isHost() { const M = S.match; if (!M) return false; if (M.local) return true; const ids = Object.keys(M.players || {}).concat([SID]).sort(); return ids[0] === SID; }
 const matchBall = () => balls.get('match');
 function teamOf(sid) { const M = S.match; if (!M) return 'A'; if (M.teams.A && M.teams.A[sid]) return 'A'; if (M.teams.B && M.teams.B[sid]) return 'B'; const p = M.players && M.players[sid]; return p ? p.team : 'A'; }
@@ -1281,13 +1282,13 @@ function hostBallLanded() {
   if (inCourt) { const side = b.pos.z < 0 ? 'A' : 'B'; endPoint(opp(side), TEAM_NAME[opp(side)] + ' SCORES'); }
   else { const lastTeam = b.hitter ? teamOf(b.hitter) : (M.serve ? M.serve.team : 'A'); endPoint(opp(lastTeam), 'OUT'); }
 }
-const WIN_SCORE = 25;
+const WIN_SCORE = 25, SERVE_LIMIT = 12;   // seconds to get the serve away
 function matchWon(sc) { const hi = Math.max(sc.A, sc.B), lo = Math.min(sc.A, sc.B); return hi >= WIN_SCORE && hi - lo >= 2; }   // one set to 25, win by 2 (24-24 goes on until someone leads by 2)
 function endPoint(winner, msg) {
-  const M = S.match, b = matchBall(); if (!M || !b || M.state !== 'rally') return;
+  const M = S.match, b = matchBall(); if (!M || !b || (M.state !== 'rally' && M.state !== 'serve')) return;
   const score = Object.assign({ A: 0, B: 0 }, M.score); score[winner]++;
   mwrite('score', score); mwrite('msg', msg); mwrite('state', 'point');
-  b.frozen = true; writeBall(b);
+  writeBall(b);
   setTimeout(() => {
     if (!S.match || S.match.id !== M.id) return;
     if (matchWon(score)) { mwrite('msg', TEAM_NAME[winner] + ' TEAM WINS'); mwrite('state', 'over'); return; }
@@ -1296,19 +1297,26 @@ function endPoint(winner, msg) {
     let idx = si[team];
     if (!M.serve || M.serve.team !== team || idx < 0 || !members.includes(M.serve.sid)) idx = members.length ? (idx + 1) % members.length : 0;   // side-out: the serve changes hands, so the next player in that team's order serves; otherwise the same server keeps serving
     si[team] = idx; mwrite('serveIdx', si);
-    mwrite('serve', { team, sid: members[idx] || null }); mwrite('msg', ''); mwrite('state', 'serve');
+    mwrite('serve', { team, sid: members[idx] || null }); mwrite('msg', ''); mwrite('serveAt', snow()); mwrite('state', 'serve');
     b.active = false; b.held = null; b.hitter = b.prevHitter = null; b.hitType = b.prevType = null; b.touches = 0; b.seq++; writeBall(b);
   }, 3000);
 }
 function onStateChange(st) {
   const M = S.match, b = matchBall(); if (!M) return; const prev = M.state; M.state = st;
-  if (st === 'point' && b) { b.frozen = true; }
-  if (st === 'serve') { if (b) { b.active = false; b.held = null; b.frozen = false; } P.holding = false; P.serveMode = false; P.serveAim = null; if (P.rig.base === 'hold') { P.rig.base = 'idle'; P.rig.setPose('idle'); } }
+  if (st === 'point') { P.serving = false; if (P.holding) { P.holding = false; P.serveMode = false; P.serveAim = null; if (b) b.held = null; P.rig.base = 'idle'; P.rig.setPose('idle'); } }
+  if (st === 'serve') { P.serving = false; if (b) { b.active = false; b.held = null; b.frozen = false; } if (!M.practice && prev !== st) resetToSpawn(); P.holding = false; P.serveMode = false; P.serveAim = null; if (P.rig.base === 'hold') { P.rig.base = 'idle'; P.rig.setPose('idle'); } }
   if (st === 'over' && prev !== 'over') {
     const winner = (M.score.A > M.score.B) ? 'A' : 'B'; const won = teamOf(SID) === winner;
     if (!M.practice) { addDollars(won ? 150 : 50); toast(won ? 'Victory! +$150' : 'Defeat. +$50', won ? 'ok' : 'err', 5000); }
     setTimeout(() => { if (S.match && S.match.id === M.id) leaveMatch(); }, 6000);
   }
+}
+function resetToSpawn() {                       // back to your starting spot (match start and after every point)
+  const M = S.match; if (!M) return;
+  const mates = Object.keys(M.teams[P.team] || {}).sort(); const idx = Math.max(0, mates.indexOf(SID));
+  P.pos.copy(spawnPos(P.team, idx, mates.length)); P.vel.set(0, 0, 0); P.onGround = true; P.ry = camYaw = P.team === 'A' ? 0 : Math.PI;
+  P.holding = false; P.serveMode = false; P.serveAim = null; P.dive = null; P.dash = null; P.glide = null; P.charging = false; P.airUsed = false; P.act = null; P.swingAt = 0; $('#chargeBar').classList.add('hidden');
+  if (P.rig) { P.rig.base = 'idle'; P.rig.setPose('idle'); }
 }
 function spawnPos(team, idx, n) {
   const zs = team === 'A' ? -1 : 1; const cols = Math.min(n, 3); const row = Math.floor(idx / 3); const k = courtDims().l / COURT_L;
@@ -1341,8 +1349,8 @@ function beginMatch(M) {
   else { scene.add(court); scene.background = new THREE.Color(0xdfe6ee); scene.fog = null; sunMesh.visible = moonMesh.visible = false; }
   P.team = M.teams.B && M.teams.B[SID] ? 'B' : 'A';
   const mates = Object.keys(M.teams[P.team] || {}).sort(); const idx = Math.max(0, mates.indexOf(SID));
-  P.pos.copy(spawnPos(P.team, idx, mates.length)); P.vel.set(0, 0, 0); P.onGround = true; P.ry = camYaw = P.team === 'A' ? 0 : Math.PI; camPitch = 0.3;
-  P.holding = false; P.serveMode = false; P.dive = null; P.charging = false; setMyRig(TEAM_VARIANT[P.team]); P.rig.base = 'idle'; P.rig.setPose('idle');
+  resetToSpawn(); camPitch = 0.3;
+  setMyRig(TEAM_VARIANT[P.team]); P.rig.base = 'idle'; P.rig.setPose('idle');
   removeBall('match'); B = makeBall('match', 'match');
   $('#matchHud').classList.remove('hidden'); $('#modeTxt').textContent = M.practice ? 'PRACTICE' : M.mode.toUpperCase();
   drawScore(M.score.A, M.score.B, M.practice ? 'PRACTICE' : M.mode.toUpperCase());
@@ -1359,10 +1367,24 @@ function beginMatch(M) {
     on('state', 'value', s => { const v = s.val(); if (v && v !== M.state) onStateChange(v); });
     on('serve', 'value', s => { M.serve = s.val(); });
     on('serveIdx', 'value', s => { M.serveIdx = s.val() || M.serveIdx; });
+    on('serveAt', 'value', s => { M.serveAt = s.val() || M.serveAt; });
     on('msg', 'value', s => { M.msg = s.val() || ''; });
     on('mode', 'value', s => { if (!s.exists() && S.match && S.match.id === M.id) { toast('Match ended'); leaveMatch(); } });
     matchUnsubs = subs;
   }
+}
+function serveLeft() { const M = S.match; if (!M || M.state !== 'serve' || !M.serveAt) return SERVE_LIMIT; return Math.max(0, SERVE_LIMIT - (snow() - M.serveAt) / 1000); }
+function autoServe() {                          // casual: when the serve is yours, you are put behind your back line with the ball in hand, ready to toss
+  const M = S.match; if (!M || M.practice || M.state !== 'serve' || !M.serve || M.serve.sid !== SID) return;
+  const key = M.serveAt || 1; if (P.servedKey === key) return; P.servedKey = key;
+  const cd = courtDims(); const zs = P.team === 'A' ? -1 : 1;
+  P.pos.set(clamp(P.pos.x, -cd.w / 2 + 1, cd.w / 2 - 1), 0, zs * (cd.l / 2 + 1.6)); P.vel.set(0, 0, 0); P.onGround = true; P.dive = null; P.dash = null; P.ry = camYaw = zs > 0 ? Math.PI : 0;
+  P.serving = true; trySpawnBall(true, true);   // ball in hand: walk along the back line, press toss to aim, press again to toss
+}
+function hostServeClock() {                     // host: 12 s to serve, or the other team gets the point
+  const M = S.match; if (!M || M.practice || !isHost() || M.state !== 'serve' || !M.serve || !M.serveAt) return;
+  if (serveLeft() > 0) return;
+  endPoint(opp(M.serve.team), 'SERVE TIMEOUT');
 }
 function hostCheckServer() {
   const M = S.match; if (!M || M.practice || !isHost() || M.state !== 'serve' || !M.serve) return;
@@ -1385,7 +1407,7 @@ function leaveMatch() {
   S.match = null; S.scene = 'lobby'; remotesClear(); removeBall('match'); B = null;
   if (S.online) db.ref('lobby').once('value').then(s => { if (S.scene !== 'lobby') return; s.forEach(c => { remoteUpsert(c.key, c.val()); }); });   // players who are standing still don't send updates, so re-fetch them
   scene.remove(court); scene.remove(beachCourt); scene.add(lobby); scene.background = new THREE.Color(SKY); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true);
-  P.pos.set(0, 0, 7); P.vel.set(0, 0, 0); P.ry = camYaw = Math.PI; P.onGround = true; P.holding = false; P.serveMode = false; P.dive = null; P.charging = false; setMyRig('white'); P.rig.base = 'idle'; P.rig.setPose('idle');
+  P.pos.set(0, 0, 7); P.vel.set(0, 0, 0); P.ry = camYaw = Math.PI; P.onGround = true; P.holding = false; P.serveMode = false; P.serving = false; P.servedKey = null; P.dive = null; P.charging = false; setMyRig('white'); P.rig.base = 'idle'; P.rig.setPose('idle');
   $('#chargeBar').classList.add('hidden');
   $('#matchHud').classList.add('hidden'); $('#bigMsg').textContent = '';
   if (S.online) lobbyRef.set(myState());
@@ -1400,11 +1422,13 @@ function updateMatchHud() {
   const sh = $('#serveHint');
   let hint = '';
   if (!M.practice && M.state === 'serve' && M.serve) {
-    if (M.serve.sid === SID) hint = (b && b.active) ? `${keyName(KEYS.toss)} to aim, ${moveKeysLabel()} to move the toss, ${keyName(KEYS.toss)} again to toss, then jump and spike` : `YOUR SERVE - press ${keyName(KEYS.spawnBall)} or ${keyName(KEYS.serve)} to get the ball`;
-    else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve`; }
+    const left = Math.ceil(serveLeft());
+    if (M.serve.sid === SID) hint = P.serveAim ? `YOUR SERVE (${left}s) - ${moveKeysLabel()} moves the toss, ${keyName(KEYS.toss)} tosses, then jump and spike` : `YOUR SERVE (${left}s) - ${keyName(KEYS.toss)} to aim your toss. Stay behind the line until you hit it!`;
+    else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve (${left}s)`; }
   }
   sh.textContent = hint; sh.classList.toggle('hidden', !hint);
-  if (isHost() && M.state === 'serve') hostCheckServer();
+  autoServe();
+  if (isHost() && M.state === 'serve') { hostCheckServer(); hostServeClock(); }
 }
 
 /* =====================================================================
@@ -1420,7 +1444,7 @@ function simulate(dt) {
 function tick(nowMs) {
   let dt = (nowMs - last) / 1000; last = nowMs;
   if (!S.booted) return;
-  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } return; }
+  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } if (S.scene === 'match') updateMatchHud(); syncSelf(); return; }   // hidden: no rendering, but the game, the host duties and the network keep going
   acc = 0; let rem = Math.min(dt, 0.1); while (rem > 0.0001) { const h = Math.min(rem, 1 / 60); simulate(h); rem -= h; }   // real-time stepping: slow frames sub-step instead of falling behind (which looked like jitter to others)
   updateCamera(); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
   if (S.scene === 'match') updateMatchHud();
@@ -1430,7 +1454,11 @@ function tick(nowMs) {
 }
 let frameNo = 0;
 function frame(nowMs) { requestAnimationFrame(frame); tick(nowMs); }
-setInterval(() => { if (document.hidden) tick(performance.now()); }, 100);
+try {                                            // hidden tab: browsers throttle page timers to once a second (or worse), so a worker drives the ticks instead - the match keeps running until the tab is closed
+  const wk = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'], { type: 'text/javascript' })));
+  wk.onmessage = () => { if (document.hidden) tick(performance.now()); };
+} catch (e) { setInterval(() => { if (document.hidden) tick(performance.now()); }, 100); }
+document.addEventListener('visibilitychange', () => { last = performance.now(); });   // no catch-up burst when you come back
 
 async function cleanupStale() {
   try {
