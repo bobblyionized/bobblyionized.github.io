@@ -400,7 +400,7 @@ function updateWind() {
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
 let NPC3 = null; const NPC3_POS = new THREE.Vector3(-60, 0.3, -61.2);   // Lil Woman Dealer, in the hut at the end of the pier
-let NPC2 = null; const F2 = 5.5, F2H = 6; const STAIRWELL = { x1: 7.4, x2: 12.6, z1: -13.2, z2: -9.7 }; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
+let NPC2 = null; const F2 = 5.5, F2H = 6; const STAIRWELL = { x1: 7.4, x2: 12.8, z1: -12.8, z2: -10.4 }; /* exactly the stairs' width, from the wall to the top step */ const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -430,7 +430,7 @@ function buildLobby() {
   const HOLE = STAIRWELL;                                                                       // stairwell in the north-east corner
   const around = (x1, x2, z1, z2, fn) => { fn(x1, HOLE.x1, z1, z2); fn(HOLE.x2, x2, z1, z2); if (HOLE.z1 > z1) fn(HOLE.x1, HOLE.x2, z1, HOLE.z1); fn(HOLE.x1, HOLE.x2, HOLE.z2, z2); };   // rects that tile (x1..x2, z1..z2) minus the hole
   around(-13, 13, -13, 13, (a, b, c, d) => { if (b > a && d > c) ceil((a + b) / 2, (c + d) / 2, b - a, d - c, 5); });
-  around(-15, 15, -15, 15, (a, b, c, d) => { if (b > a && d > c) roof((a + b) / 2, (c + d) / 2, b - a, d - c); });
+
   wall(0, 13, 26, 0.4);                                                                  // south wall
   // north wall = window wall with a door in the middle out to the beach
   wall(-7.75, -13, 10.5, 0.4, 1.0); wall(7.75, -13, 10.5, 0.4, 1.0); wall(0, -13, 26, 0.4, 0.8, 4.2);
@@ -452,9 +452,9 @@ function buildLobby() {
   for (const x of [18, 24, 30]) { const gl = box(5.6, 3.2, 0.06, glassM, x, 2.6, -9, lobby); gl.castShadow = false; }
   wall(15, -5.75, 0.4, 6.5); wall(15, 5.75, 0.4, 6.5); wall(15, 0, 0.4, 5, 1.6, 3.4);
   WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5 }, { x1: -16, x2: -11, z1: -2.1, z2: 2.1 }, { x1: -40.5, x2: -15.5, z1: -10.5, z2: 10.5 }, { x1: 11, x2: 16, z1: -2.1, z2: 2.1 }, { x1: 15.5, x2: 32.5, z1: -8.5, z2: 8.5 });
-  WALK.push({ x1: -12.5, x2: 12.5, z1: -10.2, z2: 12.5, y: F2 }, { x1: -12.5, x2: 7.4, z1: -12.5, z2: -10.2, y: F2 });   // second floor (minus the stairwell; overlaps the top of the stairs)
-  WALK.push({ x1: 2.4, x2: 12.4, z1: -12.4, z2: -10.0, ramp: 'x', h0: 0, h1: F2 });                            // the staircase
-  BLOCKED.push({ x1: 2.4, x2: 12.4, z1: -12.4, z2: -10.0, under: WALK[WALK.length - 1] });                       // nobody walks underneath the treads
+  WALK.push({ x1: -12.5, x2: 12.5, z1: -10.6, z2: 12.5, y: F2 }, { x1: -12.5, x2: 7.4, z1: -12.5, z2: -10.6, y: F2 }, { x1: 12.3, x2: 12.5, z1: -12.75, z2: -10.4, y: F2 });   // second floor (minus the stairwell; overlaps the top of the stairs) + the top landing strip (same wall margin as the room)
+  WALK.push({ x1: 2.4, x2: 12.4, z1: -12.75, z2: -10.4, ramp: 'x', h0: 0, h1: F2 });                           // the staircase
+  BLOCKED.push({ x1: 2.4, x2: 12.4, z1: -12.75, z2: -10.4, under: WALK[WALK.length - 1] });                      // nobody walks underneath the treads
   INDOOR_COUNT = WALK.length;
   // outside: the door, the beach in front, and around the house (water starts at z = -40); the south strip leaves room for the staircase
   WALK.push({ x1: -2.1, x2: 2.1, z1: -14.5, z2: -12 }, { x1: -95, x2: 95, z1: -39.2, z2: -13.6 }, { x1: -95, x2: -41.6, z1: -39.2, z2: 45 }, { x1: 33.6, x2: 95, z1: -39.2, z2: 45 });
@@ -529,9 +529,10 @@ function buildLobby() {
   glassWall(0, -13, 'x', 26, F2); glassWall(-13, 0, 'z', 26, F2); glassWall(13, 0, 'z', 26, F2);
   wall(0, 13, 26, 0.4, F2H, F2);                                                                              // solid back wall
   // indoor staircase: along the north wall, x 2.4 (bottom) -> 12.4 (top), z -12.4..-10
-  const stairRise = F2, stairRun = 10, steps = 18, sx0 = 2.4, sz = -11.2;
+  const stairRise = F2, stairRun = 10, steps = 18, sx0 = 2.4, sz = -11.6;                               // treads span z -12.8..-10.4, flush with the wall
   for (let i = 0; i < steps; i++) { const t = (i + 1) / steps; box(stairRun / steps + 0.02, 0.3, 2.4, darkWood, sx0 + (i + 0.5) * stairRun / steps, t * stairRise - 0.15, sz, lobby); }
   const under = box(stairRun, 0.35, 2.4, trimM, sx0 + stairRun / 2, stairRise / 2 - 0.4, sz, lobby); under.rotation.z = Math.atan2(stairRise, stairRun); under.castShadow = false;   // stringer
+  box(0.4, 0.3, 2.4, darkWood, 12.6, F2 - 0.15, sz, lobby);                                                   // top step meets the wall
   // upstairs furniture
   couch(0, 4.5, Math.PI, 0x7fb7d6, F2); couch(-5.5, -1, Math.PI / 2, 0xe8b86d, F2); couch(5.5, -1, -Math.PI / 2, 0xe8b86d, F2);
   box(1.8, 0.1, 1.0, darkWood, 0, F2 + 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, F2 + 0.22, lz, lobby);
