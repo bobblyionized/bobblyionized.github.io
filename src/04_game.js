@@ -222,7 +222,7 @@ function spikeGeom() {
   return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
-  if (!ballReach(highPos(), REACH_A)) return false;
+  if (!ballReach(highPos(), REACH_A, 0.85)) return false;                 // spike hitbox: 85% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
@@ -256,7 +256,7 @@ function doSpike(c) {
   hitBall('spike', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), g, c); return true;
 }
 function doTip() {
-  if (!ballReach(highPos(), REACH_A)) return false;
+  if (!ballReach(highPos(), REACH_A, 0.85)) return false;
   if (B.serve) return doSpike(0.3);                              // a tap on a serve toss = soft serve
   const { tz, fwd } = spikeGeom();
   let sp = 7, pitch = 32 * D;

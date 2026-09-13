@@ -223,8 +223,8 @@ class Rig {
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
-    box(girl ? 0.36 : 0.4, 0.3, 0.24, sideM, 0, 0.14, 0, spine);                                   // waist / lower torso
-    this.torso = box(girl ? 0.46 : 0.52, 0.34, girl ? 0.25 : 0.28, jm.torso, 0, TORSO_H - 0.17, 0, spine);   // chest (jersey front/back)
+    box(girl ? 0.4 : 0.46, 0.3, 0.26, sideM, 0, 0.14, 0, spine);                                   // waist / lower torso
+    this.torso = box(girl ? 0.52 : 0.6, 0.34, girl ? 0.27 : 0.3, jm.torso, 0, TORSO_H - 0.17, 0, spine);   // chest (jersey front/back)
     const skinM = dealer ? mat(0x6b4a30) : SKIN;
     cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
     const neck = joint('neck', spine, 0, TORSO_H + 0.04, 0);
@@ -250,17 +250,17 @@ class Rig {
     }
     }
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
-      const sh = joint('sh' + n, spine, sx * (girl ? 0.28 : 0.31), SHOULDER_Y - HIP_Y, 0);
-      box(0.16, 0.12, 0.16, jm.sleeve, 0, -0.03, 0, sh);                                            // shoulder / sleeve cap
-      box(0.14, 0.32, 0.14, jm.sleeve, 0, -0.17, 0, sh);                                            // upper arm
+      const sh = joint('sh' + n, spine, sx * (girl ? 0.32 : 0.36), SHOULDER_Y - HIP_Y, 0);
+      box(0.19, 0.13, 0.19, jm.sleeve, 0, -0.03, 0, sh);                                            // shoulder / sleeve cap
+      box(0.17, 0.32, 0.17, jm.sleeve, 0, -0.17, 0, sh);                                            // upper arm
       const el = joint('el' + n, sh, 0, -0.33, 0);
-      box(0.12, 0.3, 0.12, dealer || tux ? jm.sleeve : SKIN, 0, -0.15, 0, el);                       // forearm
-      this['hand' + n] = box(0.11, 0.12, 0.07, skinM, 0, -0.35, 0.01, el);                          // hand
-      const hip = joint('hip' + n, this.body, sx * (girl ? 0.12 : 0.11), HIP_Y, 0);
-      box(0.2, 0.44, 0.2, jm.shorts, 0, -0.22, 0, hip);                                              // thigh
+      box(0.15, 0.3, 0.15, dealer || tux ? jm.sleeve : SKIN, 0, -0.15, 0, el);                       // forearm
+      this['hand' + n] = box(0.13, 0.12, 0.08, skinM, 0, -0.35, 0.01, el);                          // hand
+      const hip = joint('hip' + n, this.body, sx * (girl ? 0.14 : 0.13), HIP_Y, 0);
+      box(0.23, 0.44, 0.23, jm.shorts, 0, -0.22, 0, hip);                                            // thigh
       const kn = joint('kn' + n, hip, 0, -0.44, 0);
-      box(0.16, 0.42, 0.16, dealer || tux ? jm.shorts : SKIN, 0, -0.21, 0, kn);                      // shin
-      box(0.19, 0.11, 0.32, SHOE, 0, -0.44, 0.06, kn);                                               // shoe
+      box(0.19, 0.42, 0.19, dealer || tux ? jm.shorts : SKIN, 0, -0.21, 0, kn);                      // shin
+      box(0.21, 0.11, 0.33, SHOE, 0, -0.44, 0.06, kn);                                               // shoe
     }
     this.cur = {}; this.target = {};
     for (const k in J) { this.cur[k] = new THREE.Vector3(); this.target[k] = new THREE.Vector3(); }
