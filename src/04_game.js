@@ -472,6 +472,7 @@ function ballNets(b, prev) {
 }
 function simBall(b, dt) {
   const M = S.match;
+  for (const f of FX_LIST) if (f.type === 'timestop' && Math.hypot(b.pos.x - f.x, b.pos.z - f.z) < f.r && b.pos.y < 4) { dt *= TIMESTOP_SLOW; break; }   // Time Stop: a ball inside the clock crawls
   const steps = 2, h = dt / steps;
   for (let i = 0; i < steps; i++) {
     const prev = b.pos.clone();

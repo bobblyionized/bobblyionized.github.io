@@ -569,6 +569,7 @@ function fxPreview(id) {
   if (id === 'confetti') { const g = new THREE.Group(); const cols = [0xffee33, 0xff3fbf, 0xff8c1a, 0x3eff6a, 0x2ee6ff]; for (let i = 0; i < 40; i++) { const c = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), SOLID(cols[i % 5], 1)); c.position.set((Math.random() - .5) * 2.2, 0.2 + Math.random() * 1.8, (Math.random() - .5) * 1.2); c.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); g.add(c); } return g; }
   if (id === 'hammock') { const g = buildHammock('boy'); g.scale.setScalar(0.42); g.position.y = 0.1; return g; }
   if (id === 'smite') { const g = new THREE.Group(); const pts = [0.3, -0.25, 0.2, -0.3, 0.1]; let y = 2.2; for (let i = 0; i < 5; i++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), new THREE.MeshBasicMaterial({ color: 0xfff176 })); seg.position.set(pts[i], y, 0); seg.rotation.z = (i % 2 ? -1 : 1) * 0.5; g.add(seg); y -= 0.45; } const fl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffe066 })); fl.position.y = 0.3; g.add(fl); return g; }
+  if (id === 'timestop') { const g = buildClock(); g.scale.setScalar(0.32); g.position.y = 0.55; g.rotation.x = -0.35; return g; }
   if (id === 'blackhole') { const g = new THREE.Group(); const s = new THREE.Mesh(new THREE.SphereGeometry(0.45, 20, 14), new THREE.MeshBasicMaterial({ color: 0x000000 })); s.position.y = 0.85; g.add(s); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 32), mat(0x7a2bff, { emissive: 0x7a2bff, emissiveIntensity: 1 })); ring.position.y = 0.85; ring.rotation.x = 1.1; g.add(ring); return g; }
   return null;
 }
@@ -599,6 +600,7 @@ function playScoreFx(id, x, z, model = 'boy') {
       for (const p of parts) { p.userData.v.y -= 7 * dt; p.position.addScaledVector(p.userData.v, dt); p.rotation.z += p.userData.spin * dt; p.lookAt(camera.position); p.material.opacity = fade; }
       for (const mh of minis) { mh.userData.a += dt * 2.2; mh.position.set(Math.cos(mh.userData.a) * mh.userData.r, 0.3 + this.t * (1.2 + mh.userData.h), Math.sin(mh.userData.a) * mh.userData.r); mh.rotation.y += dt * 4; mh.material.opacity = fade; }
     } });
+  } else if (id === 'timestop') { playTimeStop(x, z);
   } else if (id === 'hammock') { playHammock(x, z, model);
   } else if (id === 'confetti') { playConfetti(x, z);
   } else if (id === 'smite') { playSmite(x, z);
@@ -690,6 +692,53 @@ function playConfetti(x, z) {
       c.rotation.x += u.spin.x * dt; c.rotation.y += u.spin.y * dt; c.rotation.z += u.spin.z * dt; c.material.opacity = fade;
     }
     for (const r of ribbons) { const k = clamp((t - r.userData.delay) / 0.9, 0, 1); r.scale.setScalar(0.01 + k); r.position.y = -k * 0.3 + Math.max(0, t - 1.2) * -1.5; r.material.opacity = fade * (1 - Math.max(0, t - 1.6) / 1.0); }
+  } });
+}
+/* ---- Time Stop: a glowing blue clock face on the floor; its hands sweep round and any ball inside it crawls ---- */
+let CLOCK_TEX = null;
+function clockTex() {
+  if (CLOCK_TEX) return CLOCK_TEX;
+  return CLOCK_TEX = canvasTex(1024, 1024, (g, W, H) => {
+    const cx = W / 2, cy = H / 2; g.clearRect(0, 0, W, H);
+    const ring = (r, w, a) => { g.strokeStyle = `rgba(120,200,255,${a})`; g.lineWidth = w; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke(); };
+    g.fillStyle = 'rgba(40,120,255,0.16)'; g.beginPath(); g.arc(cx, cy, 500, 0, Math.PI * 2); g.fill();
+    ring(500, 10, 0.95); ring(470, 3, 0.7); ring(330, 4, 0.8); ring(300, 2, 0.5); ring(150, 3, 0.6); ring(120, 2, 0.4);
+    g.strokeStyle = 'rgba(160,220,255,0.9)'; g.lineWidth = 3;                                        // minute ticks
+    for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2, L = i % 5 ? 14 : 34; g.lineWidth = i % 5 ? 3 : 7; g.beginPath(); g.moveTo(cx + Math.cos(a) * 470, cy + Math.sin(a) * 470); g.lineTo(cx + Math.cos(a) * (470 - L), cy + Math.sin(a) * (470 - L)); g.stroke(); }
+    g.strokeStyle = 'rgba(160,220,255,0.55)'; g.lineWidth = 5; g.setLineDash([26, 14]); g.beginPath(); g.arc(cx, cy, 405, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);   // dashed inner track
+    g.fillStyle = '#bfe8ff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 64px Georgia, "Times New Roman", serif';
+    const R = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+    for (let i = 0; i < 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI * 2; g.save(); g.translate(cx + Math.cos(a) * 372, cy + Math.sin(a) * 372); g.rotate(a + Math.PI / 2); g.fillText(R[i], 0, 0); g.restore(); }
+    g.shadowColor = 'rgba(120,200,255,0.9)'; g.shadowBlur = 24; ring(500, 6, 0.6); g.shadowBlur = 0;
+  });
+}
+function buildClock() {                          // face + hands, hands stored in userData so the effect can sweep them
+  const g = new THREE.Group();
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: clockTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  face.rotation.x = -Math.PI / 2; face.position.y = 0.02; g.add(face);
+  const base = new THREE.Mesh(new THREE.CircleGeometry(1.0, 64), SOLID(0x0b2f7a, 0.5)); base.rotation.x = -Math.PI / 2; base.position.y = 0.012; g.add(base); g.userData.base = base;   // dark disc so the glow reads blue on bright floors too
+  const glow = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.08, 64), ADD(0x3a8cff, 0.35)); glow.rotation.x = -Math.PI / 2; glow.position.y = 0.015; g.add(glow);
+  const hand = (len, w, back) => { const h = new THREE.Group(); const m = new THREE.Mesh(new THREE.PlaneGeometry(w, len + back), ADD(0xd8f1ff, 0.95)); m.position.z = -(len - back) / 2; m.rotation.x = -Math.PI / 2; h.add(m); const tip = new THREE.Mesh(new THREE.PlaneGeometry(w * 2.2, w * 2.2), ADD(0xbfe8ff, 0.8)); tip.rotation.x = -Math.PI / 2; tip.position.z = -len * 0.72; h.add(tip); h.position.y = 0.04; g.add(h); return h; };
+  const hub = new THREE.Mesh(new THREE.CircleGeometry(0.07, 20), ADD(0xffffff, 1)); hub.rotation.x = -Math.PI / 2; hub.position.y = 0.05; g.add(hub);
+  g.userData.hour = hand(0.42, 0.06, 0.1); g.userData.minute = hand(0.66, 0.045, 0.12); g.userData.face = face; g.userData.glow = glow;
+  return g;
+}
+const TIMESTOP_R = 3.4, TIMESTOP_SLOW = 0.12;   // radius of the clock on the floor; balls inside move at 12% speed
+function playTimeStop(x, z) {
+  const g = buildClock(); g.scale.setScalar(TIMESTOP_R); g.position.set(x, 0, z); scene.add(g);
+  const light = fxLight(g, 1.2, 0x3a8cff, 4, TIMESTOP_R * 3, 1.5);
+  const shards = []; const shardM = ADD(0x9fd4ff, 0.9);
+  for (let i = 0; i < 26; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1 + Math.random() * 0.3, 0.05), shardM); const a = Math.random() * Math.PI * 2, r = (0.3 + Math.random() * 0.75); s.position.set(Math.cos(a) * r, Math.random() * 0.4, Math.sin(a) * r); s.userData.vy = 0.05 + Math.random() * 0.12; s.userData.spin = (Math.random() - .5) * 3; s.scale.setScalar(1 / TIMESTOP_R); g.add(s); shards.push(s); }
+  const H = g.userData.hour, M = g.userData.minute;
+  FX_LIST.push({ g, t: 0, dur: 6, type: 'timestop', x, z, r: TIMESTOP_R, update(dt) {
+    this.t += dt; const k = this.t / this.dur; const grow = Math.min(1, this.t / 0.35); const fade = 1 - Math.max(0, k - 0.8) / 0.2;
+    g.scale.setScalar(TIMESTOP_R * (0.6 + 0.4 * grow)); this.r = TIMESTOP_R * (0.6 + 0.4 * grow);
+    M.rotation.y = -this.t * 5.5; H.rotation.y = -this.t * 5.5 / 12 - 1.2;                                        // hands race round backwards
+    const pulse = 0.85 + 0.15 * Math.sin(this.t * 6);
+    g.userData.face.material.opacity = grow * fade * pulse; g.userData.base.material.opacity = 0.5 * grow * fade; g.userData.glow.material.opacity = 0.35 * grow * fade * pulse; g.userData.glow.scale.setScalar(1 + 0.04 * Math.sin(this.t * 4));
+    light.intensity = 4 * grow * fade * pulse;
+    for (const s of shards) { s.position.y += s.userData.vy * dt; s.rotation.y += s.userData.spin * dt; if (s.position.y > 1.2) s.position.y = 0; }
+    shardM.opacity = 0.9 * grow * fade;
   } });
 }
 function playSmite(x, z) {
@@ -953,7 +1002,7 @@ const SKINS = {
 const MODELS = { boy: { name: 'Boy', price: 0, rarity: 'common' }, girl: { name: 'Girl', price: 0, rarity: 'common' }, dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' } };
 const EMOTES = { wave: { name: 'Wave', price: 500, rarity: 'common' }, clap: { name: 'Clap', price: 500, rarity: 'common' }, worm: { name: 'Worm', price: 7500, rarity: 'epic' } };
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 };
-const FXS = { none: { name: 'None', price: 0, rarity: 'common' }, confetti: { name: 'Confetti', price: 3000, rarity: 'rare' }, heart: { name: 'Heart', price: 5000, rarity: 'rare' }, smite: { name: 'Smite', price: 10000, rarity: 'legendary' }, hammock: { name: 'Hammock', price: 10000, rarity: 'epic' }, blackhole: { name: 'Black Hole', price: 20000, rarity: 'mythic' } };
+const FXS = { none: { name: 'None', price: 0, rarity: 'common' }, confetti: { name: 'Confetti', price: 3000, rarity: 'rare' }, heart: { name: 'Heart', price: 5000, rarity: 'rare' }, smite: { name: 'Smite', price: 10000, rarity: 'legendary' }, timestop: { name: 'Time Stop', price: 12500, rarity: 'legendary' }, hammock: { name: 'Hammock', price: 10000, rarity: 'epic' }, blackhole: { name: 'Black Hole', price: 20000, rarity: 'mythic' } };
 const AURAS = [];   // chromatic auras (colour cycles every frame)
 const SKIN_CACHE = {}; const BALL_GLOW = 0.32;   // keeps balls at their old brightness under the darker lighting
 function skinMaterial(id) {
