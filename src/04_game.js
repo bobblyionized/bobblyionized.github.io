@@ -1523,10 +1523,16 @@ function simulate(dt) {
   else if (S.match) { if (S.match.map === 'beach') updateBeachAmbient(T, dt); else updateCourtAmbient(T, dt); }
   updateDust(dt);
 }
-function tick(nowMs) {
+let lastFrameAt = 0;                             // when the rAF loop last ran; the worker clock steps the game whenever that stalls
+function tick(nowMs, headless = false) {
   let dt = (nowMs - last) / 1000; last = nowMs;
   if (!S.booted) return;
-  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } if (S.scene === 'match') updateMatchHud(); updateArea(); syncSelf(); return; }   // hidden: no rendering, but the game, the host duties and the network keep going
+  if (headless || document.hidden) {           // no frame is being drawn (hidden, minimized, covered, or rAF throttled): step the game in fixed slices and keep everything else going
+    acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; }
+    updateFx(Math.min(dt, 0.1)); if (S.scene === 'match') updateMatchHud(); updateArea(); syncSelf();   // effects still expire (they used to pile up for as long as the tab was hidden)
+    return;
+  }
+  lastFrameAt = nowMs;
   acc = 0; let rem = Math.min(dt, 0.1); while (rem > 0.0001) { const h = Math.min(rem, 1 / 60); simulate(h); rem -= h; }   // real-time stepping: slow frames sub-step instead of falling behind (which looked like jitter to others)
   updateCamera(Math.max(1e-4, Math.min(dt, 0.1))); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
   if (S.scene === 'match') updateMatchHud();
@@ -1535,12 +1541,12 @@ function tick(nowMs) {
   renderer.render(scene, camera);
 }
 let frameNo = 0;
-function frame(nowMs) { requestAnimationFrame(frame); tick(nowMs); }
+function frame(nowMs) { requestAnimationFrame(frame); if (!document.hidden) tick(nowMs); }
 try {                                            // hidden tab: browsers throttle page timers to once a second (or worse), so a worker drives the ticks instead - the match keeps running until the tab is closed
   const wk = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'], { type: 'text/javascript' })));
-  wk.onmessage = () => { if (document.hidden) tick(performance.now()); else if (S.booted) syncSelf(); };   // visible: the 50 ms clock also drives network sends, so a long frame never delays a packet
-} catch (e) { setInterval(() => { if (document.hidden) tick(performance.now()); }, 100); }
-document.addEventListener('visibilitychange', () => { last = performance.now(); });   // no catch-up burst when you come back
+  wk.onmessage = () => { const now = performance.now(); if (document.hidden || now - lastFrameAt > 120) tick(now, true); else if (S.booted) syncSelf(); };   // rAF silent for 120 ms (hidden, covered, throttled): the worker steps the game; otherwise it just drives network sends
+} catch (e) { setInterval(() => { const now = performance.now(); if (document.hidden || now - lastFrameAt > 120) tick(now, true); }, 100); }
+document.addEventListener('visibilitychange', () => { last = performance.now(); lastFrameAt = performance.now(); });   // no catch-up burst when you come back
 
 async function cleanupStale() {
   try {
@@ -1553,6 +1559,16 @@ async function cleanupStale() {
     const qs = (await db.ref('queue').once('value')).val() || {};
     for (const mode in qs) for (const id in qs[mode]) { const q = qs[mode][id]; if (t - (q.t || 0) > 900000) db.ref(`queue/${mode}/${id}`).remove(); }
   } catch (e) { }
+}
+let GFX = 'high';
+function applyQuality(q) {                       // high: as designed; medium: smaller shadow map, 1x pixels; low: no shadows, 0.85x pixels, no drifting sand grains
+  GFX = q;
+  const shadows = q !== 'low'; const size = q === 'high' ? 1024 : 512;
+  if (renderer.shadowMap.enabled !== shadows) { renderer.shadowMap.enabled = shadows; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); }); }
+  if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  renderer.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 1.25 : q === 'medium' ? 1 : 0.85)); resize();
+  const grains = lobby.getObjectByName('sandGrains'); if (grains) grains.visible = q !== 'low';
+  renderer.shadowMap.needsUpdate = true;
 }
 function optimizeScenery() {                    // fold static scenery into a handful of meshes (see mergeStatic); things that move keep their own
   for (const n of [NPC, NPC2, NPC3]) if (n && n.root) n.root.userData.noMerge = true;
@@ -1569,6 +1585,7 @@ async function boot(online) {
   await setLoad(25, 'Building the courts...'); buildCourt(); buildBeachCourt();
   await setLoad(40, 'Rendering icons...'); renderPoseIcons(); updateDayNight(true);
   { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { FOV_BASE = v; camFovCur = v; camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
+  { let q = 'high'; try { q = localStorage.getItem('vg_gfx') || 'high'; } catch (e) { } applyQuality(q); $('#gfxSel').value = q; $('#gfxSel').onchange = () => { applyQuality($('#gfxSel').value); try { localStorage.setItem('vg_gfx', $('#gfxSel').value); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)
   setMyRig('white'); await setLoad(55, 'Warming up effects...'); initFxLights(); warmUpFx(P.rig);

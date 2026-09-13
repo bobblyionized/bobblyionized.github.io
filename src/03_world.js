@@ -1058,8 +1058,9 @@ function buildLobby() {
   const N = 700; const pts = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { pts[i * 3] = (Math.random() - .5) * 60; pts[i * 3 + 1] = Math.pow(Math.random(), 1.6) * 9; pts[i * 3 + 2] = (Math.random() - .5) * 60; }
   const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-  const sand = new THREE.Points(pgeo, new THREE.PointsMaterial({ color: 0xfff2cc, size: 0.07, transparent: true, opacity: 0.75, depthWrite: false })); lobby.add(sand);
+  const sand = new THREE.Points(pgeo, new THREE.PointsMaterial({ color: 0xfff2cc, size: 0.07, transparent: true, opacity: 0.75, depthWrite: false })); sand.name = 'sandGrains'; lobby.add(sand);
   AMBIENT.push({ update(t, dt) {
+    if (!sand.visible) return;
     const cx = P.pos.x, cz = P.pos.z; const arr = pgeo.attributes.position.array; const w = WIND;
     for (let i = 0; i < N; i++) {
       let x = arr[i * 3], y = arr[i * 3 + 1], z = arr[i * 3 + 2];
