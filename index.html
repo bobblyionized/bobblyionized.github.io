@@ -296,6 +296,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
+      <div class="card2" style="margin:0"><h3>Field of view <span id="fovVal" style="color:#fff">70</span></h3><input type="range" id="fovSel" min="55" max="110" step="1" value="70" style="width:100%;padding:0;border:0;background:transparent"></div>
       <div class="card2" style="margin:0"><h3>Time of day</h3><select id="todSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="relative">Relative (real EST time)</option><option value="day">Day Time</option><option value="night">Night Time</option></select></div>
       <button id="sResume">Resume</button>
     </div>
@@ -1157,7 +1158,7 @@ function updateWind() {
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
 let NPC3 = null; const NPC3_POS = new THREE.Vector3(-60, 0.3, -61.2);   // Lil Woman Dealer, in the hut at the end of the pier
-let NPC2 = null; const F2 = 5.5, F2H = 6; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
+let NPC2 = null; const F2 = 5.5, F2H = 6; const STAIRWELL = { x1: 7.4, x2: 12.6, z1: -13.2, z2: -9.7 }; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -1184,7 +1185,7 @@ function buildLobby() {
   for (const [x, z] of [[-6, -16], [14, -16.5], [-24, -15.5], [30, -16]]) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6), mat(0xc9c2b4)); r.position.set(x, 0.25, z); r.castShadow = true; lobby.add(r); }
   // --- center room 26x26 ---
   floor(0, 0, 26, 26, woodM);
-  const HOLE = { x1: 7.4, x2: 12.6, z1: -13.2, z2: -9.7 };                                        // stairwell in the north-east corner
+  const HOLE = STAIRWELL;                                                                       // stairwell in the north-east corner
   const around = (x1, x2, z1, z2, fn) => { fn(x1, HOLE.x1, z1, z2); fn(HOLE.x2, x2, z1, z2); if (HOLE.z1 > z1) fn(HOLE.x1, HOLE.x2, z1, HOLE.z1); fn(HOLE.x1, HOLE.x2, HOLE.z2, z2); };   // rects that tile (x1..x2, z1..z2) minus the hole
   around(-13, 13, -13, 13, (a, b, c, d) => { if (b > a && d > c) ceil((a + b) / 2, (c + d) / 2, b - a, d - c, 5); });
   around(-15, 15, -15, 15, (a, b, c, d) => { if (b > a && d > c) roof((a + b) / 2, (c + d) / 2, b - a, d - c); });
@@ -1353,6 +1354,11 @@ function regionH(r, x, z) { if (!r.ramp) return r.y || 0; const t = clamp(r.ramp
 function walkable(x, z, y = 0, air = false) {   // on the ground: a floor within a step of your height (so you cannot walk off an edge); in the air: any floor at or below you to land on
   if (BLOCKED.some(b => inRect(b, x, z) && (!b.under || y < regionH(b.under, x, z) - 0.8))) return false;   // (under a staircase: blocked unless you are on it)
   return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return air ? h <= y + 0.8 : Math.abs(h - y) <= 0.8; });
+}
+function ceilingY(x, z, y) {   // lobby: the ceiling over you - rooms are 5 m, the lounge and the stairwell are open up to the lounge ceiling
+  if (!indoors(x, z)) return Infinity;
+  if (y >= F2 - 0.8 || inRect(STAIRWELL, x, z)) return F2 + F2H;
+  return 5;
 }
 function groundHeight(x, z, y) { let g = -Infinity; for (const r of WALK) if (inRect(r, x, z)) { const h = regionH(r, x, z); if (h <= y + 0.8 && h > g) g = h; } return g === -Infinity ? 0 : g; }   // the highest floor under you
 function indoors(x, z) { for (let i = 0; i < INDOOR_COUNT; i++) { const r = WALK[i]; if (x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2) return true; } return false; }
@@ -1785,7 +1791,7 @@ const beachCourt = new THREE.Group();
 function buildBeachCourt() {
   const sandM = mat(0xffffff, { map: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#f0dfae'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { g.fillStyle = ['#e6d29c', '#f7e8bd', '#dcc68f', '#fff3cf'][i % 4]; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [60, 60]) });
   const sand = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), sandM); sand.rotation.x = -Math.PI / 2; sand.position.y = -0.03; beachCourt.add(sand);
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(300, 160), mat(0x3fb4e6, { roughness: .8 })); water.rotation.x = -Math.PI / 2; water.position.set(100 + 30, -0.02, 0); beachCourt.add(water);   // sea along the +x side
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(160, 300), mat(0x3fb4e6, { roughness: .8 })); water.rotation.x = -Math.PI / 2; water.position.set(50 + 80, -0.02, 0); beachCourt.add(water);   // sea along the +x side, from the shore line at x = 50 outward
   const shore = new THREE.Mesh(new THREE.PlaneGeometry(3, 300), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45, depthWrite: false })); shore.rotation.x = -Math.PI / 2; shore.position.set(50, 0.01, 0); beachCourt.add(shore);
   const lineM = mat(0xffffff); const hx = COURT_W / 2, hz = COURT_L / 2;
   for (const [x, z, w, dd] of [[0, -hz, hx * 2, 0.12], [0, hz, hx * 2, 0.12], [-hx, 0, 0.12, hz * 2], [hx, 0, 0.12, hz * 2], [0, 0, hx * 2, 0.12], [0, -hz / 3, hx * 2, 0.12], [0, hz / 3, hx * 2, 0.12]]) { const l = box(w, 0.03, dd, lineM, x, 0.0, z, beachCourt); l.castShadow = false; }   // incl. attack lines
@@ -2300,6 +2306,7 @@ function updatePlayer(dt) {
   }
   blockNetCrossing(prevPos, P.pos);
   P.pos.y += P.vel.y * dt;
+  if (S.scene === 'lobby') { const cy = ceilingY(P.pos.x, P.pos.z, P.pos.y) - 1.75; if (P.pos.y > cy) { P.pos.y = cy; if (P.vel.y > 0) P.vel.y = 0; } }   // head against the ceiling
   const gh = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // floors: ground, the stairs, the second floor
   if (P.onGround && P.vel.y <= 0 && P.pos.y > gh + 0.7) P.onGround = false;   // walked off an edge
   if (P.pos.y <= gh || (P.onGround && P.vel.y <= 0 && P.pos.y - gh <= 0.7)) {
@@ -3306,6 +3313,7 @@ async function cleanupStale() {
 async function boot(online) {
   if (S.booted) return; S.online = online;
   buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
+  { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; });   // includes hut bodies (children of hut groups) COURT_COLL = COLLIDERS.filter(c => c.parent === court);
   setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);

@@ -422,6 +422,7 @@ function updatePlayer(dt) {
   }
   blockNetCrossing(prevPos, P.pos);
   P.pos.y += P.vel.y * dt;
+  if (S.scene === 'lobby') { const cy = ceilingY(P.pos.x, P.pos.z, P.pos.y) - 1.75; if (P.pos.y > cy) { P.pos.y = cy; if (P.vel.y > 0) P.vel.y = 0; } }   // head against the ceiling
   const gh = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // floors: ground, the stairs, the second floor
   if (P.onGround && P.vel.y <= 0 && P.pos.y > gh + 0.7) P.onGround = false;   // walked off an edge
   if (P.pos.y <= gh || (P.onGround && P.vel.y <= 0 && P.pos.y - gh <= 0.7)) {
@@ -1428,6 +1429,7 @@ async function cleanupStale() {
 async function boot(online) {
   if (S.booted) return; S.online = online;
   buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
+  { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; });   // includes hut bodies (children of hut groups) COURT_COLL = COLLIDERS.filter(c => c.parent === court);
   setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);
