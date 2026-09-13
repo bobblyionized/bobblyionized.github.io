@@ -1153,7 +1153,7 @@ $('#inviteDecline').onclick = () => { const inv = inviteQueue.shift(); showInvit
 /* =====================================================================
    NETWORK: lobby, pads, queue, matches
    ===================================================================== */
-const lobbyRef = db.ref('lobby/' + SID);
+const lobbyRef = () => db.ref('lobby/' + SID);   // on whichever area server I am on right now
 let lastSync = 0, lastSyncSig = '', lastChangeT = 0;
 function syncSelf() {
   const fast = !P.onGround || P.moving || P.dive; if (!S.online || T - lastSync < (fast ? 0.066 : 0.12)) return;
@@ -1161,13 +1161,41 @@ function syncSelf() {
   if (sig !== lastSyncSig) lastChangeT = T;
   else if (T - lastChangeT > 0.45) return;                              // settled: after a few repeat packets, stop writing
   lastSync = T; lastSyncSig = sig;
-  if (S.scene === 'lobby') lobbyRef.set(st);
+  if (S.scene === 'lobby') lobbyRef().set(st);
   else if (S.match && !S.match.local) db.ref(`matches/${S.match.id}/players/${SID}`).set(st);
 }
-db.ref('lobby').on('child_added', s => { if (S.scene === 'lobby') remoteUpsert(s.key, s.val()); });
-db.ref('lobby').on('child_changed', s => { if (S.scene === 'lobby') remoteUpsert(s.key, s.val()); });
-db.ref('lobby').on('child_removed', s => { if (S.scene === 'lobby') remoteRemove(s.key); });
-function onIdentityChangedGame() { if (S.online) { if (S.scene === 'lobby') lobbyRef.set(myState()); if (S.padId) db.ref(`pads/${S.padId}/players/${SID}`).update({ name: me.name, id: me.id }); } }
+/* ---- area servers: the house and the beach are separate Firebase projects. Walking through the door hands
+   your position (and the players you see) over to the other one, without a loading screen: write yourself to
+   the new server first, then leave the old one, then swap the listeners, and only drop remotes that are not
+   on the new server. */
+let lobbySubs = [];
+function subscribeLobby() {
+  lobbySubs.forEach(f => f()); lobbySubs = [];
+  const r = db.ref('lobby'); const seen = new Set();
+  const on = (ev, cb) => { const h = r.on(ev, cb); lobbySubs.push(() => r.off(ev, h)); };
+  on('child_added', s => { seen.add(s.key); if (S.scene === 'lobby') remoteUpsert(s.key, s.val()); });
+  on('child_changed', s => { if (S.scene === 'lobby') remoteUpsert(s.key, s.val()); });
+  on('child_removed', s => { seen.delete(s.key); if (S.scene === 'lobby') remoteRemove(s.key); });
+  r.once('value').then(s => { const here = new Set(); s.forEach(c => here.add(c.key)); for (const sid of Array.from(remotes.keys())) if (!here.has(sid)) remoteRemove(sid); });   // players who stayed on the other server fade from view
+}
+let areaCooldown = 0;
+function areaOf(x, z) { return indoors(x, z) ? 'house' : 'outside'; }
+function setArea(next) {
+  if (next === AREA || !S.online) return;
+  const prev = AREA;
+  const oldRef = lobbyRef(); AREA = next; const newRef = lobbyRef();
+  newRef.set(myState()); newRef.onDisconnect().remove();                      // appear on the new server first...
+  oldRef.onDisconnect().cancel(); oldRef.remove();                            // ...then leave the old one
+  subscribeLobby();
+  console.log('[area] ' + prev + ' -> ' + next);
+}
+function updateArea() {
+  if (S.scene !== 'lobby' || !S.booted) return;
+  const want = areaOf(P.pos.x, P.pos.z); if (want === AREA) return;
+  if (T < areaCooldown) return; areaCooldown = T + 1.0;                      // the doorway is short: no flapping
+  setArea(want);
+}
+function onIdentityChangedGame() { if (S.online) { if (S.scene === 'lobby') lobbyRef().set(myState()); if (S.padId) db.ref(`pads/${S.padId}/players/${SID}`).update({ name: me.name, id: me.id }); } }
 
 /* ---- pads ---- */
 let padsData = {};
@@ -1391,7 +1419,7 @@ function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#sho
 function beginMatch(M) {
   M.enteredAt = T; M.absentSince = 0;
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
-  if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }
+  if (S.online) { lobbyRef().remove(); db.ref('lobbyBalls/' + SID).remove(); }
   removeBall(SID);
   scene.remove(lobby);
   if (M.map === 'beach') { scene.add(beachCourt); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true); }
@@ -1459,7 +1487,7 @@ function leaveMatch() {
   P.pos.set(0, 0, 7); P.vel.set(0, 0, 0); P.ry = camYaw = Math.PI; P.onGround = true; P.holding = false; P.serveMode = false; P.serving = false; P.servedKey = null; P.dive = null; P.charging = false; setMyRig('white'); P.rig.base = 'idle'; P.rig.setPose('idle');
   $('#chargeBar').classList.add('hidden');
   $('#matchHud').classList.add('hidden'); $('#bigMsg').textContent = '';
-  if (S.online) lobbyRef.set(myState());
+  if (S.online) { AREA = areaOf(P.pos.x, P.pos.z); subscribeLobby(); lobbyRef().set(myState()); lobbyRef().onDisconnect().remove(); }
 }
 $('#leaveBtn').onclick = () => leaveMatch();
 
@@ -1498,11 +1526,11 @@ function simulate(dt) {
 function tick(nowMs) {
   let dt = (nowMs - last) / 1000; last = nowMs;
   if (!S.booted) return;
-  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } if (S.scene === 'match') updateMatchHud(); syncSelf(); return; }   // hidden: no rendering, but the game, the host duties and the network keep going
+  if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } if (S.scene === 'match') updateMatchHud(); updateArea(); syncSelf(); return; }   // hidden: no rendering, but the game, the host duties and the network keep going
   acc = 0; let rem = Math.min(dt, 0.1); while (rem > 0.0001) { const h = Math.min(rem, 1 / 60); simulate(h); rem -= h; }   // real-time stepping: slow frames sub-step instead of falling behind (which looked like jitter to others)
   updateCamera(Math.max(1e-4, Math.min(dt, 0.1))); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
   if (S.scene === 'match') updateMatchHud();
-  syncSelf();
+  updateArea(); syncSelf();
   renderer.shadowMap.needsUpdate = (frameNo++ % 3) === 0;   // shadows refresh every third frame (cheaper; the sun barely moves between them)
   renderer.render(scene, camera);
 }
@@ -1545,7 +1573,7 @@ async function boot(online) {
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)
   setMyRig('white'); await setLoad(55, 'Warming up effects...'); initFxLights(); warmUpFx(P.rig);
   await setLoad(65, 'Optimizing scenery...'); optimizeScenery();
-  if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); await setLoad(75, 'Signing in...'); const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); await setLoad(90, 'Joining the lobby...'); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
+  if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); await setLoad(75, 'Signing in...'); const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); await setLoad(90, 'Joining the lobby...'); writePresence(); AREA = areaOf(P.pos.x, P.pos.z); subscribeLobby(); lobbyRef().set(myState()); lobbyRef().onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
   $('#online .dot').classList.toggle('on', online);
   if (online) { cleanupStale(); pruneChat(); subscribeChat(); db.ref('invites/' + SID).onDisconnect().remove(); }
@@ -1557,7 +1585,7 @@ let bootTimer = setTimeout(() => boot(false), 8000);
 db.ref('.info/connected').on('value', s => {
   const v = !!s.val();
   if (v && !S.booted) { clearTimeout(bootTimer); boot(true); }
-  else if (S.booted) { S.online = v; $('#online .dot').classList.toggle('on', v); if (v) { writePresence(); if (S.scene === 'lobby') lobbyRef.onDisconnect().remove(); } }
+  else if (S.booted) { S.online = v; $('#online .dot').classList.toggle('on', v); if (v) { writePresence(); if (S.scene === 'lobby') lobbyRef().onDisconnect().remove(); } }
 });
 requestAnimationFrame(frame);
 </script>

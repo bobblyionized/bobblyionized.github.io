@@ -66,8 +66,25 @@ const firebaseConfig = {
   messagingSenderId: "538438186546",
   appId: "1:538438186546:web:1f7e61c47e29d4b2b72e2b"
 };
+/* ---- four Firebase projects, one game ----
+   core    (volleyballgaem)   accounts, profiles, friends, parties, invites, chat, presence - everything that must be shared
+   house   (volleyballgaems2) positions of players inside the beach house + the queue pads
+   outside (volleyballgaems3) positions of players on the beach + the balls out there
+   play    (volleyballgaems4) queue matchmaking, practice and casual matches
+   db.ref(path) routes by the first path segment, so the rest of the code keeps calling db.ref() as before;
+   'lobby' goes to whichever area server the player is currently on (see AREA / setArea in the game part). */
+const FB_SERVERS = {
+  house: { apiKey: "AIzaSyAmy0QIHbWKcXBYE0-PaiPmELtklU9j-l4", authDomain: "volleyballgaems2.firebaseapp.com", databaseURL: "https://volleyballgaems2-default-rtdb.firebaseio.com", projectId: "volleyballgaems2", storageBucket: "volleyballgaems2.firebasestorage.app", messagingSenderId: "1057362092599", appId: "1:1057362092599:web:8ba896052f9f66dae7d5b2" },
+  outside: { apiKey: "AIzaSyDOTq1mGEhNyYL-Ouu9Tiv6PflCiibJfoc", authDomain: "volleyballgaems3.firebaseapp.com", databaseURL: "https://volleyballgaems3-default-rtdb.firebaseio.com", projectId: "volleyballgaems3", storageBucket: "volleyballgaems3.firebasestorage.app", messagingSenderId: "355391959266", appId: "1:355391959266:web:c57a204856b4f8054e2ebb" },
+  play: { apiKey: "AIzaSyBGn2qiRbKyHc-92i35YMwzNpKEcqI7ogA", authDomain: "volleyballgaems4.firebaseapp.com", databaseURL: "https://volleyballgaems4-default-rtdb.firebaseio.com", projectId: "volleyballgaems4", storageBucket: "volleyballgaems4.firebasestorage.app", messagingSenderId: "303690989814", appId: "1:303690989814:web:9f7ebb88cccbf58a8c2cd7" },
+};
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const DBS = { core: firebase.database() };
+for (const name in FB_SERVERS) { try { DBS[name] = firebase.database(firebase.initializeApp(FB_SERVERS[name], name)); } catch (e) { console.warn('server ' + name + ' unavailable, using core', e); DBS[name] = DBS.core; } }
+let AREA = 'house';                                   // which area server my lobby position lives on ('house' | 'outside')
+const ROUTE = { lobbyBalls: 'outside', pads: 'house', queue: 'play', matches: 'play' };
+const dbFor = path => { const top = String(path).split('/')[0]; if (top === 'lobby') return DBS[AREA]; return DBS[ROUTE[top] || 'core']; };
+const db = { ref: path => dbFor(path).ref(path), core: DBS.core, servers: DBS };
 let serverOffset = 0;
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset = s.val() || 0);
 const snow = () => Date.now() + serverOffset;
