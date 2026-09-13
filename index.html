@@ -992,6 +992,7 @@ function roundedBoxGeo(w, h, d, rr, k = 2) {
 }
 const GEO_CACHE = new Map();
 function boxGeo(w, h, d, rr) {
+  if (rr === undefined && Math.min(w, h, d) < 0.12) { const key = 'p' + w + ',' + h + ',' + d; let g = GEO_CACHE.get(key); if (!g) { g = new THREE.BoxGeometry(w, h, d); GEO_CACHE.set(key, g); } return g; }   // thin trim: plain box (12 tris instead of 108)
   const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.04) : rr;
   const k = 1;                                            // one chamfer ring everywhere: a third of the triangles of the old two-ring fillet on small parts, same silhouette at play distance
   const key = w + ',' + h + ',' + d + ',' + r.toFixed(4) + ',' + k;
@@ -1519,10 +1520,10 @@ function makePalm(parent, ambient, x, z, h = 5) {
   for (let i = 0; i < segs; i++) {
     const sh = h / segs, t0 = i / segs, t1 = (i + 1) / segs;
     const seg = new THREE.Group(); seg.position.y = i ? sh : 0; seg.rotation.z = bend; node.add(seg); node = seg;
-    cyl(lerp(0.30, 0.16, t1), lerp(0.30, 0.16, t0), sh * 1.06, M.trunk, 0, sh / 2, 0, seg, 9);
+    cyl(lerp(0.30, 0.16, t1), lerp(0.30, 0.16, t0), sh * 1.06, M.trunk, 0, sh / 2, 0, seg, 6);
     const br = lerp(0.335, 0.185, t0);
-    cyl(br, br * 0.94, 0.13, M.bead, 0, 0.05, 0, seg, 9).castShadow = i < 3;                  // the bead at each joint
-    if (i) cyl(br * 1.02, br * 1.02, 0.035, M.ring, 0, 0.13, 0, seg, 9).castShadow = false;   // dark growth ring on top of it
+    cyl(br, br * 0.94, 0.13, M.bead, 0, 0.05, 0, seg, 6).castShadow = i < 3;                  // the bead at each joint
+
   }
   const crown = new THREE.Group(); crown.position.y = h / segs; node.add(crown);
   cyl(0.24, 0.18, 0.3, M.boot, 0, 0.08, 0, crown, 9);
@@ -1540,8 +1541,8 @@ function makePalm(parent, ambient, x, z, h = 5) {
     }
     fronds.push(fr);
   };
-  for (let i = 0; i < 10; i++) frond(i, 10, -0.15 - Math.random() * 0.1, 1, Math.random() * 0.2, 3);        // outer ring, the long drooping ones
-  for (let i = 0; i < 6; i++) frond(i, 6, 0.46 + Math.random() * 0.14, 0.62, 0.32 + Math.random() * 0.2, 2);  // shorter inner ring angled up, so the crown reads full rather than spidery
+  for (let i = 0; i < 8; i++) frond(i, 8, -0.15 - Math.random() * 0.1, 1, Math.random() * 0.2, 2);         // outer ring, the long drooping ones
+  for (let i = 0; i < 4; i++) frond(i, 4, 0.46 + Math.random() * 0.14, 0.62, 0.32 + Math.random() * 0.2, 2);  // shorter inner ring angled up, so the crown reads full rather than spidery
   ambient.push({ ph: Math.random() * 6, update(t) {
     const k = 0.4 + WIND.length() * 0.35;
     crown.rotation.z = (Math.sin(t * 1.1 + this.ph) * 0.06 - WIND.x * 0.03) * k;
@@ -1743,7 +1744,7 @@ function buildLobby() {
   floor(0, 0, 400, 400, sandM).position.y = -0.05;
   /* the sea is subdivided so the long swells have vertices to move; 170 x 74 cells is ~2.4 m across,
      fine enough for a 25 m wavelength and still one cheap draw */
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 170, 170, 74), waterM);
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 170, 85, 37), waterM);
   sea.rotation.x = -Math.PI / 2; sea.position.set(0, -0.015, -122); lobby.add(sea);
   const foamTex = canvasTex(256, 256, (g, w, h) => { g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 6; for (let i = 0; i < 4; i++) { g.beginPath(); for (let x = 0; x <= w; x += 8) g.lineTo(x, i * 64 + 20 + Math.sin(x / 18 + i) * 8); g.stroke(); } }, [24, 8]);
   const waves = new THREE.Mesh(new THREE.PlaneGeometry(400, 130), new THREE.MeshBasicMaterial({ map: foamTex, transparent: true, opacity: .45, depthWrite: false })); waves.rotation.x = -Math.PI / 2; waves.position.set(0, 0.0, -105); lobby.add(waves);
@@ -1958,9 +1959,9 @@ function buildLobby() {
       l.color.setHex(isNight ? 0xffc383 : color);
     } });
   };
-  lamp(-6, -6); lamp(6, -6); lamp(-6, 6); lamp(6, 6); lamp(0, 10.5, 3.6, 0xffe2b8, 0.9, 14);
-  lamp(-34, -5); lamp(-22, -5); lamp(-34, 5); lamp(-22, 5); lamp(20, -4); lamp(28, 4);
-  for (const [x, z] of [[-12.6, -8], [-12.6, 8], [12.6, -8], [12.6, 8]]) { const s = new THREE.PointLight(0xffc48a, 0.45, 10, 1.6); s.position.set(x, 2.6, z); lobby.add(s); box(0.3, 0.5, 0.18, mat(0xfff0d0, { emissive: 0xffe0a0, emissiveIntensity: .8 }), x + (x < 0 ? 0.1 : -0.1), 2.6, z, lobby); }
+  lamp(-6, 0, 4.3, 0xffd9a8, 0.9, 24); lamp(6, 0, 4.3, 0xffd9a8, 0.9, 24); lamp(0, 10.5, 3.6, 0xffe2b8, 0.9, 14);   // fewer, wider pools of light: point lights cost every pixel on screen
+  lamp(-34, 0, 4.3, 0xffd9a8, 0.9, 24); lamp(-22, 0, 4.3, 0xffd9a8, 0.9, 24); lamp(24, 0, 4.3, 0xffd9a8, 0.9, 24);
+  for (const [x, z] of [[-12.6, -8], [-12.6, 8], [12.6, -8], [12.6, 8]]) { box(0.3, 0.5, 0.18, mat(0xfff0d0, { emissive: 0xffe0a0, emissiveIntensity: .8 }), x + (x < 0 ? 0.1 : -0.1), 2.6, z, lobby); }
   dressLobby({ wallM, trimM, ceilM, woodM, darkWood, glassM, leafM, railM, fasciaM });
   scene.add(lobby);
   makePad('c2v2', '2v2', 2, -38.5, -7, Math.PI / 2, '2v2', false);
@@ -3082,7 +3083,7 @@ function updateBeachAmbient(t, dt) { updateWind(); for (const a of BEACH_AMBIENT
 function buildBeachCourt() {
   const sandM = mat(0xffffff, { bumpMap: sandBumpTex(), bumpScale: 0.18, map: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#f0dfae'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { g.fillStyle = ['#e6d29c', '#f7e8bd', '#dcc68f', '#fff3cf'][i % 4]; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [60, 60]) });
   const sand = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), sandM); sand.rotation.x = -Math.PI / 2; sand.position.y = -0.03; sand.receiveShadow = true; beachCourt.add(sand);
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(160, 300, 68, 128), makeWaterMaterial([1, 0, -50])); water.rotation.x = -Math.PI / 2; water.position.set(50 + 80, -0.015, 0); beachCourt.add(water);   // sea along the +x side, from the shore line at x = 50 outward
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(160, 300, 34, 64), makeWaterMaterial([1, 0, -50])); water.rotation.x = -Math.PI / 2; water.position.set(50 + 80, -0.015, 0); beachCourt.add(water);   // sea along the +x side, from the shore line at x = 50 outward
   const shore = new THREE.Mesh(new THREE.PlaneGeometry(3, 300), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45, depthWrite: false })); shore.rotation.x = -Math.PI / 2; shore.position.set(50, 0.01, 0); beachCourt.add(shore);
   const lineM = mat(0xffffff); const hx = COURT_W / 2, hz = COURT_L / 2;
   for (const [x, z, w, dd] of [[0, -hz, hx * 2, 0.12], [0, hz, hx * 2, 0.12], [-hx, 0, 0.12, hz * 2], [hx, 0, 0.12, hz * 2], [0, 0, hx * 2, 0.12], [0, -hz / 3, hx * 2, 0.12], [0, hz / 3, hx * 2, 0.12]]) { const l = box(w, 0.03, dd, lineM, x, 0.0, z, beachCourt); l.castShadow = false; }   // incl. attack lines
