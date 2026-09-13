@@ -398,7 +398,7 @@ function updateWind() {
   WIND.set(Math.cos(ang) * str, 0, Math.sin(ang) * str);
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
-let NPC2 = null; const NPC2_POS = new THREE.Vector3(-4.3, 0, 0);   // Big Man Dealer, sitting on the yellow couch
+let NPC2 = null; const F2 = 5.5, F2H = 4; const NPC2_POS = new THREE.Vector3(0, F2, 4.3);   // Big Man Dealer, sitting on the couch upstairs (second floor at y = 5.5)
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -447,9 +447,12 @@ function buildLobby() {
   for (const x of [18, 24, 30]) { const gl = box(5.6, 3.2, 0.06, glassM, x, 2.6, -9, lobby); gl.castShadow = false; }
   wall(15, -5.75, 0.4, 6.5); wall(15, 5.75, 0.4, 6.5); wall(15, 0, 0.4, 5, 1.6, 3.4);
   WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5 }, { x1: -16, x2: -11, z1: -2.1, z2: 2.1 }, { x1: -40.5, x2: -15.5, z1: -10.5, z2: 10.5 }, { x1: 11, x2: 16, z1: -2.1, z2: 2.1 }, { x1: 15.5, x2: 32.5, z1: -8.5, z2: 8.5 });
+  WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5, y: F2 }, { x1: 9.6, x2: 11.4, z1: 12, z2: 13.9, y: F2 });   // second floor + its door
   INDOOR_COUNT = WALK.length;
-  // outside: the door, the beach in front, and around the house (water starts at z = -40)
-  WALK.push({ x1: -2.1, x2: 2.1, z1: -14.5, z2: -12 }, { x1: -95, x2: 95, z1: -39.2, z2: -13.6 }, { x1: -95, x2: -41.6, z1: -39.2, z2: 45 }, { x1: 33.6, x2: 95, z1: -39.2, z2: 45 }, { x1: -95, x2: 95, z1: 13.6, z2: 45 });
+  // outside: the door, the beach in front, and around the house (water starts at z = -40); the south strip leaves room for the staircase
+  WALK.push({ x1: -2.1, x2: 2.1, z1: -14.5, z2: -12 }, { x1: -95, x2: 95, z1: -39.2, z2: -13.6 }, { x1: -95, x2: -41.6, z1: -39.2, z2: 45 }, { x1: 33.6, x2: 95, z1: -39.2, z2: 45 });
+  WALK.push({ x1: -95, x2: 95, z1: 16.8, z2: 45 }, { x1: -95, x2: -9.5, z1: 13.6, z2: 16.8 }, { x1: 12.8, x2: 95, z1: 13.6, z2: 16.8 });
+  WALK.push({ x1: -9.5, x2: 9, z1: 13.8, z2: 16.4, ramp: 'x', h0: 0, h1: F2 }, { x1: 9, x2: 12.5, z1: 13.8, z2: 16.4, y: F2 });   // staircase + landing
   // beach courts (long axis along X, net across Z)
   const lineM = mat(0xffffff);
   for (const cx of [-34, 0, 34]) {
@@ -499,16 +502,57 @@ function buildLobby() {
   sign('CASUAL PLAY', -12.7, 0, Math.PI / 2); sign('PRACTICE MODE', 12.7, 0, -Math.PI / 2);
   const title = textPlane(9, 1.4, 'VOLLEYBALL GAEM', { size: 130, color: '#2b2b2b' }); title.position.set(0, 3.6, 12.75); title.rotation.y = Math.PI; lobby.add(title);
   // furniture (simple)
-  const couch = (x, z, ry, color) => { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; const m = mat(color); box(2.6, 0.5, 1.0, m, 0, 0.35, 0, g); box(2.6, 0.7, 0.25, m, 0, 0.85, -0.4, g); box(0.25, 0.4, 1.0, m, 1.2, 0.75, 0, g); box(0.25, 0.4, 1.0, m, -1.2, 0.75, 0, g); box(2.4, 0.1, 0.9, mat(color), 0, 0.62, 0.02, g); lobby.add(g); };
+  const couch = (x, z, ry, color, y = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; const m = mat(color); box(2.6, 0.5, 1.0, m, 0, 0.35, 0, g); box(2.6, 0.7, 0.25, m, 0, 0.85, -0.4, g); box(0.25, 0.4, 1.0, m, 1.2, 0.75, 0, g); box(0.25, 0.4, 1.0, m, -1.2, 0.75, 0, g); box(2.4, 0.1, 0.9, mat(color), 0, 0.62, 0.02, g); lobby.add(g); };
   couch(0, 4.5, Math.PI, 0x7fb7d6); couch(-4.5, 0, Math.PI / 2, 0xe8b86d); couch(4.5, 0, -Math.PI / 2, 0xe8b86d);
   box(1.8, 0.1, 1.0, darkWood, 0, 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, 0.22, lz, lobby);
   const rug = new THREE.Mesh(new THREE.CircleGeometry(3.6, 8), mat(0xe3d3b4)); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.01, 1.2); rug.receiveShadow = true; lobby.add(rug);
   box(4, 1.0, 1.0, darkWood, 0, 0.5, 11, lobby); box(4.4, 0.1, 1.3, mat(0xf5ead6), 0, 1.05, 11, lobby);          // front counter
   const counterBlock = box(4.8, 4, 2.6, wallM, 0, 2, 11.8, lobby); counterBlock.visible = false; COLLIDERS.push(counterBlock);   // invisible camera blocker: the camera never goes behind the counter
   box(1.2, 0.5, 0.8, darkWood, 0, 0.25, 12.2, lobby);                                                        // step behind the counter
+  // --- second floor: a glass lounge on top of the centre room, reached by an outside staircase on the south side ---
+  const slab = box(26.4, 0.3, 26.4, woodM, 0, F2 - 0.15, 0, lobby); COLLIDERS.push(slab);                       // its floor (top at F2)
+  ceil(0, 0, 26, 26, F2 + F2H); const roof2 = box(30, 0.5, 30, trimM, 0, F2 + F2H + 0.25, 0, lobby); roof2.castShadow = roof2.receiveShadow = false;
+  const glassWall = (cx, cz, along, len, y) => {                                                              // low wall + posts + glass + top beam, along x or z
+    const horiz = along === 'x'; const w = horiz ? len : 0.4, d = horiz ? 0.4 : len;
+    wall(cx, cz, w, d, 1.0, y); wall(cx, cz, w, d, 0.8, y + 3.2);
+    const n = Math.round(len / 6.5); const seg = len / n;
+    for (let i = 0; i <= n; i++) { const o = -len / 2 + i * seg; box(0.4, F2H, 0.4, wallM, horiz ? cx + o : cx, y + F2H / 2, horiz ? cz : cz + o, lobby); }
+    for (let i = 0; i < n; i++) { const o = -len / 2 + (i + 0.5) * seg; const gl = box(horiz ? seg - 0.4 : 0.06, 2.2, horiz ? 0.06 : seg - 0.4, glassM, horiz ? cx + o : cx, y + 2.1, horiz ? cz : cz + o, lobby); gl.castShadow = false; }
+  };
+  glassWall(0, -13, 'x', 26, F2); glassWall(-13, 0, 'z', 26, F2); glassWall(13, 0, 'z', 26, F2);
+  wall(-1.75, 13, 22.5, 0.4, F2H, F2); wall(12.25, 13, 1.5, 0.4, F2H, F2); wall(10.5, 13, 2.5, 0.4, F2H - 2.3, F2 + 2.3);   // south wall with the door gap at x 9.5..11.5
+  box(2.9, 0.3, 0.5, darkWood, 10.5, F2 + 2.3, 13, lobby);                                                    // door lintel
+  const stairRise = F2, stairRun = 18.5, steps = 18;                                                          // outside staircase: x -9.5 -> 9, z 13.8..16.4
+  for (let i = 0; i < steps; i++) { const t = (i + 1) / steps; box(stairRun / steps + 0.02, 0.3, 2.6, darkWood, -9.5 + (i + 0.5) * stairRun / steps, t * stairRise - 0.15, 15.1, lobby); }
+  const under = box(stairRun, 0.35, 2.6, trimM, -0.25, stairRise / 2 - 0.35, 15.1, lobby); under.rotation.z = Math.atan2(stairRise, stairRun); under.castShadow = false;   // stringer under the treads
+  const rail = (z) => { const r = box(stairRun + 0.6, 0.12, 0.12, darkWood, -0.25, stairRise / 2 + 1.0, z, lobby); r.rotation.z = Math.atan2(stairRise, stairRun); for (let i = 0; i <= 6; i++) { const x = -9.5 + i * stairRun / 6; cyl(0.05, 0.05, 1.0, darkWood, x, x < -9.4 ? 0.5 : (x + 9.5) / stairRun * stairRise + 0.5, z, lobby, 6); } };
+  rail(16.35); rail(13.85);
+  box(3.6, 0.3, 2.6, darkWood, 10.75, F2 - 0.15, 15.1, lobby); for (const [px, pz] of [[9.3, 16.3], [12.4, 16.3], [12.4, 13.9]]) cyl(0.12, 0.12, F2 - 0.3, darkWood, px, (F2 - 0.3) / 2, pz, lobby, 6);   // landing + posts
+  box(3.6, 0.12, 0.12, darkWood, 10.75, F2 + 1.0, 16.35, lobby); box(0.12, 0.12, 2.6, darkWood, 12.55, F2 + 1.0, 15.1, lobby); for (const [px, pz] of [[10.75, 16.35], [12.55, 15.1]]) cyl(0.05, 0.05, 1.0, darkWood, px, F2 + 0.5, pz, lobby, 6);   // landing rails
+  // upstairs furniture
+  couch(0, 4.5, Math.PI, 0x7fb7d6, F2); couch(-5.5, -1, Math.PI / 2, 0xe8b86d, F2); couch(5.5, -1, -Math.PI / 2, 0xe8b86d, F2);
+  box(1.8, 0.1, 1.0, darkWood, 0, F2 + 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, F2 + 0.22, lz, lobby);
+  const rug2 = new THREE.Mesh(new THREE.CircleGeometry(3.6, 8), mat(0xd9c9e8)); rug2.rotation.x = -Math.PI / 2; rug2.position.set(0, F2 + 0.01, 1.2); rug2.receiveShadow = true; lobby.add(rug2);
+  const plant2 = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, F2 + 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, F2 + 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
+  plant2(-11.5, 11.5); plant2(-11.5, -11); plant2(11.5, -11); plant2(6, 11.5);
+  const sign2 = box(4.2, 0.9, 0.12, darkWood, 0, F2 + 3.3, 12.75, lobby); const st2 = textPlane(3.9, 0.75, 'TRAIT LOUNGE', { size: 120, color: '#fff9ee' }); st2.position.set(0, 0, -0.07); st2.rotation.y = Math.PI; sign2.add(st2);
+  // --- beach huts around the house ---
+  const thatchM = mat(0xc9a961), hutM = [mat(0xf2d9b1), mat(0xe8c9a0), mat(0xf7e4c2)];
+  const hut = (x, z, ry, k = 0) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; lobby.add(g);
+    const body = box(4.2, 2.6, 3.6, hutM[k % 3], 0, 1.3, 0, g); COLLIDERS.push(body);
+    const rf = new THREE.Mesh(new THREE.ConeGeometry(3.7, 1.7, 4), thatchM); rf.position.y = 2.6 + 0.85; rf.rotation.y = Math.PI / 4; rf.castShadow = true; g.add(rf);
+    box(4.5, 0.12, 3.9, thatchM, 0, 2.62, 0, g);                                                              // eave
+    box(0.9, 1.8, 0.1, darkWood, 0.6, 0.9, 1.82, g); box(0.16, 0.16, 0.04, mat(0xf5c542), 0.9, 0.95, 1.9, g);   // door + knob
+    const win = box(0.9, 0.7, 0.06, glassM, -1.1, 1.5, 1.82, g); win.castShadow = false; box(1.0, 0.08, 0.1, darkWood, -1.1, 1.12, 1.84, g);
+    for (const [sx, sz] of [[-1.9, 1.6], [1.9, 1.6]]) cyl(0.08, 0.08, 2.6, darkWood, sx, 1.3, sz, g, 6);
+    const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); const hx = 2.1 * c + 1.8 * s + 0.3, hz = 2.1 * s + 1.8 * c + 0.3;
+    BLOCKED.push({ x1: x - hx, x2: x + hx, z1: z - hz, z2: z + hz });
+  };
+  hut(-50, 12, 0.5, 0); hut(-52, 34, -0.3, 1); hut(-30, 31, 0.2, 2); hut(-8, 34, 0, 0); hut(14, 33, -0.15, 1); hut(40, 30, 0.35, 2); hut(48, 10, -0.6, 0); hut(-62, -8, 0.9, 1); hut(58, -8, -0.9, 2);
   NPC = new Rig('dealer'); NPC.root.position.set(0, 0.5, 12.2); NPC.root.rotation.y = Math.PI; lobby.add(NPC.root);
   NPC2 = new Rig('bigdealer'); NPC2.root.scale.set(RIG_SCALE * 1.2 * 1.12, RIG_SCALE * 1.2, RIG_SCALE * 1.2 * 1.12);   // a big man: taller and broader
-  NPC2.root.position.set(NPC2_POS.x, -0.22, NPC2_POS.z); NPC2.root.rotation.y = Math.PI / 2; NPC2.setPose('sit'); NPC2.base = 'sit'; NPC2.snap(); lobby.add(NPC2.root);
+  NPC2.root.position.set(NPC2_POS.x, F2 - 0.22, NPC2_POS.z); NPC2.root.rotation.y = Math.PI; NPC2.setPose('sit'); NPC2.base = 'sit'; NPC2.snap(); lobby.add(NPC2.root);
   AMBIENT.push({ update(t) { NPC2.j.neck.rotation.y = Math.sin(t * 0.6) * 0.3; NPC2.j.spine.rotation.x = (-6 + Math.sin(t * 1.4) * 1.2) * D; } });   // looks around, breathes
   const plant = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
   plant(-11.5, 11.5); plant(11.5, 11.5); plant(-11.5, -4.5); plant(11.5, 4.5); plant(-39.5, 9.5); plant(-17, 9.5); plant(17, 7.5); plant(31.5, 7.5);
@@ -530,7 +574,14 @@ function buildLobby() {
   for (const id in PADS) lobby.add(PADS[id].group);
 }
 function updateAmbient(t, dt) { updateWind(); for (const a of AMBIENT) a.update(t, dt); }
-function walkable(x, z) { return WALK.some(r => x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2); }
+const BLOCKED = [];   // footprints players cannot enter (huts)
+const inRect = (r, x, z) => x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2;
+function regionH(r, x, z) { if (!r.ramp) return r.y || 0; const t = clamp(r.ramp === 'x' ? (x - r.x1) / (r.x2 - r.x1) : (z - r.z1) / (r.z2 - r.z1), 0, 1); return r.h0 + (r.h1 - r.h0) * t; }   // floor height of a region at a point (ramps slope)
+function walkable(x, z, y = 0) {   // a spot is walkable at height y if some floor there is at most a step above you and not further below than a jump (so you cannot walk off the second floor)
+  if (BLOCKED.some(b => inRect(b, x, z))) return false;
+  return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return h <= y + 0.8 && h >= y - 3.8; });
+}
+function groundHeight(x, z, y) { let g = -Infinity; for (const r of WALK) if (inRect(r, x, z)) { const h = regionH(r, x, z); if (h <= y + 0.8 && h > g) g = h; } return g === -Infinity ? 0 : g; }   // the highest floor under you
 function indoors(x, z) { for (let i = 0; i < INDOOR_COUNT; i++) { const r = WALK[i]; if (x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2) return true; } return false; }
 
 /* ---- shared net builder (x,z = center, yaw 0 = net across X) ---- */

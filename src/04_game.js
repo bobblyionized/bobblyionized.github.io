@@ -411,7 +411,7 @@ function updatePlayer(dt) {
   const prevPos = P.pos.clone();
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
   if (S.scene === 'lobby') {
-    if (walkable(nx, nz)) { P.pos.x = nx; P.pos.z = nz; } else if (walkable(nx, P.pos.z)) P.pos.x = nx; else if (walkable(P.pos.x, nz)) P.pos.z = nz;
+    const py = P.pos.y; if (walkable(nx, nz, py)) { P.pos.x = nx; P.pos.z = nz; } else if (walkable(nx, P.pos.z, py)) P.pos.x = nx; else if (walkable(P.pos.x, nz, py)) P.pos.z = nz;
   } else {
     const mb = matchBounds();
     P.pos.x = clamp(nx, -mb.x + 1, mb.x - 1);
@@ -421,8 +421,10 @@ function updatePlayer(dt) {
   }
   blockNetCrossing(prevPos, P.pos);
   P.pos.y += P.vel.y * dt;
-  if (P.pos.y <= 0) {
-    P.pos.y = 0; P.vel.y = 0;
+  const gh = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // floors: ground, the stairs, the second floor
+  if (P.onGround && P.vel.y <= 0 && P.pos.y > gh + 0.7) P.onGround = false;   // walked off an edge
+  if (P.pos.y <= gh || (P.onGround && P.vel.y <= 0 && P.pos.y - gh <= 0.7)) {
+    P.pos.y = gh; P.vel.y = 0;
     if (!P.onGround) {
       P.onGround = true; P.airUsed = false; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; $('#chargeBar').classList.remove('storm');
       if (P.airActed) { P.landLock = T + 0.5; P.airActed = false; }           // used block / jump set on that jump: on landing, 0.5s of no jump / set / bump / dive
@@ -703,7 +705,8 @@ function updateCamera() {
   const f = camF();
   const target = P.pos.clone().add(new V3(0, 1.5, 0));                     // shift lock keeps the character centered
   const off = f.clone().multiplyScalar(-camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0));
-  const pos = target.clone().add(off); pos.y = clamp(pos.y, 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? 4.6 : (S.match && S.match.map === 'beach' ? 40 : 10.5));
+  const fl = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // the floor you are on (second floor included)
+  const pos = target.clone().add(off); pos.y = clamp(pos.y, fl + 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? fl + 4.6 : (S.match && S.match.map === 'beach' ? 40 : 10.5));
   const dirC = pos.clone().sub(target); const len = dirC.length(); dirC.normalize();
   camRay.set(target, dirC); camRay.far = len;
   const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : (S.match && S.match.map === 'beach' ? [] : COURT_COLL), false);
@@ -736,13 +739,13 @@ function updateCards() {
 
 /* ---------------- Lil Man Dealer (NPC) + shop ---------------- */
 function nearNPC() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC_POS.x, P.pos.z - NPC_POS.z) < 4.2; }
-function nearNPC2() { return S.scene === 'lobby' && !nearNPC() && Math.hypot(P.pos.x - NPC2_POS.x, P.pos.z - NPC2_POS.z) < 3.4; }
+function nearNPC2() { return S.scene === 'lobby' && !nearNPC() && Math.abs(P.pos.y - NPC2_POS.y) < 2 && Math.hypot(P.pos.x - NPC2_POS.x, P.pos.z - NPC2_POS.z) < 3.4; }
 const NPCS = [{ name: 'Lil Man Dealer', pos: NPC_POS, tagY: 1.75, promptY: 2.15, near: nearNPC, tag: null }, { name: 'Big Man Dealer', pos: NPC2_POS, tagY: 1.75, promptY: 2.1, near: nearNPC2, tag: null }];
 function projectNpc() {
   const el = $('#npcPrompt'); let prompted = false;
   for (const n of NPCS) {
     if (!n.tag) { n.tag = document.createElement('div'); n.tag.className = 'tag'; n.tag.textContent = n.name; $('#tags').appendChild(n.tag); }
-    const showTag = S.scene === 'lobby' && P.pos.distanceTo(n.pos) < 30;
+    const showTag = S.scene === 'lobby' && P.pos.distanceTo(n.pos) < 30 && Math.abs(P.pos.y - n.pos.y) < 3;   // only on your own floor
     n.tag.style.display = showTag ? '' : 'none';
     if (showTag) { _v.copy(n.pos); _v.y += n.tagY; _v.project(camera); const vis = _v.z < 1; n.tag.style.display = vis ? '' : 'none'; n.tag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; n.tag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
     if (!prompted && n.near() && !uiOpen()) {
@@ -897,7 +900,7 @@ function renderTraitsTab() {
     const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button><button class="del" title="Delete this trait">X</button>');
     const d = w.firstChild; const [eqB, delB] = d.querySelectorAll('button'); eqB.onclick = (e) => { e.stopPropagation(); equipTrait(k); }; delB.onclick = (e) => { e.stopPropagation(); deleteTrait(k); }; bag.appendChild(d);
   }
-  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes on the yellow couch.</div>';
+  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes upstairs (stairs behind the house).</div>';
 }
 function equipTrait(key) {
   const tr = (me.traits || {})[key]; if (!tr || !TRAITS[tr.id]) return;
@@ -1423,7 +1426,7 @@ async function boot(online) {
   if (S.booted) return; S.online = online;
   buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
-  LOBBY_COLL = COLLIDERS.filter(c => c.parent === lobby); COURT_COLL = COLLIDERS.filter(c => c.parent === court);
+  LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; });   // includes hut bodies (children of hut groups) COURT_COLL = COLLIDERS.filter(c => c.parent === court);
   setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
