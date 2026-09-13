@@ -1213,7 +1213,7 @@ async function startQueue(pad, pd) {
   const players = {}; for (const sid in (pd.players || {})) players[sid] = { name: pd.players[sid].name, id: pd.players[sid].id };
   const qid = 'q' + rnd() + Date.now().toString(36);
   const qref = db.ref(`queue/${pad.mode}/${qid}`);
-  await qref.set({ leader: SID, t: firebase.database.ServerValue.TIMESTAMP, players, mode: pad.mode });
+  await qref.set({ leader: SID, t: firebase.database.ServerValue.TIMESTAMP, players, mode: pad.mode, lock: !!pd.lock });
   qref.onDisconnect().remove();
   const forP = {}; for (const sid in players) forP[sid] = true;
   await db.ref(`pads/${pad.id}/queued`).set({ qid, for: forP });
@@ -1242,20 +1242,33 @@ function cancelQueue(remove = true) {
   if (remove) db.ref(`queue/${mode}/${qid}`).once('value').then(s => { const q = s.val(); if (!q) return; if (q.leader === SID) db.ref(`queue/${mode}/${qid}`).remove(); else db.ref(`queue/${mode}/${qid}/players/${SID}`).remove(); });
 }
 $('#queueCancelBtn').onclick = () => { cancelQueue(true); toast('Left the queue'); };
-async function matchmake(mode, qid) {
+async function matchmake(mode, qid) {           // every queue leader tries: fill my team from the queue, then a full opposing team, then start the match
   if (!S.queue || S.queue.qid !== qid) return;
+  const size = parseInt(mode, 10) || 2;                                                          // '2v2' -> 2 per team
   const all = (await db.ref('queue/' + mode).once('value')).val() || {};
   const ids = Object.keys(all).filter(k => !all[k].match).sort((a, b) => (all[a].t || 0) - (all[b].t || 0) || (a < b ? -1 : 1));
-  if (ids[0] !== qid || ids.length < 2) return;
-  const other = ids[1]; const mid = 'm' + rnd() + Date.now().toString(36);
+  if (!ids.includes(qid)) return;
+  const count = id => Object.keys(all[id].players || {}).length;
+  const fill = (pool) => {                                                                        // greedily combine entries into one team of exactly `size`; friends-locked entries never share a team
+    const used = []; let n = 0;
+    for (const id of pool) { const c = count(id); if (!c || c > size - n) continue; if (all[id].lock && c !== size) continue; if (used.length && all[id].lock) continue; if (used.some(u => all[u].lock)) continue; used.push(id); n += c; if (n === size) break; }
+    return n === size ? used : null;
+  };
+  const A = fill([qid].concat(ids.filter(id => id !== qid))); if (!A) return;                       // my entry seeds team A (older entries fill it first), or we wait
+  const B = fill(ids.filter(id => !A.includes(id))); if (!B) return;
+  const mid = 'm' + rnd() + Date.now().toString(36);
   const teamA = {}, teamB = {};
-  for (const sid in (all[qid].players || {})) teamA[sid] = all[qid].players[sid];
-  for (const sid in (all[other].players || {})) teamB[sid] = all[other].players[sid];
+  for (const id of A) for (const sid in (all[id].players || {})) teamA[sid] = all[id].players[sid];
+  for (const id of B) for (const sid in (all[id].players || {})) teamB[sid] = all[id].players[sid];
   await db.ref('matches/' + mid).set({ mode, practice: false, created: firebase.database.ServerValue.TIMESTAMP, teams: { A: teamA, B: teamB }, state: 'serve', score: { A: 0, B: 0 }, serve: { team: 'A', sid: Object.keys(teamA)[0] }, serveIdx: { A: 0, B: -1 }, msg: '', serveAt: firebase.database.ServerValue.TIMESTAMP });
-  const res = await db.ref(`queue/${mode}/${other}/match`).transaction(c => c ? undefined : mid);
-  if (!res.committed) { db.ref('matches/' + mid).remove(); return; }
+  const others = A.concat(B).filter(id => id !== qid); const marked = [];
+  for (const id of others) {                                                                       // claim every other entry; if one was grabbed meanwhile, undo and try again next tick
+    const res = await db.ref(`queue/${mode}/${id}/match`).transaction(c => c ? undefined : mid);
+    if (!res.committed) { for (const m of marked) db.ref(`queue/${mode}/${m}/match`).remove(); db.ref('matches/' + mid).remove(); return; }
+    marked.push(id);
+  }
   await db.ref(`queue/${mode}/${qid}/match`).set(mid);
-  setTimeout(() => { db.ref(`queue/${mode}/${qid}`).remove(); db.ref(`queue/${mode}/${other}`).remove(); }, 4000);
+  setTimeout(() => { for (const id of A.concat(B)) db.ref(`queue/${mode}/${id}`).remove(); }, 4000);
 }
 setInterval(() => { if (S.queue) { const s = Math.floor(T - queueStart); $('#queueStatusText').textContent = `IN QUEUE - ${S.queue.mode.toUpperCase()} - ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; } }, 500);
 
@@ -1472,17 +1485,21 @@ async function cleanupStale() {
     for (const mode in qs) for (const id in qs[mode]) { const q = qs[mode][id]; if (t - (q.t || 0) > 900000) db.ref(`queue/${mode}/${id}`).remove(); }
   } catch (e) { }
 }
+const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
 async function boot(online) {
   if (S.booted) return; S.online = online;
-  buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
+  await setLoad(5, 'Building the beach house...'); buildLobby();
+  await setLoad(25, 'Building the courts...'); buildCourt(); buildBeachCourt();
+  await setLoad(40, 'Rendering icons...'); renderPoseIcons(); updateDayNight(true);
   { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
-  LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; });   // includes hut bodies (children of hut groups) COURT_COLL = COLLIDERS.filter(c => c.parent === court);
-  setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);
-  if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
+  LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)
+  setMyRig('white'); await setLoad(55, 'Warming up effects...'); initFxLights(); warmUpFx(P.rig);
+  if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); await setLoad(75, 'Signing in...'); const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); await setLoad(90, 'Joining the lobby...'); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
   $('#online .dot').classList.toggle('on', online);
   if (online) { cleanupStale(); pruneChat(); subscribeChat(); db.ref('invites/' + SID).onDisconnect().remove(); }
+  await setLoad(100, 'Ready!');
   S.booted = true; last = performance.now(); $('#loading').classList.add('hidden'); updateLockHint(); renderKeys();
   toast('Welcome, ' + me.name, 'ok', 3000);
 }
