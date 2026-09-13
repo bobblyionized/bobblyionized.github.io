@@ -1526,6 +1526,14 @@ async function cleanupStale() {
     for (const mode in qs) for (const id in qs[mode]) { const q = qs[mode][id]; if (t - (q.t || 0) > 900000) db.ref(`queue/${mode}/${id}`).remove(); }
   } catch (e) { }
 }
+function optimizeScenery() {                    // fold static scenery into a handful of meshes (see mergeStatic); things that move keep their own
+  for (const n of [NPC, NPC2, NPC3]) if (n && n.root) n.root.userData.noMerge = true;
+  for (const id in PADS) PADS[id].group.userData.noMerge = true;
+  if (typeof GYM_PANEL_MAT !== 'undefined') GYM_PANEL_MAT.userData.solo = true;
+  try { mergeStatic(lobby, AMBIENT, 'lobby'); } catch (e) { console.warn('merge lobby', e); }
+  try { mergeStatic(court, typeof COURT_AMBIENT !== 'undefined' ? COURT_AMBIENT : [], 'gym'); } catch (e) { console.warn('merge gym', e); }
+  try { mergeStatic(beachCourt, typeof BEACH_AMBIENT !== 'undefined' ? BEACH_AMBIENT : [], 'beach'); } catch (e) { console.warn('merge beach', e); }
+}
 const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => { let done = false; const fin = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(fin); setTimeout(fin, 60); }); };   // rAF paints the bar; the timeout keeps boot going in a hidden tab (rAF never fires there)
 async function boot(online) {
   if (S.booted) return; S.online = online;
@@ -1536,6 +1544,7 @@ async function boot(online) {
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)
   setMyRig('white'); await setLoad(55, 'Warming up effects...'); initFxLights(); warmUpFx(P.rig);
+  await setLoad(65, 'Optimizing scenery...'); optimizeScenery();
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); await setLoad(75, 'Signing in...'); const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); await setLoad(90, 'Joining the lobby...'); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
   $('#online .dot').classList.toggle('on', online);

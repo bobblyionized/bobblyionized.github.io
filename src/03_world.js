@@ -218,7 +218,7 @@ function roundedBoxGeo(w, h, d, rr, k = 2) {
 const GEO_CACHE = new Map();
 function boxGeo(w, h, d, rr) {
   const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.04) : rr;
-  const k = Math.min(w, h, d) < 0.7 ? 2 : 1;              // characters and props get a rounder fillet; walls and floors chamfer once
+  const k = 1;                                            // one chamfer ring everywhere: a third of the triangles of the old two-ring fillet on small parts, same silhouette at play distance
   const key = w + ',' + h + ',' + d + ',' + r.toFixed(4) + ',' + k;
   let g = GEO_CACHE.get(key); if (!g) { g = roundedBoxGeo(w, h, d, r, k); GEO_CACHE.set(key, g); }
   return g;
@@ -447,6 +447,18 @@ class Rig {
     this.lean = 0; this.leanTarget = 0;                // banking into a turn
     this.prevYaw = 0; this.idleSeed = Math.random() * 100; this.idleAmt = 0;
     this.setPose('idle');
+    this.foldParts();
+  }
+  /* Merge every mesh that stays rigid with its joint into one mesh per joint and material: a rig drops from
+     ~56 draw calls to ~20 and still animates exactly the same. The hands and torso stay separate (the game
+     reads the hands' world positions and swaps the torso material). */
+  foldParts() {
+    if (typeof mergeStatic !== 'function') return;
+    this.handL.userData.noMerge = true; this.handR.userData.noMerge = true; this.torso.userData.noMerge = true;
+    const names = Object.keys(POSES); let k = 0; const rig = this;
+    const saveAnim = this.anim, saveUntil = this.animUntil;
+    try { mergeStatic(this.root, [{ update() { rig.setPose(names[k++ % names.length]); rig.snap(); } }], 'rig', true); } catch (e) { console.warn('rig fold', e); }
+    this.anim = saveAnim; this.animUntil = saveUntil; this.setPose(saveAnim); this.snap();
   }
   setScale(x, y = x, z = x) { this.baseScale.set(x, y, z); this.root.scale.copy(this.baseScale); }
   /* A vertical impulse into the squash spring. Negative compresses (landing), positive stretches (take-off). */
@@ -759,7 +771,7 @@ function makePalm(parent, ambient, x, z, h = 5) {
     const k = 0.4 + WIND.length() * 0.35;
     crown.rotation.z = (Math.sin(t * 1.1 + this.ph) * 0.06 - WIND.x * 0.03) * k;
     crown.rotation.x = (Math.cos(t * 0.9 + this.ph) * 0.05 + WIND.z * 0.03) * k;
-    for (let i = 0; i < fronds.length; i++) fronds[i].rotation.x = Math.sin(t * 2.1 + this.ph + i * 1.3) * 0.09 * k;   // each frond flutters out of step with the others
+    // (fronds no longer flutter individually: that kept ~60 separate draw calls per palm alive; the crown sway carries the motion and the whole crown now merges into a few meshes)
   } });
 }
 /* Eight cone sectors alternating colour instead of one plain cone: panelled canopy and a scalloped rim
@@ -875,7 +887,7 @@ function makePlantPot(parent, x, y, z, s = 1, potHex = 0xc9764f, ambient = null)
     leafBlade(0.3, 0.03, 0.19, lm.top, lm.bot, 0.52, 0.012, 0, blade, false);
     leaves.push(lg);
   }
-  if (ambient) ambient.push({ ph: Math.random() * 6, update(t) { for (let i = 0; i < leaves.length; i++) leaves[i].rotation.x = Math.sin(t * 1.3 + this.ph + i) * 0.05; } });
+  if (ambient) ambient.push({ ph: Math.random() * 6, update(t) { g.rotation.x = Math.sin(t * 1.3 + this.ph) * 0.03; g.rotation.z = Math.cos(t * 1.1 + this.ph) * 0.03; } });   // the whole plant breathes (per-leaf sway kept 18 draw calls per plant alive)
   return g;
 }
 function makeBench(parent, x, y, z, ry, len = 2.2) {
@@ -1562,6 +1574,68 @@ function dressLobbyInterior(M) {
       g.rotation.y = -a; const f = Math.sin(t * 16 + ph) * 1.1; wL.rotation.y = f; wR.rotation.y = -f;
     } });
   }
+}
+/* ---- static scenery merge: thousands of little boxes become a few dozen meshes ----
+   Every wall, tread, plant and prop is its own Mesh (one draw call each, ~4,000 per frame for the lobby).
+   After boot we run the ambient animators forward a few fake seconds, note which meshes (and which
+   materials) changed, and fold everything that did NOT change into one mesh per material signature.
+   Animated things, rigs, pads and anything flagged noMerge keep their own meshes. The originals stay
+   alive off-scene so camera colliders (which raycast them) still work. */
+function matSig(m) {
+  if (m.userData.solo) return 'solo:' + m.uuid;
+  return [m.type, m.color ? m.color.getHex() : '', m.map ? m.map.uuid : '', m.emissive ? m.emissive.getHex() : '', m.emissiveIntensity, m.emissiveMap ? m.emissiveMap.uuid : '', m.roughness, m.metalness, m.transparent, m.opacity, m.side, m.flatShading, m.blending, m.depthWrite, m.depthTest, m.alphaTest, m.normalMap ? m.normalMap.uuid : '', m.roughnessMap ? m.roughnessMap.uuid : '', m.envMapIntensity, m.vertexColors, m.uniforms ? 'shader' + m.uuid : '', m.fog].join('|');
+}
+function matState(m) { return [m.color ? m.color.getHex() : 0, m.opacity, m.emissiveIntensity, m.visible, m.emissive ? m.emissive.getHex() : 0].join(','); }
+function mergeStatic(root, animators, label, quiet = false) {
+  root.updateMatrixWorld(true);
+  const skip = new Set(); root.traverse(o => { if (o.userData.noMerge) o.traverse(c => skip.add(c)); });
+  const all = []; root.traverse(o => { if (o !== root) all.push(o); });
+  const m0 = new Map(all.map(o => [o, o.matrixWorld.clone()]));
+  const cand = all.filter(o => o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !skip.has(o) && !Array.isArray(o.material) && o.visible && o.geometry.attributes.position && o.geometry.attributes.normal);
+  const s0 = new Map(cand.map(o => [o, matState(o.material)]));
+  const t0 = performance.now() / 1000 + 1000;                              // fake time, well away from anything the animators have seen
+  for (let i = 1; i <= 8; i++) for (const a of animators) { try { a.update(t0 + i * 0.41, 0.41); } catch (e) { } }
+  root.updateMatrixWorld(true);
+  const rel = (anc, o, map) => new THREE.Matrix4().copy(map.get(anc)).invert().multiply(map.get(o));
+  const now = new Map(all.map(o => [o, o.matrixWorld])); now.set(root, root.matrixWorld); m0.set(root, root.matrixWorld);
+  // a mesh merges into the HIGHEST ancestor it stays rigid with: static props go to the root, a palm's
+  // leaves go to its swaying crown (so the crown becomes a few meshes that still sway), a fluttering
+  // part that moves on its own relative to everything stays as it is
+  const nearEq = (a, b) => { const x = a.elements, y = b.elements; for (let i = 0; i < 16; i++) if (Math.abs(x[i] - y[i]) > 1e-4) return false; return true; };   // float slack: a rotated parent changes every descendant's world matrix by rounding
+  const anchorOf = o => { let best = null; for (let p = o.parent; p; p = p === root ? null : p.parent) { if (nearEq(rel(p, o, m0), rel(p, o, now))) best = p; else break; } return best; };
+  const groups = new Map(); let kept = 0;
+  for (const o of cand) {
+    const anc = anchorOf(o);
+    if (!anc || matState(o.material) !== s0.get(o) || !o.visible) { kept++; continue; }   // moves on its own (or its material animates): keep it
+    const key = anc.uuid + '#' + matSig(o.material) + '#' + Object.keys(o.geometry.attributes).sort().join(',');
+    let grp = groups.get(key); if (!grp) { grp = { anc, mat: o.material, items: [], cast: false, recv: false }; groups.set(key, grp); }
+    grp.items.push(o); grp.cast = grp.cast || o.castShadow; grp.recv = grp.recv || o.receiveShadow;
+  }
+  const nm = new THREE.Matrix3(); const M = new THREE.Matrix4(); const v = new THREE.Vector3(); let merged = 0, out = 0;
+  for (const grp of groups.values()) {
+    if (grp.items.length < 2) { kept += grp.items.length; continue; }
+    const inv = new THREE.Matrix4().copy(grp.anc.matrixWorld).invert();
+    const names = Object.keys(grp.items[0].geometry.attributes); const sizes = {}; let nv = 0, ni = 0;
+    for (const o of grp.items) { const g = o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    for (const n of names) sizes[n] = grp.items[0].geometry.attributes[n].itemSize;
+    const bufs = {}; for (const n of names) bufs[n] = new Float32Array(nv * sizes[n]); const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+    let vo = 0, io = 0;
+    for (const o of grp.items) {
+      const g = o.geometry; M.multiplyMatrices(inv, o.matrixWorld); nm.getNormalMatrix(M); const cnt = g.attributes.position.count;
+      for (const n of names) {
+        const src = g.attributes[n], dst = bufs[n], sz = sizes[n];
+        if (n === 'position') for (let k = 0; k < cnt; k++) { v.fromBufferAttribute(src, k).applyMatrix4(M); dst[(vo + k) * 3] = v.x; dst[(vo + k) * 3 + 1] = v.y; dst[(vo + k) * 3 + 2] = v.z; }
+        else if (n === 'normal') for (let k = 0; k < cnt; k++) { v.fromBufferAttribute(src, k).applyMatrix3(nm).normalize(); dst[(vo + k) * 3] = v.x; dst[(vo + k) * 3 + 1] = v.y; dst[(vo + k) * 3 + 2] = v.z; }
+        else for (let k = 0; k < cnt * sz; k++) dst[vo * sz + k] = src.array[k];
+      }
+      if (g.index) { const ia = g.index.array; for (let k = 0; k < ia.length; k++) idx[io + k] = ia[k] + vo; io += ia.length; }
+      else { for (let k = 0; k < cnt; k++) idx[io + k] = vo + k; io += cnt; }
+      vo += cnt; o.parent.remove(o); merged++;
+    }
+    const geo = new THREE.BufferGeometry(); for (const n of names) geo.setAttribute(n, new THREE.BufferAttribute(bufs[n], sizes[n])); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    const mesh = new THREE.Mesh(geo, grp.mat); mesh.castShadow = grp.cast; mesh.receiveShadow = grp.recv; mesh.userData.merged = grp.items.length; grp.anc.add(mesh); out++;
+  }
+  if (!quiet) console.log(`[merge] ${label}: ${merged} of ${cand.length} meshes folded into ${out} (${kept} kept as they are)`);
 }
 function updateAmbient(t, dt) { updateWind(); for (const a of AMBIENT) a.update(t, dt); }
 const BLOCKED = [];   // footprints players cannot enter (huts)
