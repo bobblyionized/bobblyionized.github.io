@@ -806,7 +806,7 @@ function equipItem(kind, id) {
 }
 
 /* ---------------- Big Man Dealer: trait boxes ---------------- */
-// Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
+// Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 45 / 45 / 10.
 // All three boxes' traits are live (see hasTrait uses).
 const TRAITS = {
   b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
@@ -824,7 +824,7 @@ const TRAIT_BOXES = {
   2: { name: 'Trait Box 2', price: 2000, traits: ['b2p1', 'b2p2', 'b2a'] },
   3: { name: 'Trait Box 3', price: 5000, traits: ['b3p1', 'b3p2', 'b3a'] },
 };
-const BOX_ODDS = [0.4, 0.4, 0.2];
+const BOX_ODDS = [0.45, 0.45, 0.1];
 function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
 function traitCardHtml(tid, cls = '', extra = '') {
   const t = TRAITS[tid]; if (!t) return '';
