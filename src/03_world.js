@@ -28,7 +28,7 @@ addEventListener('resize', resize); resize();
 
 const hemi = new THREE.HemisphereLight(0xdff2ff, 0xc9b08a, 0.5); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -26; sun.shadow.camera.right = 26; sun.shadow.camera.top = 26; sun.shadow.camera.bottom = -26; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -18; sun.shadow.camera.right = 18; sun.shadow.camera.top = 18; sun.shadow.camera.bottom = -18;   // 36 m box around the player: cheaper pass, sharper shadows sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.05; sun.shadow.radius = 2;   // normalBias keeps the filleted edges free of acne
 sun.position.set(14, 26, 10); scene.add(sun); scene.add(sun.target);
 const bounce = new THREE.DirectionalLight(0xbcd8ff, 0.2); bounce.castShadow = false; scene.add(bounce);   // cool fill from the shadow side, so shadowed faces stay readable
@@ -197,7 +197,14 @@ function updateDayNight(force) {
 setInterval(updateDayNight, 15000);
 
 /* ---- helpers ---- */
-const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.95, metalness: 0, envMapIntensity: ENV_INT }, extra));
+const MAT_CACHE = new Map();                          // plain mat(colour) calls share one material per colour: the static merge can then fold every same-coloured prop together (draw calls), and shader programs are shared
+const mat = (color, extra = {}) => {
+  const plain = !extra || Object.keys(extra).length === 0;
+  if (plain && MAT_CACHE.has(color)) return MAT_CACHE.get(color);
+  const m = new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.95, metalness: 0, envMapIntensity: ENV_INT }, extra || {}));
+  if (plain) MAT_CACHE.set(color, m);
+  return m;
+};
 
 /* Rounded box. Same six material groups and UV layout as THREE.BoxGeometry (the jersey number, the face
    and every other per-face texture rely on that), but the edges are filleted and the shoulder normals are
@@ -1674,7 +1681,8 @@ function mergeStatic(root, animators, label, quiet = false) {
   for (const o of cand) {
     const anc = anchorOf(o);
     if (!anc || matState(o.material) !== s0.get(o) || !o.visible) { kept++; continue; }   // moves on its own (or its material animates): keep it
-    const key = anc.uuid + '#' + matSig(o.material) + '#' + Object.keys(o.geometry.attributes).sort().join(',');
+    const wp = anc === root ? new THREE.Vector3().setFromMatrixPosition(o.matrixWorld) : null; const cell = wp ? Math.floor(wp.x / 30) + ',' + Math.floor(wp.z / 30) : '';   // root-anchored props merge per 30 m cell, so the frustum can cull whole chunks
+    const key = anc.uuid + '#' + cell + '#' + matSig(o.material) + '#' + Object.keys(o.geometry.attributes).sort().join(',');
     let grp = groups.get(key); if (!grp) { grp = { anc, mat: o.material, items: [], cast: false, recv: false }; groups.set(key, grp); }
     grp.items.push(o); grp.cast = grp.cast || o.castShadow; grp.recv = grp.recv || o.receiveShadow;
   }

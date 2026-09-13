@@ -715,7 +715,7 @@ function projectTags() {
   for (const [sid, r] of remotes) {
     _v.copy(r.rig.root.position); _v.y += 2.05; _v.project(camera);
     const vis = _v.z < 1 && _v.z > -1; r.tag.style.display = vis ? '' : 'none';
-    if (vis) { r.tag.style.left = ((_v.x + 1) / 2 * W) + 'px'; r.tag.style.top = ((1 - _v.y) / 2 * H) + 'px'; }
+    if (vis) { const lx = Math.round((_v.x + 1) / 2 * W), ly = Math.round((1 - _v.y) / 2 * H); if (lx !== r.tagX || ly !== r.tagY) { r.tagX = lx; r.tagY = ly; r.tag.style.left = lx + 'px'; r.tag.style.top = ly + 'px'; } }   // only touch the DOM when the tag actually moves
     const near = vis && hasTrait('b4p2') && r.rig.root.position.distanceTo(P.pos) < 22;   // Setter Vision: a coloured square over everyone around you
     if (near) { if (!r.mark) { r.mark = document.createElement('div'); r.mark.className = 'vmark'; $('#tags').appendChild(r.mark); } const team = r.data && r.data.team; r.mark.style.background = S.scene === 'match' && team && team !== 'L' ? (team === P.team ? '#3b8ff0' : '#e5484d') : `hsl(${(r.hue = r.hue == null ? ([...r.name || sid].reduce((a, c) => a + c.charCodeAt(0), 0) * 37) % 360 : r.hue)},85%,55%)`; r.mark.style.left = r.tag.style.left; r.mark.style.top = (parseFloat(r.tag.style.top) - 22) + 'px'; r.mark.style.display = ''; }
     else if (r.mark) r.mark.style.display = 'none';
