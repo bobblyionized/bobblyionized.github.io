@@ -702,12 +702,15 @@ function jerseyMats(variant) {
 }
 const POSES = {
   idle:        { shL: [0, 0, 3], shR: [0, 0, -3], elL: [-6, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
-  air:         { shL: [-125, 0, 18], shR: [55, 0, -22], elL: [-25, 0, 0], elR: [-25, 0, 0], hipL: [38, 0, 0], hipR: [38, 0, 0], knL: [100, 0, 0], knR: [100, 0, 0], spine: [-14, -14, 0], neck: [-4, 8, 0] },   // left arm up, leaning back and turned slightly right, legs swept back
+  jumpUp:      { shL: [-150, 0, 18], shR: [-150, 0, -18], elL: [-40, 0, 0], elR: [-40, 0, 0], hipL: [-10, 0, 0], hipR: [-10, 0, 0], knL: [4, 0, 0], knR: [4, 0, 0], spine: [-6, 0, 0], neck: [-12, 0, 0] },   // take-off: both arms thrown up, legs driven straight
+  air:         { shL: [-120, 0, 24], shR: [-168, 0, -28], elL: [-22, 0, 0], elR: [-72, 0, 0], hipL: [34, 0, 0], hipR: [34, 0, 0], knL: [98, 0, 0], knR: [98, 0, 0], spine: [-12, -12, 0], neck: [-6, 8, 0] },   // spike-ready: right arm up with the elbow folded back behind the head, left arm reaching, legs swept back
+  airDown:     { shL: [-16, 0, 10], shR: [-22, 0, -8], elL: [-28, 0, 0], elR: [-28, 0, 0], hipL: [12, 0, 0], hipR: [12, 0, 0], knL: [32, 0, 0], knR: [32, 0, 0], spine: [6, 0, 0], neck: [4, 0, 0] },   // falling after the air action is spent: arms down
+  land:        { shL: [-38, 0, 14], shR: [-38, 0, -14], elL: [-30, 0, 0], elR: [-30, 0, 0], hipL: [-34, 0, 0], hipR: [-34, 0, 0], knL: [64, 0, 0], knR: [64, 0, 0], spine: [18, 0, 0], neck: [-8, 0, 0] },   // landing crouch
   bump:        { shL: [-60, 0, 3], shR: [-60, 0, -3], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-28, 0, 0], hipR: [-28, 0, 0], knL: [40, 0, 0], knR: [40, 0, 0], spine: [20, 0, 0], neck: [-12, 0, 0] },
   set:         { shL: [-118, 0, 5], shR: [-118, 0, -5], elL: [-60, 0, 0], elR: [-60, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [14, 0, 0], knR: [14, 0, 0], spine: [-2, 0, 0], neck: [-18, 0, 0] },
   block:       { shL: [-172, 0, 12], shR: [-172, 0, -12], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [-8, 0, 0], hipR: [-8, 0, 0], knL: [16, 0, 0], knR: [16, 0, 0], spine: [-3, 0, 0], neck: [-8, 0, 0] },
-  spikeCharge: { shL: [-130, 0, 16], shR: [-105, 0, -70], elL: [-15, 0, 0], elR: [-110, 0, 0], hipL: [-18, 0, 0], hipR: [-32, 0, 0], knL: [36, 0, 0], knR: [55, 0, 0], spine: [-12, 0, -10], neck: [-8, 0, 0] },
-  spikeHit:    { shL: [-20, 0, 6], shR: [-40, 0, 50], elL: [-120, 0, 0], elR: [-75, 0, 0], hipL: [-55, 0, 0], hipR: [-55, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [22, -12, 6], neck: [8, 0, 0] },
+  spikeCharge: { shL: [-146, 0, 22], shR: [-178, 0, -26], elL: [-12, 0, 0], elR: [-55, 0, 0], hipL: [42, 0, 0], hipR: [42, 0, 0], knL: [104, 0, 0], knR: [104, 0, 0], spine: [-18, -16, 0], neck: [-14, 6, 0] },   // wind-up: hitting hand drawn further back but still above the shoulder, back arched
+  spikeHit:    { shL: [-26, 0, 12], shR: [-52, 0, 20], elL: [-34, 0, 0], elR: [-16, 0, 0], hipL: [-46, 0, 0], hipR: [-46, 0, 0], knL: [22, 0, 0], knR: [22, 0, 0], spine: [26, -6, 0], neck: [12, 0, 0] },   // the swing: hitting arm whipped down and across, torso crunching over it
   tip:         { shL: [-65, 0, 18], shR: [-160, 0, -6], elL: [-25, 0, 0], elR: [-12, 0, 0], hipL: [-18, 0, 0], hipR: [-18, 0, 0], knL: [36, 0, 0], knR: [36, 0, 0], spine: [-3, 0, 0], neck: [-12, 0, 0] },
   dive:        { shL: [-100, 0, 8], shR: [-100, 0, -8], elL: [0, 0, 0], elR: [0, 0, 0], hipL: [6, 0, 0], hipR: [6, 0, 0], knL: [8, 0, 0], knR: [8, 0, 0], spine: [0, 0, 0], neck: [-25, 0, 0] },
   diveL:       { shL: [-20, 0, 95], shR: [-30, 0, 35], elL: [0, 0, 0], elR: [-20, 0, 0], hipL: [-10, 0, 20], hipR: [-25, 0, 5], knL: [20, 0, 0], knR: [45, 0, 0], spine: [0, 0, 12], neck: [0, 0, 20] },
@@ -716,6 +719,7 @@ const POSES = {
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
+const POSE_SNAP = { jumpUp: 22, land: 20, spikeCharge: 26, spikeHit: 32 };   // how hard each pose snaps in; everything else uses the default blend
 const faceTex = (skinHex, girl) => canvasTex(128, 128, (g, W, H) => {
   g.fillStyle = skinHex; g.fillRect(0, 0, W, H);
   if (girl) { g.strokeStyle = '#222'; g.lineWidth = 3; g.lineCap = 'round'; for (const cx of [42, 86]) for (const o of [-8, 0, 8]) { g.beginPath(); g.moveTo(cx + o, 44); g.lineTo(cx + o * 1.4, 36); g.stroke(); } g.fillStyle = 'rgba(255,120,150,.35)'; g.beginPath(); g.ellipse(30, 74, 8, 5, 0, 0, Math.PI * 2); g.fill(); g.beginPath(); g.ellipse(98, 74, 8, 5, 0, 0, Math.PI * 2); g.fill(); }
@@ -804,6 +808,7 @@ class Rig {
   update(dt, t) {
     if (this.animUntil && t > this.animUntil) { this.anim = this.base; this.animUntil = 0; }
     const pose = POSES[this.anim] || POSES.idle;
+    const snap = POSE_SNAP[this.anim] || 14;
     for (const k in this.j) {
       const p = pose[k] || [0, 0, 0]; const tg = this.target[k]; tg.set(p[0] * D, p[1] * D, p[2] * D);
       if (this.anim === 'idle' && this.moveSpeed > 0.5) {         // run cycle: slower, bigger swings
@@ -816,7 +821,7 @@ class Rig {
         if (k === 'spine') tg.x = 8 * D; if (k === 'neck') tg.x = -6 * D;
       } else if (this.anim === 'idle' && k === 'spine') { tg.x = Math.sin(t * 2) * 1.0 * D; }
       if (this.emote) emotePose(this.emote, this.emoteT, k, tg);
-      const cu = this.cur[k]; cu.lerp(tg, Math.min(1, dt * 14));
+      const cu = this.cur[k]; cu.lerp(tg, Math.min(1, dt * snap));
       this.j[k].rotation.set(cu.x, cu.y, cu.z);
     }
     if (this.emote) { this.emoteT += dt; const e = emoteBody(this.emote, this.emoteT); this.emoteYaw = e.yaw; this.emoteBob = e.bob; this.pitchTarget = e.pitch; } else { this.emoteYaw = 0; this.emoteBob = 0; }
@@ -1574,7 +1579,8 @@ function tryJump() {
   if (!P.onGround || P.dive) return;
   P.vel.y = JUMP_V; P.onGround = false; P.airUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
-  P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air'; P.rig.setPose(P.rig.base);
+  P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
+  P.rig.setPose(P.holding ? 'hold' : 'jumpUp', P.holding ? 0 : T + 0.18);   // take-off extension, then settle into the spike-ready air pose
 }
 const chestPos = () => P.pos.clone().add(new V3(0, 1.07, 0)).addScaledVector(cf(), 0.35);
 const highPos = () => P.pos.clone().add(new V3(0, 1.92, 0)).addScaledVector(cf(), 0.3);
@@ -1597,7 +1603,7 @@ function groundTilt() {                      // WASD while on the ground, relati
 const ACT_WINDOW = 0.3;                      // bump / set / jump set stay armed this long, so the ball can arrive a bit late
 function doBump() { P.rig.setPose('bump', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'bump', until: T + ACT_WINDOW }; setTimeout(() => actionFx('bump', P.rig, cf()), 60); tryAct(); }
 function doGroundSet() { P.rig.setPose('set', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'set', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
-function doJumpSet() { P.airUsed = true; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
+function doJumpSet() { P.airUsed = true; P.rig.base = 'airDown'; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
 function tryAct() {
   const a = P.act; if (!a) return;
   if (T > a.until) { P.act = null; return; }
@@ -1644,7 +1650,7 @@ function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; 
 function releaseSpike() {
   P.charging = false; $('#chargeBar').classList.add('hidden');
   const c = chargeAt(T - P.chargeStart);
-  if (c <= 0.3) { P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
+  if (c <= 0.3) { P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
   else { P.rig.setPose('spikeCharge', T + 0.07); P.swingAt = T + 0.07; if (!doSpike(c)) P.act = { type: 'spike', c, until: T + 0.16 }; }   // the hit stays armed briefly after the swing
 }
 function netAhead(from, fwd) {                 // distance to the nearest net in front of the ball (Infinity if none)
@@ -1768,7 +1774,7 @@ function updatePlayer(dt) {
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
-  if (P.swingAt && T >= P.swingAt) { P.swingAt = 0; if (!P.onGround) { P.rig.setPose('spikeHit', T + 0.4); actionFx('spike', P.rig, P.jumpFwd); } }
+  if (P.swingAt && T >= P.swingAt) { P.swingAt = 0; if (!P.onGround) { P.rig.base = 'airDown'; P.rig.setPose('spikeHit', T + 0.4); actionFx('spike', P.rig, P.jumpFwd); } }   // the arm stays down through the fall instead of re-cocking
   if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
@@ -1815,7 +1821,8 @@ function updatePlayer(dt) {
     if (!P.onGround) {
       P.onGround = true; P.airUsed = false; P.blockUntil = 0;
       if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
-      P.rig.base = P.holding ? 'hold' : 'idle'; P.rig.setPose(P.rig.base);
+      P.rig.base = P.holding ? 'hold' : 'idle';
+      P.rig.setPose(P.holding ? 'hold' : 'land', P.holding ? 0 : T + 0.16);   // short landing crouch, then back to idle / run
       if (P.act && P.act.type !== 'bump' && P.act.type !== 'set') P.act = null;
     }
   }
@@ -1961,10 +1968,20 @@ function remoteUpsert(sid, d) {
   if (!r) {
     const rig = new Rig(variant, model); scene.add(rig.root); rig.root.position.set(d.x || 0, d.y || 0, d.z || 0);
     const tag = document.createElement('div'); tag.className = 'tag'; $('#tags').appendChild(tag);
-    r = { rig, tag, buf: [], data: d, speed: 0 };
+    r = { rig, tag, buf: [], data: d, speed: 0, stamp: null, gap: 0.09, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
     remotes.set(sid, r);
   }
-  r.buf.push({ t: T, x: d.x || 0, y: d.y || 0, z: d.z || 0, ry: d.ry || 0 }); if (r.buf.length > 12) r.buf.shift();
+  // de-jitter: packets are stamped onto a steady timeline running at the sender's average rate, not at
+  // their arrival time — otherwise network latency wobble is replayed as speed wobble (surge / stall).
+  const since = T - r.lastArrive;
+  if (r.stamp === null || since > 0.8) { r.stamp = T; r.gap = 0.09; }
+  else {
+    if (since < r.gap * 2.2) r.gap = lerp(r.gap, clamp(since, 0.03, 0.4), 0.07);           // average send interval, ignoring stalls
+    const step = since > r.gap * 2.2 ? since : r.gap;                                      // a real stall keeps its true length; only wobble is smoothed away
+    r.stamp = clamp(r.stamp + step + (T - r.stamp - step) * 0.05, T - 0.45, T + 0.12);     // steady step, creeping toward real arrival
+  }
+  r.lastArrive = T;
+  r.buf.push({ t: r.stamp, x: d.x || 0, y: d.y || 0, z: d.z || 0, ry: d.ry || 0 }); if (r.buf.length > 12) r.buf.shift();
   r.data = d;
   if (r.rig.anim !== d.anim) { r.rig.setPose(d.anim || 'idle'); const fwd = new V3(Math.sin(d.ry || 0), 0, Math.cos(d.ry || 0)); if (d.anim === 'bump' || d.anim === 'set' || d.anim === 'block' || d.anim === 'spikeHit') setTimeout(() => actionFx(d.anim === 'spikeHit' ? 'spike' : d.anim, r.rig, fwd), 60); }
   const em = d.em || null; if (em !== r.rig.emote) { r.rig.emote = em; r.rig.emoteT = 0; if (!em) r.rig.pitchTarget = d.pt || 0; }
@@ -1973,22 +1990,46 @@ function remoteUpsert(sid, d) {
 }
 function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
-const INTERP_DELAY = 0.13;                       // render other players 200 ms in the past so their movement is smooth
+const INTERP_DELAY = 0.18;                       // render other players this far in the past so their movement is smooth
+// cubic Hermite through the buffer: tangents come from the neighbouring samples, so speed carries across
+// each sample instead of kinking at it (plain lerp changes direction every packet, which reads as chatter).
+function hermite(a, b, o, n, s, h, key) {
+  const va = (b[key] - o[key]) / Math.max(0.001, b.t - o.t), vb = (n[key] - a[key]) / Math.max(0.001, n.t - a.t);
+  const s2 = s * s, s3 = s2 * s;
+  return (2 * s3 - 3 * s2 + 1) * a[key] + (s3 - 2 * s2 + s) * h * va + (-2 * s3 + 3 * s2) * b[key] + (s3 - s2) * h * vb;
+}
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
     const buf = r.buf; if (!buf.length) continue;
-    const rt = T - INTERP_DELAY; const p = r.rig.root.position; let px = p.x, pz = p.z, ry = r.rig.root.rotation.y;
-    if (buf.length === 1 || rt <= buf[0].t) { const a = buf[0]; p.set(a.x, a.y, a.z); ry = a.ry; }
+    const rt = T - INTERP_DELAY; const p = r.rig.root.position; let px = p.x, pz = p.z;
+    let tx, ty, tz, ry;
+    if (buf.length === 1 || rt <= buf[0].t) { const a = buf[0]; tx = a.x; ty = a.y; tz = a.z; ry = a.ry; }
     else {
       let i = buf.length - 1; while (i > 0 && buf[i - 1].t > rt) i--;
       const a = buf[i - 1], b = buf[i];
-      if (rt <= b.t) { const f = (rt - a.t) / Math.max(0.001, b.t - a.t); p.set(lerp(a.x, b.x, f), lerp(a.y, b.y, f), lerp(a.z, b.z, f)); let dr = b.ry - a.ry; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); ry = a.ry + dr * f; }
-      else { const late = rt - b.t; const ex = late < 0.3 ? Math.min(late, 0.1) : 0; const span = Math.max(0.05, b.t - a.t); p.set(b.x + (b.x - a.x) / span * ex, b.y, b.z + (b.z - a.z) / span * ex); ry = b.ry; }   // brief extrapolation only right after a packet
+      if (rt <= b.t) {
+        const h = Math.max(0.001, b.t - a.t), f = (rt - a.t) / h, o = buf[i - 2] || a, n = buf[i + 1] || b;   // no neighbour = one-sided tangent, which is just the lerp
+        tx = hermite(a, b, o, n, f, h, 'x'); ty = hermite(a, b, o, n, f, h, 'y'); tz = hermite(a, b, o, n, f, h, 'z');
+        let dr = b.ry - a.ry; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); ry = a.ry + dr * f;
+      }
+      else { const span = Math.max(0.05, b.t - a.t), ex = clamp(rt - b.t, 0, 0.12); tx = b.x + (b.x - a.x) / span * ex; ty = b.y; tz = b.z + (b.z - a.z) / span * ex; ry = b.ry; }   // coast on the last known velocity while a packet is late, never freeze
     }
+    const off = Math.hypot(tx - p.x, tz - p.z);
+    if (r.ptx === null || off > 8) p.set(tx, ty, tz);                             // first frame, or a real teleport
+    else {
+      // ease onto the target, faster the further behind. Solved for a *moving* target, so the filter
+      // settles to a constant lag instead of adding speed ripple every time a frame runs long or short.
+      const a = 18 + Math.min(42, off * 14), e = Math.exp(-a * dt), inv = 1 / a;
+      const ease = (cur, t1, t0) => { const v = clamp((t1 - t0) / Math.max(dt, 1e-4), -25, 25); return t1 - v * inv + (cur - t0 + v * inv) * e; };
+      p.set(ease(p.x, tx, r.ptx), ease(p.y, ty, r.pty), ease(p.z, tz, r.ptz));
+    }
+    r.ptx = tx; r.pty = ty; r.ptz = tz;
+    const k = 1 - Math.exp(-dt * 22);
+    let dry = ry - r.rig.root.rotation.y; dry = Math.atan2(Math.sin(dry), Math.cos(dry)); ry = r.rig.root.rotation.y + dry * k;
     if (!r.wasAir && p.y > 0.25) jumpFx(p.x, p.z, groundDustColor()); r.wasAir = p.y > 0.05;
     if (p.y < 0.05 && r.speed > 1.5) { r.stepAcc = (r.stepAcc || 0) + dt; if (r.stepAcc > 0.16) { r.stepAcc = 0; puff(p.x, p.z, 2, 0.6, 0.8, groundDustColor()); } }
     r.rig.root.rotation.y = ry;
-    r.speed = lerp(r.speed, Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 0.001), Math.min(1, dt * 10));
+    r.speed = lerp(r.speed, Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 0.001), Math.min(1, dt * 7));   // steadier speed = steadier run cycle
     r.rig.moveSpeed = r.rig.anim === 'idle' ? r.speed : 0;
     r.rig.update(dt, T);
   }
