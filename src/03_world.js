@@ -409,7 +409,7 @@ class Rig {
     this.tilt = new THREE.Group(); this.tilt.position.y = HIP_Y; this.root.add(this.tilt);
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
-    const big = variant === 'bigdealer', wd = variant === 'wdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
+    const big = variant === 'bigdealer' || model === 'bigdealer', wd = variant === 'wdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
     const look = MODEL_LOOKS[model] || null;
     const jm = look ? look.mats() : wd ? { torso: mat(0xe0559a), sleeve: mat(0xe0559a), shorts: mat(0x2a2a2a) } : big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
@@ -479,7 +479,7 @@ class Rig {
     this.anim = 'idle'; this.animUntil = 0; this.base = 'idle'; this.runPhase = 0; this.moveSpeed = 0; this.runBlend = 0;
     this.tiltX = 0; this.tiltZ = 0; this.pitch = 0; this.pitchTarget = 0; this.roll = 0; this.rollTarget = 0; this.emote = null; this.emoteT = 0; this.emoteYaw = 0; this.emoteBob = 0;
     /* secondary motion */
-    this.baseScale = new THREE.Vector3(RIG_SCALE, RIG_SCALE, RIG_SCALE);
+    this.baseScale = new THREE.Vector3(RIG_SCALE, RIG_SCALE, RIG_SCALE); if (model === 'bigdealer') { this.baseScale.set(RIG_SCALE * 1.12, RIG_SCALE * 1.06, RIG_SCALE * 1.12); this.root.scale.copy(this.baseScale); }   // the big man is a little taller and a lot broader (looks only)
     this.squash = 0; this.squashV = 0;                 // spring: negative = compressed on landing, positive = stretched off a jump
     this.locoBob = 0; this.locoRoll = 0; this.locoYaw = 0;
     this.lean = 0; this.leanTarget = 0;                // banking into a turn
@@ -1810,12 +1810,12 @@ function accretionTex() {
     g.clearRect(0, 0, W, H);
     const gr = g.createRadialGradient(cx, cy, inner, cx, cy, outer);   // inner edge is the hottest part of the gas
     gr.addColorStop(0.00, 'rgba(255,253,242,1)');
-    gr.addColorStop(0.07, 'rgba(255,238,182,0.98)');
-    gr.addColorStop(0.20, 'rgba(255,178,84,0.90)');
-    gr.addColorStop(0.40, 'rgba(255,110,38,0.64)');
-    gr.addColorStop(0.64, 'rgba(188,48,30,0.32)');
-    gr.addColorStop(0.86, 'rgba(86,18,46,0.11)');
-    gr.addColorStop(1.00, 'rgba(28,6,26,0)');
+    gr.addColorStop(0.05, 'rgba(226,196,255,0.95)');
+    gr.addColorStop(0.18, 'rgba(176,110,255,0.88)');
+    gr.addColorStop(0.40, 'rgba(150,70,255,0.64)');
+    gr.addColorStop(0.64, 'rgba(96,30,190,0.32)');
+    gr.addColorStop(0.86, 'rgba(46,12,96,0.11)');
+    gr.addColorStop(1.00, 'rgba(18,4,40,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, outer, 0, TAU); g.fill();
     g.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 260; i++) {                                    // turbulent filaments, denser and hotter further in
@@ -1842,13 +1842,13 @@ function photonTex() {
     const cx = W / 2, cy = H / 2;
     g.clearRect(0, 0, W, H);
     const gr = g.createRadialGradient(cx, cy, 0, cx, cy, W * 0.5);
-    gr.addColorStop(0.00, 'rgba(255,190,110,0)');
-    gr.addColorStop(0.56, 'rgba(255,190,110,0)');
-    gr.addColorStop(0.65, 'rgba(255,226,168,0.75)');
-    gr.addColorStop(0.705, 'rgba(255,252,240,1)');
-    gr.addColorStop(0.76, 'rgba(255,206,132,0.6)');
-    gr.addColorStop(0.90, 'rgba(255,140,60,0.12)');
-    gr.addColorStop(1.00, 'rgba(255,120,50,0)');
+    gr.addColorStop(0.00, 'rgba(200,150,255,0)');
+    gr.addColorStop(0.56, 'rgba(200,150,255,0)');
+    gr.addColorStop(0.65, 'rgba(226,200,255,0.75)');
+    gr.addColorStop(0.705, 'rgba(250,244,255,1)');
+    gr.addColorStop(0.76, 'rgba(206,160,255,0.6)');
+    gr.addColorStop(0.90, 'rgba(150,80,255,0.12)');
+    gr.addColorStop(1.00, 'rgba(120,60,230,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, W * 0.5, 0, TAU); g.fill();
   });
 }
@@ -1885,7 +1885,7 @@ function playBlackHole(x, z) {
   const discM = ADD_TEX(accretionTex(), 1);
   const disc = new THREE.Mesh(new THREE.PlaneGeometry(R * 9.2, R * 9.2), discM);
   disc.rotation.set(TILT, 0, 0.22); core.add(disc);
-  const disc2 = new THREE.Mesh(new THREE.PlaneGeometry(R * 7.4, R * 7.4), ADD_TEX(accretionTex(), 0.55));
+  const disc2 = new THREE.Mesh(new THREE.PlaneGeometry(R * 7.4, R * 7.4), ADD_TEX(accretionTex(), 0.35));
   disc2.rotation.set(TILT + 0.075, 0, -0.1); core.add(disc2);          // a second sheet just off-plane gives the disc thickness
 
   const photonM = ADD_TEX(photonTex(), 1);
@@ -1893,7 +1893,7 @@ function playBlackHole(x, z) {
   const lensM = ADD_TEX(photonTex(), 0.4);
   const lens = new THREE.Mesh(new THREE.PlaneGeometry(R * 5.6, R * 5.6), lensM); core.add(lens);   // light from the far side bent around the hole
 
-  const jetM = new THREE.MeshBasicMaterial({ color: 0x8fc8ff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const jetM = new THREE.MeshBasicMaterial({ color: 0xd2a8ff, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const jets = [];
   for (const s of [1, -1]) {
     const j = new THREE.Mesh(new THREE.ConeGeometry(R * 0.5, R * 7.5, 14, 1, true), jetM);
@@ -1905,14 +1905,12 @@ function playBlackHole(x, z) {
   const streams = [];
   for (let i = 0; i < 48; i++) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.05), ADD_TEX(null, 0.9));
-    m.material.map = null; m.material.color.setHex(i % 3 ? 0xffb45a : 0xfff2cc);
+    m.material.map = null; m.material.color.setHex(i % 3 ? 0xc48cff : 0xf0e4ff);
     m.userData = { a: Math.random() * TAU, r: R * 2 + Math.random() * R * 7, spd: 0.9 + Math.random() * 1.5, w: 0.5 + Math.random() * 0.9 };
     orbit.add(m); streams.push(m);
   }
 
-  const rift = new THREE.Mesh(new THREE.PlaneGeometry(R * 8, R * 8), new THREE.MeshBasicMaterial({ map: riftTex(), transparent: true, depthWrite: false }));
-  rift.rotation.x = -Math.PI / 2; rift.position.y = 0.03; g.add(rift);
-  const light = fxLight(g, 2.2, 0xffa054, 4, 30);
+  const light = fxLight(g, 2.2, 0xa060ff, 4, 30);
 
   FX_LIST.push({ g, t: 0, dur: DUR, type: 'blackhole', x, z, pull: PULL, core: CORE_R, update(dt) {
     this.t += dt; const t = this.t, k = t / this.dur;
@@ -1923,7 +1921,7 @@ function playBlackHole(x, z) {
     disc.rotation.z += dt * 0.9; disc2.rotation.z -= dt * 1.25;         // the disc shears against itself
     photon.scale.setScalar(1 + Math.sin(t * 11) * 0.012);
     photon.lookAt(camera.position); lens.lookAt(camera.position);       // both are lensing artefacts: always face the viewer
-    lensM.opacity = 0.4 * collapse; photonM.opacity = collapse; discM.opacity = collapse; disc2.material.opacity = 0.55 * collapse;
+    lensM.opacity = 0.4 * collapse; photonM.opacity = collapse; discM.opacity = collapse; disc2.material.opacity = 0.35 * collapse;
     for (const j of jets) { j.material.opacity = 0.4 * collapse * (0.7 + Math.sin(t * 7) * 0.3); j.scale.set(1, 1 + Math.sin(t * 3) * 0.06, 1); }
     for (const m of streams) {
       const u = m.userData;
@@ -1936,7 +1934,6 @@ function playBlackHole(x, z) {
       m.scale.set(u.w * stretch, 1 + stretch * 0.05, 1);
       m.material.opacity = 0.9 * collapse * clamp((u.r - R) / (R * 1.5), 0.15, 1);
     }
-    rift.scale.setScalar(0.2 + rise * 1.1); rift.material.opacity = collapse * (0.85 + Math.sin(t * 5) * 0.1);
     light.intensity = 4 * rise * collapse * (0.8 + Math.sin(t * 8) * 0.2);
   } });
 }
@@ -2403,7 +2400,7 @@ const SKINS = {
 };
 const MODELS = {
   boy: { name: 'Boy', price: 0, rarity: 'common' }, girl: { name: 'Girl', price: 0, rarity: 'common' },
-  dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' },
+  dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, bigdealer: { name: 'Big Man Dealer', price: 20000, rarity: 'legendary' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' },
   lifeguard: { name: 'Lifeguard', price: 2500, rarity: 'rare' }, surfer: { name: 'Surfer', price: 3000, rarity: 'rare' },
   pirate: { name: 'Pirate', price: 7500, rarity: 'epic' }, robot: { name: 'Robot', price: 8000, rarity: 'epic' }, astronaut: { name: 'Astronaut', price: 9000, rarity: 'epic' },
 };
