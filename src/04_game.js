@@ -212,7 +212,7 @@ function finishSet(vel, g) {                     // every set (ground, jump, 4th
       const h = new V3(vel.x, 0, vel.z); const hs = h.length();
       if (hs > 0.1 && h.clone().normalize().dot(toward) > 0.35) {          // aimed at the nearest net: Perfect Set
         const s0 = hs * 3; h.normalize().multiplyScalar(s0);              // 3x faster leaving the hands...
-        const tNet = info.dist / h.dot(toward) * 1.83;                    // ...decaying exponentially to 33% by the net (integral of 1 / 0.33^p over the run = 1.83)
+        const tNet = info.dist / h.dot(toward) * 1.394;                   // ...holding its pace and then decaying hard to 33% right at the net (integral of 1 / 0.33^(p^3) over the run = 1.394)
         const apex = Math.max(ANTENNA_TOP() + 0.3, B.pos.y + 0.5);       // and peaks just over the antennas, right at the net
         const gg = 2 * (apex - B.pos.y) / (tNet * tNet); const vy = gg * tNet;
         hitBall('set', new V3(h.x, vy, h.z), gg / BALL_G);
@@ -531,7 +531,7 @@ function simBall(b, dt) {
     if (b.pf) {                                                            // Perfect Set: slow toward the net, then hand over to plain physics once it is there
       const f = b.pf; const dn = (b.pos.x - f.cx) * f.nx + (b.pos.z - f.cz) * f.nz;
       if (Math.sign(dn) !== f.side || Math.abs(dn) < 0.05) { b.pf = null; b.g = 1; }
-      else { const want = f.s0 * Math.pow(0.33, clamp(1 - Math.abs(dn) / f.d0, 0, 1)); /* exponential: fast off the hands, gentle at the net */ const hs = Math.hypot(b.vel.x, b.vel.z); if (hs > 1e-3) { const k = want / hs; b.vel.x *= k; b.vel.z *= k; } }
+      else { const want = f.s0 * Math.pow(0.33, Math.pow(clamp(1 - Math.abs(dn) / f.d0, 0, 1), 3)); /* stays fast, then decays steeply in the last stretch before the net */ const hs = Math.hypot(b.vel.x, b.vel.z); if (hs > 1e-3) { const k = want / hs; b.vel.x *= k; b.vel.z *= k; } }
     }
     b.vel.y -= BALL_G * b.g * h; b.vel.multiplyScalar(1 - 0.015 * h);
     if (b.scene === 'lobby' && b.pos.y > 0.5) { b.vel.x += WIND.x * 0.35 * h; b.vel.z += WIND.z * 0.35 * h; }   // wind drift outside
