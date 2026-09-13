@@ -7,6 +7,20 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const D = Math.PI / 180;
+const TAU = Math.PI * 2;
+/* Frame-rate independent smoothing toward a target: the fraction to move this frame, given a rate
+   in "e-folds per second". Everything that used `dt * k` now goes through this, so behaviour stops
+   drifting with frame rate (the same lerp ran ~2x as fast at 120 Hz as at 60 Hz). */
+const smoothT = (rate, dt) => 1 - Math.exp(-rate * dt);
+/* Critically damped angular spring (exact solution, so any dt is safe). Unlike a per-frame lerp it
+   carries velocity through a pose change, which is what makes limbs ease out and follow through
+   instead of arriving at the new pose and stopping dead. */
+function springJoint(cur, vel, tg, omega, dt) {
+  const e = Math.exp(-omega * dt);
+  let x = cur.x - tg.x, tmp = (vel.x + omega * x) * dt; cur.x = tg.x + (x + tmp) * e; vel.x = (vel.x - omega * tmp) * e;
+  x = cur.y - tg.y; tmp = (vel.y + omega * x) * dt; cur.y = tg.y + (x + tmp) * e; vel.y = (vel.y - omega * tmp) * e;
+  x = cur.z - tg.z; tmp = (vel.z + omega * x) * dt; cur.z = tg.z + (x + tmp) * e; vel.z = (vel.z - omega * tmp) * e;
+}
 const rnd = () => Math.random().toString(36).slice(2, 10);
 
 function toast(msg, cls = '', ms = 2600) {

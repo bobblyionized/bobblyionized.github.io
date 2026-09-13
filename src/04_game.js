@@ -136,6 +136,7 @@ function tryJump() {
   P.vel.y = JUMP_V * (hasTrait('b3p2') ? Math.sqrt(1.32) : 1); P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.glide = null; P.tilt.set(0, 0); P.tiltIn.set(0, 0);   // Power Jump: 20% more height under 10% more gravity
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
   P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
+  P.rig.impact(0.16); camKick(0.05, 2.0);                                   // stretch off the floor + a small lens kick
   P.rig.setPose(P.holding ? 'hold' : 'jumpUp', P.holding ? 0 : T + 0.18);   // take-off extension, then settle into the spike-ready air pose
 }
 const chestPos = () => P.pos.clone().add(new V3(0, 1.07, 0)).addScaledVector(cf(), 0.35);
@@ -199,7 +200,7 @@ function tryAct() {
 }
 function doBlock() { P.airUsed = true; P.airActed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
 function blockContact() {
-  P.blockHit = true;
+  P.blockHit = true; camKick(-0.04, 3.2);
   const s = B.vel.length(); const tz = P.tilt.y * (hasTrait('b1p2') ? -1 : 1), tx = P.tilt.x; const nd = netDir();   // Fake Block: forward / back tilt swapped
   let vel, g = 1;
   if (tz >= 0) {
@@ -249,6 +250,7 @@ function spikeGeom() {
 }
 function doSpike(c) {
   if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
+  camKick(0.05 + c * 0.06, 2.6 + c * 4.5);                                // the harder the swing, the harder the camera takes it
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.2 : 1);   // W tilt trades power for steepness; Double Spike hits 20% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
@@ -436,8 +438,11 @@ function updatePlayer(dt) {
   const gh = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // floors: ground, the stairs, the second floor
   if (P.onGround && P.vel.y <= 0 && P.pos.y > gh + 0.7) P.onGround = false;   // walked off an edge
   if (P.pos.y <= gh || (P.onGround && P.vel.y <= 0 && P.pos.y - gh <= 0.7)) {
+    const impV = P.vel.y;
     P.pos.y = gh; P.vel.y = 0;
     if (!P.onGround) {
+      const hard = clamp(-impV / 11, 0, 1);                                    // how fast you were falling, 0..1
+      P.rig.impact(-0.09 - hard * 0.15); camKick(-0.05 - hard * 0.11, 1.6 + hard * 2.2);
       P.onGround = true; P.airUsed = false; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.glide = null; P.dashCharge = false; $('#chargeBar').classList.remove('storm');
       if (P.airActed) { P.landLock = T + 0.5; P.airActed = false; }           // used block / jump set on that jump: on landing, 0.5s of no jump / set / bump / dive
       if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
@@ -486,10 +491,14 @@ function ballNets(b, prev) {
   return false;
 }
 function timeStopFactor(x, z, y = 0) { if (y >= 4) return 1; for (const f of FX_LIST) if (f.type === 'timestop' && Math.hypot(x - f.x, z - f.z) < f.r) return TIMESTOP_SLOW; return 1; }
+const BALL_STEP = 1 / 120;                       // balls always step in exact 1/120 s slices, so every client integrates the same trajectory from the same hit record (no drift, no snap on the next hit)
+function stepBall(b, dt) {                        // advance a ball by dt using whole fixed steps (the remainder is kept for next time); Time Stop scales the time that flows into it
+  b.acc = (b.acc || 0) + dt * timeStopFactor(b.pos.x, b.pos.z, b.pos.y);
+  let n = 0; while (b.acc >= BALL_STEP && n < 200) { simBall(b, BALL_STEP); b.acc -= BALL_STEP; n++; }
+}
 function simBall(b, dt) {
   const M = S.match;
-  dt *= timeStopFactor(b.pos.x, b.pos.z, b.pos.y);                          // Time Stop: a ball inside the clock crawls
-  const steps = 2, h = dt / steps;
+  const steps = 1, h = dt;
   for (let i = 0; i < steps; i++) {
     const prev = b.pos.clone();
     b.vel.y -= BALL_G * b.g * h; b.vel.multiplyScalar(1 - 0.015 * h);
@@ -521,8 +530,9 @@ function updateBalls(dt) {
     if (b.held) {
       const holderRig = b.held === SID ? P.rig : (remotes.get(b.held) || {}).rig;
       if (holderRig) { holderRig.handPos('L', b.pos); b.pos.y += BALL_R * 0.6; }
-    } else if (!b.frozen) simBall(b, dt);
-    b.mesh.position.copy(b.pos); if (!b.held) { b.mesh.rotation.x += b.spin.x * dt; b.mesh.rotation.y += b.spin.y * dt; b.mesh.rotation.z += b.spin.z * dt; }
+    } else if (!b.frozen) stepBall(b, dt);
+    if (b.visOff) { const k = Math.exp(-dt * 14); b.visOff.multiplyScalar(k); if (b.visOff.lengthSq() < 1e-6) b.visOff = null; }   // a network correction is eased out visually instead of popping
+    b.mesh.position.copy(b.pos); if (b.visOff) b.mesh.position.add(b.visOff); if (!b.held) { b.mesh.rotation.x += b.spin.x * dt; b.mesh.rotation.y += b.spin.y * dt; b.mesh.rotation.z += b.spin.z * dt; }
     b.shadow.position.set(b.pos.x, 0.015, b.pos.z); b.shadow.material.opacity = clamp(0.45 - b.pos.y * 0.04, 0.08, 0.45);
   }
   // local player contact actions (block / dive) against any reachable ball
@@ -567,10 +577,12 @@ function receiveBall(b, v) {
   if (P.holding && B === b && b.held !== SID) { P.holding = false; P.serveMode = false; P.serveAim = null; P.rig.base = P.onGround ? 'idle' : 'air'; P.rig.setPose(P.rig.base); }
   const newHit = v.hitType === 'spike' && v.seq !== b.lastSparkSeq; b.lastSparkSeq = v.seq;
   if (b.active && !b.held) {
-    b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz);
+    const wasShown = b.mesh.visible && b.scene === S.scene; const before = wasShown ? b.mesh.position.clone() : null;
+    b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz); b.acc = 0;
     if (newHit) { if (v.ds) lightningFx(b.pos.clone(), b.vel.clone().normalize()); else sparkle(b.pos.clone(), 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, b.vel.clone().normalize()); }
     const dt = clamp((snow() - b.t) / 1000, 0, 0.6);
-    if (!b.frozen && dt > 0) { b.pos.addScaledVector(b.vel, dt); b.pos.y -= 0.5 * BALL_G * b.g * dt * dt; b.vel.y -= BALL_G * b.g * dt; }
+    if (!b.frozen && dt > 0) { let left = dt; while (left > 0) { const h = Math.min(BALL_STEP, left); simBall(b, h); left -= h; } }   // catch up with the same fixed-step physics everyone else runs
+    if (before && !newHit) { const off = before.sub(b.pos); if (off.length() < 1.5) b.visOff = off; }                                        // small correction: slide over ~0.15 s; a real hit or teleport shows immediately
     b.spin.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(b.vel.length() * 0.4);
   }
   if (b.id === 'match') hostCheckHit();
@@ -590,7 +602,7 @@ function remoteUpsert(sid, d) {
   if (!r) {
     const rig = new Rig(variant, model); scene.add(rig.root); rig.root.position.set(d.x || 0, d.y || 0, d.z || 0);
     const tag = document.createElement('div'); tag.className = 'tag'; $('#tags').appendChild(tag);
-    r = { rig, tag, name: d.name || '', buf: [], data: d, speed: 0, stamp: null, gap: 0.09, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
+    r = { rig, tag, name: d.name || '', buf: [], data: d, speed: 0, stamp: null, gap: 0.09, jit: 0.02, delay: INTERP_DELAY, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
     remotes.set(sid, r);
   }
   // de-jitter: packets are stamped onto a steady timeline running at the sender's average rate, not at
@@ -598,6 +610,7 @@ function remoteUpsert(sid, d) {
   const since = T - r.lastArrive;
   if (r.stamp === null || since > 0.8) { r.stamp = T; r.gap = 0.09; }
   else {
+    if (since < 1.0) r.jit = lerp(r.jit, Math.min(0.2, Math.abs(since - r.gap)), 0.1);   // how unevenly this peer's packets arrive (stalls count, up to 200 ms)
     if (since < r.gap * 2.2) r.gap = lerp(r.gap, clamp(since, 0.03, 0.4), 0.07);           // average send interval, ignoring stalls
     const step = since > r.gap * 2.2 ? since : r.gap;                                      // a real stall keeps its true length; only wobble is smoothed away
     r.stamp = clamp(r.stamp + step + (T - r.stamp - step) * 0.05, T - 0.45, T + 0.12);     // steady step, creeping toward real arrival
@@ -612,7 +625,7 @@ function remoteUpsert(sid, d) {
 }
 function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
-const INTERP_DELAY = 0.18;                       // render other players this far in the past so their movement is smooth
+const INTERP_DELAY = 0.18;                       // default render delay for other players; each peer then adapts it to how steadily their packets arrive (see updateRemotes)
 // cubic Hermite through the buffer: tangents come from the neighbouring samples, so speed carries across
 // each sample instead of kinking at it (plain lerp changes direction every packet, which reads as chatter).
 function hermite(a, b, o, n, s, h, key) {
@@ -623,7 +636,8 @@ function hermite(a, b, o, n, s, h, key) {
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
     const buf = r.buf; if (!buf.length) continue;
-    const rt = T - INTERP_DELAY; const p = r.rig.root.position; let px = p.x, pz = p.z;
+    const want = clamp(r.gap * 1.5 + r.jit * 3 + 0.03, 0.12, 0.35); r.delay += (want - r.delay) * Math.min(1, dt * 0.5);   // steady senders get ~120 ms, jittery ones up to 350 ms; the delay itself drifts slowly so it never causes speed ripple
+    const rt = T - r.delay; const p = r.rig.root.position; let px = p.x, pz = p.z;
     let tx, ty, tz, ry;
     if (buf.length === 1 || rt <= buf[0].t) { const a = buf[0]; tx = a.x; ty = a.y; tz = a.z; ry = a.ry; }
     else {
@@ -648,7 +662,9 @@ function updateRemotes(dt) {
     r.ptx = tx; r.pty = ty; r.ptz = tz;
     const k = 1 - Math.exp(-dt * 22);
     let dry = ry - r.rig.root.rotation.y; dry = Math.atan2(Math.sin(dry), Math.cos(dry)); ry = r.rig.root.rotation.y + dry * k;
-    if (!r.wasAir && p.y > 0.25) jumpFx(p.x, p.z, groundDustColor()); r.wasAir = p.y > 0.05;
+    if (!r.wasAir && p.y > 0.25) { jumpFx(p.x, p.z, groundDustColor()); r.rig.impact(0.14); }
+    if (r.wasAir && p.y < 0.05) r.rig.impact(-0.17);                            // other players squash on landing too
+    r.wasAir = p.y > 0.05;
     if (p.y < 0.05 && r.speed > 1.5) { r.stepAcc = (r.stepAcc || 0) + dt; if (r.stepAcc > 0.16) { r.stepAcc = 0; puff(p.x, p.z, 2, 0.6, 0.8, groundDustColor()); } }
     r.rig.root.rotation.y = ry;
     r.speed = lerp(r.speed, Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 0.001), Math.min(1, dt * 7));   // steadier speed = steadier run cycle
@@ -713,20 +729,40 @@ function impactFrame(x, z, frames = 1) {        // impact frames for players nea
   }, 40 * frames);
 }
 let LOBBY_COLL = [], COURT_COLL = [];
-function updateCamera() {
+let FOV_BASE = 70;                                   // the player's own FOV setting; the lens effects below ride on top of it
+let camFovK = 0, camShake = 0, camFovCur = FOV_BASE;
+const camLook = new V3(); let camLookInit = false;
+/* A short lens + positional punch. `fov` is in kick units (1.0 ~ 26 degrees, so the values passed in are
+   small); `shake` decays over roughly a fifth of a second. Jumps, landings, spikes and score effects use it. */
+function camKick(fov, shake) { camFovK = clamp(camFovK + fov, -0.45, 0.45); camShake = Math.min(0.6, camShake + shake * 0.03); }
+function updateCamera(dt) {
   const f = camF();
   const target = P.pos.clone().add(new V3(0, 1.5, 0));                     // shift lock keeps the character centered
+  target.x += clamp(P.vel.x, -9, 9) * 0.03; target.z += clamp(P.vel.z, -9, 9) * 0.03;   // lead the player slightly in the direction of travel
+  if (!camLookInit) { camLook.copy(target); camLookInit = true; }
+  camLook.lerp(target, smoothT(34, dt));
   const off = f.clone().multiplyScalar(-camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0));
   const fl = S.scene === 'lobby' ? groundHeight(P.pos.x, P.pos.z, P.pos.y) : 0;   // the floor you are on (second floor included)
-  const pos = target.clone().add(off); pos.y = clamp(pos.y, fl + 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? fl + (fl > 1 ? F2H - 0.5 : 4.6) : (S.match && S.match.map === 'beach' ? 40 : 10.5));
-  const dirC = pos.clone().sub(target); const len = dirC.length(); dirC.normalize();
-  camRay.set(target, dirC); camRay.far = len;
+  const pos = camLook.clone().add(off); pos.y = clamp(pos.y, fl + 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? fl + (fl > 1 ? F2H - 0.5 : 4.6) : (S.match && S.match.map === 'beach' ? 40 : 10.5));
+  const dirC = pos.clone().sub(camLook); const len = dirC.length(); dirC.normalize();
+  camRay.set(camLook, dirC); camRay.far = len;
   const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : (S.match && S.match.map === 'beach' ? [] : COURT_COLL), false);
-  if (hits.length) pos.copy(target).addScaledVector(dirC, Math.max(0.6, hits[0].distance - 0.35));
-  camera.position.lerp(pos, hits.length ? 1 : 0.5); camera.lookAt(target.add(f.multiplyScalar(1.5)));
+  if (hits.length) pos.copy(camLook).addScaledVector(dirC, Math.max(0.6, hits[0].distance - 0.35));
+  camera.position.lerp(pos, smoothT(hits.length ? 60 : 28, dt));            // frame-rate independent: the old per-frame lerp ran twice as fast on a 120 Hz screen
+  camera.lookAt(camLook.clone().add(f.multiplyScalar(1.5)));
+  // ---- lens: speed widens the view, impacts punch it; a decaying shake rides on top ----
+  camFovK *= Math.exp(-dt * 7); camShake *= Math.exp(-dt * 9);
+  const sp = Math.hypot(P.vel.x, P.vel.z);
+  const fovT = FOV_BASE + clamp((sp - 6.6) / 38, 0, 1) * 11 + camFovK * 26;
+  camFovCur = lerp(camFovCur, fovT, smoothT(10, dt));
+  if (Math.abs(camera.fov - camFovCur) > 0.01) { camera.fov = camFovCur; camera.updateProjectionMatrix(); }
+  if (camShake > 0.002) { const st = performance.now() * 0.001; camera.position.x += Math.sin(st * 47) * camShake * 0.1; camera.position.y += Math.sin(st * 61 + 1.7) * camShake * 0.1; camera.position.z += Math.sin(st * 53 + 3.1) * camShake * 0.08; }
   sun.target.position.copy(P.pos); sun.position.copy(P.pos).addScaledVector(SUN_DIR, 40);
-  sunMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230); moonMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230);
+  sunMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230);
+  moonMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230); moonMesh.lookAt(camera.position);   // cratered face and halo both turned toward the player
+  if (sky) sky.position.copy(camera.position);
   const outside = S.scene === 'lobby' || (S.match && S.match.map === 'beach'); sunMesh.visible = !isNight && outside; moonMesh.visible = isNight && outside;
+  if (sky) sky.visible = outside;
 }
 
 /* ---------------- Action cards ---------------- */
@@ -977,7 +1013,7 @@ function updateWindHud() {
   el.classList.toggle('hidden', !show); if (!show) return;
   const ang = Math.atan2(WIND.x, WIND.z) - camYaw;                       // arrow relative to where the camera looks
   el.querySelector('i').style.transform = 'rotate(' + (-ang * 180 / Math.PI + 180).toFixed(0) + 'deg)';
-  $('#windTxt').textContent = 'WIND ' + WIND.length().toFixed(1);
+  const wt = 'WIND ' + WIND.length().toFixed(1); const we = $('#windTxt'); if (we.textContent !== wt) we.textContent = wt;
 }
 /* ---------------- Emotes + wheel ---------------- */
 let wheelOpen = false, wheelSel = -1, wheelWasLocked = false;
@@ -1429,9 +1465,10 @@ $('#leaveBtn').onclick = () => leaveMatch();
 
 function updateMatchHud() {
   const M = S.match, b = matchBall(); if (!M) return;
-  $('#scoreA').textContent = M.score.A || 0; $('#scoreB').textContent = M.score.B || 0;
-  $$('#touches i').forEach((el, i) => el.classList.toggle('on', !!b && i < b.touches && b.active));
-  $('#bigMsg').textContent = M.msg || '';
+  const setText = (sel, v) => { const el = $(sel); if (el.textContent !== String(v)) el.textContent = v; };   // touching the DOM every frame forces layout; only write on change
+  setText('#scoreA', M.score.A || 0); setText('#scoreB', M.score.B || 0);
+  $$('#touches i').forEach((el, i) => { const on = !!b && i < b.touches && b.active; if (el.classList.contains('on') !== on) el.classList.toggle('on', on); });
+  setText('#bigMsg', M.msg || '');
   const sh = $('#serveHint');
   let hint = '';
   if (!M.practice && M.state === 'serve' && M.serve) {
@@ -1439,7 +1476,7 @@ function updateMatchHud() {
     if (M.serve.sid === SID) hint = P.serveAim ? `YOUR SERVE (${left}s) - ${moveKeysLabel()} moves the toss, ${keyName(KEYS.toss)} tosses, then jump and spike` : `YOUR SERVE (${left}s) - ${keyName(KEYS.toss)} to aim your toss. Stay behind the line until you hit it!`;
     else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve (${left}s)`; }
   }
-  sh.textContent = hint; sh.classList.toggle('hidden', !hint);
+  if (sh.textContent !== hint) sh.textContent = hint; if (sh.classList.contains('hidden') === !!hint) sh.classList.toggle('hidden', !hint);
   autoServe();
   if (isHost() && M.state === 'serve') { hostCheckServer(); hostServeClock(); }
 }
@@ -1452,24 +1489,28 @@ let last = performance.now(), acc = 0;
 function simulate(dt) {
   T += dt;
   updatePlayer(dt); P.rig.update(dt, T);
-  updateBalls(dt); updateRemotes(dt); checkPads(); if (S.scene === 'lobby') updateAmbient(T, dt); else if (S.match && S.match.map !== 'beach') updateCourtAmbient(T, dt); updateDust(dt);
+  updateBalls(dt); updateRemotes(dt); checkPads();
+  WATER_T.value = T;                                                          // both maps' sea share one clock
+  if (S.scene === 'lobby') updateAmbient(T, dt);
+  else if (S.match) { if (S.match.map === 'beach') updateBeachAmbient(T, dt); else updateCourtAmbient(T, dt); }
+  updateDust(dt);
 }
 function tick(nowMs) {
   let dt = (nowMs - last) / 1000; last = nowMs;
   if (!S.booted) return;
   if (document.hidden) { acc += Math.min(dt, 6); let n = 0; while (acc >= FIXED && n < 400) { simulate(FIXED); acc -= FIXED; n++; } if (S.scene === 'match') updateMatchHud(); syncSelf(); return; }   // hidden: no rendering, but the game, the host duties and the network keep going
   acc = 0; let rem = Math.min(dt, 0.1); while (rem > 0.0001) { const h = Math.min(rem, 1 / 60); simulate(h); rem -= h; }   // real-time stepping: slow frames sub-step instead of falling behind (which looked like jitter to others)
-  updateCamera(); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
+  updateCamera(Math.max(1e-4, Math.min(dt, 0.1))); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
   if (S.scene === 'match') updateMatchHud();
   syncSelf();
-  renderer.shadowMap.needsUpdate = (frameNo++ % 2) === 0;   // shadows refresh every other frame (cheaper)
+  renderer.shadowMap.needsUpdate = (frameNo++ % 3) === 0;   // shadows refresh every third frame (cheaper; the sun barely moves between them)
   renderer.render(scene, camera);
 }
 let frameNo = 0;
 function frame(nowMs) { requestAnimationFrame(frame); tick(nowMs); }
 try {                                            // hidden tab: browsers throttle page timers to once a second (or worse), so a worker drives the ticks instead - the match keeps running until the tab is closed
   const wk = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'], { type: 'text/javascript' })));
-  wk.onmessage = () => { if (document.hidden) tick(performance.now()); };
+  wk.onmessage = () => { if (document.hidden) tick(performance.now()); else if (S.booted) syncSelf(); };   // visible: the 50 ms clock also drives network sends, so a long frame never delays a packet
 } catch (e) { setInterval(() => { if (document.hidden) tick(performance.now()); }, 100); }
 document.addEventListener('visibilitychange', () => { last = performance.now(); });   // no catch-up burst when you come back
 
@@ -1485,13 +1526,13 @@ async function cleanupStale() {
     for (const mode in qs) for (const id in qs[mode]) { const q = qs[mode][id]; if (t - (q.t || 0) > 900000) db.ref(`queue/${mode}/${id}`).remove(); }
   } catch (e) { }
 }
-const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
+const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => { let done = false; const fin = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(fin); setTimeout(fin, 60); }); };   // rAF paints the bar; the timeout keeps boot going in a hidden tab (rAF never fires there)
 async function boot(online) {
   if (S.booted) return; S.online = online;
   await setLoad(5, 'Building the beach house...'); buildLobby();
   await setLoad(25, 'Building the courts...'); buildCourt(); buildBeachCourt();
   await setLoad(40, 'Rendering icons...'); renderPoseIcons(); updateDayNight(true);
-  { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
+  { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { FOV_BASE = v; camFovCur = v; camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)
   setMyRig('white'); await setLoad(55, 'Warming up effects...'); initFxLights(); warmUpFx(P.rig);

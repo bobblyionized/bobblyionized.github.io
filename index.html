@@ -1,4 +1,4 @@
-?<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -778,10 +778,10 @@ async function isFriendOf(ownerId) {
    ===================================================================== */
 const canvas = $('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));   // high-DPI screens render at 1.25x, not 1.5x: ~30% fewer pixels, hard to tell apart
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;      // soft-edged contact shadows rather than hard pixel steps
-renderer.shadowMap.autoUpdate = false;                 // refreshed every other frame from the tick
+renderer.shadowMap.type = THREE.PCFShadowMap;          // plain PCF: a quarter of the shadow taps of PCFSoft; the 1k map + radius keeps edges soft enough
+renderer.shadowMap.autoUpdate = false;                 // refreshed every third frame from the tick
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;    // filmic roll-off: highlights bloom out softly instead of clipping flat
 renderer.toneMappingExposure = 0.85;
@@ -794,8 +794,8 @@ addEventListener('resize', resize); resize();
 
 const hemi = new THREE.HemisphereLight(0xdff2ff, 0xc9b08a, 0.5); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -26; sun.shadow.camera.right = 26; sun.shadow.camera.top = 26; sun.shadow.camera.bottom = -26; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
-sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.035; sun.shadow.radius = 3;   // normalBias keeps the filleted edges free of acne
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -26; sun.shadow.camera.right = 26; sun.shadow.camera.top = 26; sun.shadow.camera.bottom = -26; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.05; sun.shadow.radius = 2;   // normalBias keeps the filleted edges free of acne
 sun.position.set(14, 26, 10); scene.add(sun); scene.add(sun.target);
 const bounce = new THREE.DirectionalLight(0xbcd8ff, 0.2); bounce.castShadow = false; scene.add(bounce);   // cool fill from the shadow side, so shadowed faces stay readable
 const SUN_DIR = new THREE.Vector3(0.5, 0.8, -0.3).normalize();
@@ -3602,10 +3602,14 @@ function ballNets(b, prev) {
   return false;
 }
 function timeStopFactor(x, z, y = 0) { if (y >= 4) return 1; for (const f of FX_LIST) if (f.type === 'timestop' && Math.hypot(x - f.x, z - f.z) < f.r) return TIMESTOP_SLOW; return 1; }
+const BALL_STEP = 1 / 120;                       // balls always step in exact 1/120 s slices, so every client integrates the same trajectory from the same hit record (no drift, no snap on the next hit)
+function stepBall(b, dt) {                        // advance a ball by dt using whole fixed steps (the remainder is kept for next time); Time Stop scales the time that flows into it
+  b.acc = (b.acc || 0) + dt * timeStopFactor(b.pos.x, b.pos.z, b.pos.y);
+  let n = 0; while (b.acc >= BALL_STEP && n < 200) { simBall(b, BALL_STEP); b.acc -= BALL_STEP; n++; }
+}
 function simBall(b, dt) {
   const M = S.match;
-  dt *= timeStopFactor(b.pos.x, b.pos.z, b.pos.y);                          // Time Stop: a ball inside the clock crawls
-  const steps = 2, h = dt / steps;
+  const steps = 1, h = dt;
   for (let i = 0; i < steps; i++) {
     const prev = b.pos.clone();
     b.vel.y -= BALL_G * b.g * h; b.vel.multiplyScalar(1 - 0.015 * h);
@@ -3637,8 +3641,9 @@ function updateBalls(dt) {
     if (b.held) {
       const holderRig = b.held === SID ? P.rig : (remotes.get(b.held) || {}).rig;
       if (holderRig) { holderRig.handPos('L', b.pos); b.pos.y += BALL_R * 0.6; }
-    } else if (!b.frozen) simBall(b, dt);
-    b.mesh.position.copy(b.pos); if (!b.held) { b.mesh.rotation.x += b.spin.x * dt; b.mesh.rotation.y += b.spin.y * dt; b.mesh.rotation.z += b.spin.z * dt; }
+    } else if (!b.frozen) stepBall(b, dt);
+    if (b.visOff) { const k = Math.exp(-dt * 14); b.visOff.multiplyScalar(k); if (b.visOff.lengthSq() < 1e-6) b.visOff = null; }   // a network correction is eased out visually instead of popping
+    b.mesh.position.copy(b.pos); if (b.visOff) b.mesh.position.add(b.visOff); if (!b.held) { b.mesh.rotation.x += b.spin.x * dt; b.mesh.rotation.y += b.spin.y * dt; b.mesh.rotation.z += b.spin.z * dt; }
     b.shadow.position.set(b.pos.x, 0.015, b.pos.z); b.shadow.material.opacity = clamp(0.45 - b.pos.y * 0.04, 0.08, 0.45);
   }
   // local player contact actions (block / dive) against any reachable ball
@@ -3683,10 +3688,12 @@ function receiveBall(b, v) {
   if (P.holding && B === b && b.held !== SID) { P.holding = false; P.serveMode = false; P.serveAim = null; P.rig.base = P.onGround ? 'idle' : 'air'; P.rig.setPose(P.rig.base); }
   const newHit = v.hitType === 'spike' && v.seq !== b.lastSparkSeq; b.lastSparkSeq = v.seq;
   if (b.active && !b.held) {
-    b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz);
+    const wasShown = b.mesh.visible && b.scene === S.scene; const before = wasShown ? b.mesh.position.clone() : null;
+    b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz); b.acc = 0;
     if (newHit) { if (v.ds) lightningFx(b.pos.clone(), b.vel.clone().normalize()); else sparkle(b.pos.clone(), 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, b.vel.clone().normalize()); }
     const dt = clamp((snow() - b.t) / 1000, 0, 0.6);
-    if (!b.frozen && dt > 0) { b.pos.addScaledVector(b.vel, dt); b.pos.y -= 0.5 * BALL_G * b.g * dt * dt; b.vel.y -= BALL_G * b.g * dt; }
+    if (!b.frozen && dt > 0) { let left = dt; while (left > 0) { const h = Math.min(BALL_STEP, left); simBall(b, h); left -= h; } }   // catch up with the same fixed-step physics everyone else runs
+    if (before && !newHit) { const off = before.sub(b.pos); if (off.length() < 1.5) b.visOff = off; }                                        // small correction: slide over ~0.15 s; a real hit or teleport shows immediately
     b.spin.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(b.vel.length() * 0.4);
   }
   if (b.id === 'match') hostCheckHit();
@@ -3706,7 +3713,7 @@ function remoteUpsert(sid, d) {
   if (!r) {
     const rig = new Rig(variant, model); scene.add(rig.root); rig.root.position.set(d.x || 0, d.y || 0, d.z || 0);
     const tag = document.createElement('div'); tag.className = 'tag'; $('#tags').appendChild(tag);
-    r = { rig, tag, name: d.name || '', buf: [], data: d, speed: 0, stamp: null, gap: 0.09, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
+    r = { rig, tag, name: d.name || '', buf: [], data: d, speed: 0, stamp: null, gap: 0.09, jit: 0.02, delay: INTERP_DELAY, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
     remotes.set(sid, r);
   }
   // de-jitter: packets are stamped onto a steady timeline running at the sender's average rate, not at
@@ -3714,6 +3721,7 @@ function remoteUpsert(sid, d) {
   const since = T - r.lastArrive;
   if (r.stamp === null || since > 0.8) { r.stamp = T; r.gap = 0.09; }
   else {
+    if (since < 1.0) r.jit = lerp(r.jit, Math.min(0.2, Math.abs(since - r.gap)), 0.1);   // how unevenly this peer's packets arrive (stalls count, up to 200 ms)
     if (since < r.gap * 2.2) r.gap = lerp(r.gap, clamp(since, 0.03, 0.4), 0.07);           // average send interval, ignoring stalls
     const step = since > r.gap * 2.2 ? since : r.gap;                                      // a real stall keeps its true length; only wobble is smoothed away
     r.stamp = clamp(r.stamp + step + (T - r.stamp - step) * 0.05, T - 0.45, T + 0.12);     // steady step, creeping toward real arrival
@@ -3728,7 +3736,7 @@ function remoteUpsert(sid, d) {
 }
 function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
-const INTERP_DELAY = 0.18;                       // render other players this far in the past so their movement is smooth
+const INTERP_DELAY = 0.18;                       // default render delay for other players; each peer then adapts it to how steadily their packets arrive (see updateRemotes)
 // cubic Hermite through the buffer: tangents come from the neighbouring samples, so speed carries across
 // each sample instead of kinking at it (plain lerp changes direction every packet, which reads as chatter).
 function hermite(a, b, o, n, s, h, key) {
@@ -3739,7 +3747,8 @@ function hermite(a, b, o, n, s, h, key) {
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
     const buf = r.buf; if (!buf.length) continue;
-    const rt = T - INTERP_DELAY; const p = r.rig.root.position; let px = p.x, pz = p.z;
+    const want = clamp(r.gap * 1.5 + r.jit * 3 + 0.03, 0.12, 0.35); r.delay += (want - r.delay) * Math.min(1, dt * 0.5);   // steady senders get ~120 ms, jittery ones up to 350 ms; the delay itself drifts slowly so it never causes speed ripple
+    const rt = T - r.delay; const p = r.rig.root.position; let px = p.x, pz = p.z;
     let tx, ty, tz, ry;
     if (buf.length === 1 || rt <= buf[0].t) { const a = buf[0]; tx = a.x; ty = a.y; tz = a.z; ry = a.ry; }
     else {
@@ -4115,7 +4124,7 @@ function updateWindHud() {
   el.classList.toggle('hidden', !show); if (!show) return;
   const ang = Math.atan2(WIND.x, WIND.z) - camYaw;                       // arrow relative to where the camera looks
   el.querySelector('i').style.transform = 'rotate(' + (-ang * 180 / Math.PI + 180).toFixed(0) + 'deg)';
-  $('#windTxt').textContent = 'WIND ' + WIND.length().toFixed(1);
+  const wt = 'WIND ' + WIND.length().toFixed(1); const we = $('#windTxt'); if (we.textContent !== wt) we.textContent = wt;
 }
 /* ---------------- Emotes + wheel ---------------- */
 let wheelOpen = false, wheelSel = -1, wheelWasLocked = false;
@@ -4567,9 +4576,10 @@ $('#leaveBtn').onclick = () => leaveMatch();
 
 function updateMatchHud() {
   const M = S.match, b = matchBall(); if (!M) return;
-  $('#scoreA').textContent = M.score.A || 0; $('#scoreB').textContent = M.score.B || 0;
-  $$('#touches i').forEach((el, i) => el.classList.toggle('on', !!b && i < b.touches && b.active));
-  $('#bigMsg').textContent = M.msg || '';
+  const setText = (sel, v) => { const el = $(sel); if (el.textContent !== String(v)) el.textContent = v; };   // touching the DOM every frame forces layout; only write on change
+  setText('#scoreA', M.score.A || 0); setText('#scoreB', M.score.B || 0);
+  $$('#touches i').forEach((el, i) => { const on = !!b && i < b.touches && b.active; if (el.classList.contains('on') !== on) el.classList.toggle('on', on); });
+  setText('#bigMsg', M.msg || '');
   const sh = $('#serveHint');
   let hint = '';
   if (!M.practice && M.state === 'serve' && M.serve) {
@@ -4577,7 +4587,7 @@ function updateMatchHud() {
     if (M.serve.sid === SID) hint = P.serveAim ? `YOUR SERVE (${left}s) - ${moveKeysLabel()} moves the toss, ${keyName(KEYS.toss)} tosses, then jump and spike` : `YOUR SERVE (${left}s) - ${keyName(KEYS.toss)} to aim your toss. Stay behind the line until you hit it!`;
     else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve (${left}s)`; }
   }
-  sh.textContent = hint; sh.classList.toggle('hidden', !hint);
+  if (sh.textContent !== hint) sh.textContent = hint; if (sh.classList.contains('hidden') === !!hint) sh.classList.toggle('hidden', !hint);
   autoServe();
   if (isHost() && M.state === 'serve') { hostCheckServer(); hostServeClock(); }
 }
@@ -4604,14 +4614,14 @@ function tick(nowMs) {
   updateCamera(Math.max(1e-4, Math.min(dt, 0.1))); projectTags(); projectServeAim(); projectBallMsg(); updateCards(); updateMarks(); projectNpc(); updateAuras(T); updateFx(Math.min(dt, 0.05)); updateWindHud();
   if (S.scene === 'match') updateMatchHud();
   syncSelf();
-  renderer.shadowMap.needsUpdate = (frameNo++ % 2) === 0;   // shadows refresh every other frame (cheaper)
+  renderer.shadowMap.needsUpdate = (frameNo++ % 3) === 0;   // shadows refresh every third frame (cheaper; the sun barely moves between them)
   renderer.render(scene, camera);
 }
 let frameNo = 0;
 function frame(nowMs) { requestAnimationFrame(frame); tick(nowMs); }
 try {                                            // hidden tab: browsers throttle page timers to once a second (or worse), so a worker drives the ticks instead - the match keeps running until the tab is closed
   const wk = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50);'], { type: 'text/javascript' })));
-  wk.onmessage = () => { if (document.hidden) tick(performance.now()); };
+  wk.onmessage = () => { if (document.hidden) tick(performance.now()); else if (S.booted) syncSelf(); };   // visible: the 50 ms clock also drives network sends, so a long frame never delays a packet
 } catch (e) { setInterval(() => { if (document.hidden) tick(performance.now()); }, 100); }
 document.addEventListener('visibilitychange', () => { last = performance.now(); });   // no catch-up burst when you come back
 
@@ -4627,7 +4637,7 @@ async function cleanupStale() {
     for (const mode in qs) for (const id in qs[mode]) { const q = qs[mode][id]; if (t - (q.t || 0) > 900000) db.ref(`queue/${mode}/${id}`).remove(); }
   } catch (e) { }
 }
-const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
+const setLoad = async (pct, msg) => { $('#loadMsg').textContent = msg; $('#loadBar i').style.width = pct + '%'; $('#loadPct').textContent = pct + '%'; await new Promise(r => { let done = false; const fin = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(fin); setTimeout(fin, 60); }); };   // rAF paints the bar; the timeout keeps boot going in a hidden tab (rAF never fires there)
 async function boot(online) {
   if (S.booted) return; S.online = online;
   await setLoad(5, 'Building the beach house...'); buildLobby();
