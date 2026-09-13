@@ -118,6 +118,8 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 .kb .key{min-width:64px;padding:5px 10px;border:2px solid #fff;border-radius:5px;background:#000;text-align:center;font-size:14px;cursor:pointer}
 .kb .key:hover{background:#333}
 .kb .key.listening{border-color:var(--yellow);color:var(--yellow)}
+.kbgrp{font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--yellow);margin:12px 0 6px}
+.kbgrp:first-child{margin-top:0}
 .flist{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
 .fr{display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.3);border-radius:6px;padding:7px 10px;font-weight:700}
 .fr .st{width:8px;height:8px;border-radius:50%;background:#666;display:inline-block;margin-right:8px}
@@ -182,7 +184,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="impactFlash"></div>
   <div id="npcPrompt" class="hidden"><b>E</b>Talk to Lil Man Dealer</div>
   <div id="chat">
-    <div class="ctabs"><button class="on" data-ct="global">Global</button><button data-ct="party">Party</button><span style="font-size:10px;opacity:.6;align-self:center;margin-left:4px;font-weight:700">/ to chat</span></div>
+    <div class="ctabs"><button class="on" data-ct="global">Global</button><button data-ct="party">Party</button><span id="chatHint" style="font-size:10px;opacity:.6;align-self:center;margin-left:4px;font-weight:700">/ to chat</span></div>
     <div id="chatLog"></div>
     <input id="chatInput" maxlength="120" placeholder="Press / to chat..." autocomplete="off">
   </div>
@@ -191,7 +193,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="inviteBox" class="hidden"><span id="inviteText"></span><button class="btn green small" id="inviteAccept">ACCEPT</button><button class="btn red small" id="inviteDecline">DECLINE</button></div>
   <div id="crosshair" class="hidden"></div>
   <div id="actions"></div>
-  <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small>Shift lock is on. ESC frees the cursor.</small></div></div>
+  <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small id="lockHintKeys">Shift lock is on. ESC frees the cursor.</small></div></div>
 
   <div id="matchHud" class="hidden">
     <button class="btn red small" id="leaveBtn">LEAVE</button>
@@ -238,7 +240,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="keysPanel" class="panel hidden" style="width:420px">
     <h2>Keybinds<button class="x" data-close>X</button></h2>
     <div id="kbList"></div>
-    <div class="row between" style="margin-top:8px"><small style="opacity:.6;font-weight:600">Click a key, then press the new key or mouse button.</small><button class="btn grey small" id="kbReset">Reset</button></div>
+    <div class="row between" style="margin-top:10px;gap:10px"><small style="opacity:.6;font-weight:600;flex:1">Click a key, then press the new key or mouse button. ESC always closes menus.</small><button class="btn grey small" id="kbLefty">Left-handed</button><button class="btn grey small" id="kbReset">Reset</button></div>
   </div>
 
   <div id="friendsPanel" class="panel hidden" style="width:420px">
@@ -348,45 +350,86 @@ const SID = 's' + rnd() + Date.now().toString(36);   // unique per tab
 const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {} };
 
 /* ---------------- Keybinds ---------------- */
+/* Every control the game reads goes through KEYS — movement, shift lock, chat and the menu included,
+   so a player can move the whole scheme to whichever hand they like. Escape always closes panels on top
+   of whatever it is bound to, so a bad binding can never trap you with the cursor locked. */
 const KEY_DEFAULTS = {
+  moveF: 'KeyW', moveB: 'KeyS', moveL: 'KeyA', moveR: 'KeyD',
   block: 'KeyQ', bump: 'KeyQ', dive: 'ControlLeft', jumpSet: 'KeyE',
-  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE', emote: 'KeyB'
+  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE', emote: 'KeyB',
+  shiftLock: 'ShiftLeft', chat: 'Slash', menu: 'Escape'
+};
+// mirrored to the right of the keyboard, for players who hold the mouse in their left hand
+const KEY_LEFTY = {
+  moveF: 'ArrowUp', moveB: 'ArrowDown', moveL: 'ArrowLeft', moveR: 'ArrowRight',
+  block: 'KeyP', bump: 'KeyP', dive: 'ControlRight', jumpSet: 'KeyO',
+  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyL', serve: 'Digit0', jump: 'Space', interact: 'KeyO', emote: 'Semicolon',
+  shiftLock: 'ShiftRight', chat: 'Slash', menu: 'Escape'
 };
 const KEY_LABELS = {
+  moveF: 'Move Forward', moveB: 'Move Back', moveL: 'Move Left', moveR: 'Move Right',
   block: 'Block', bump: 'Bump', dive: 'Dive', jumpSet: 'Jump Set', groundSet: 'Ground Set',
-  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact', emote: 'Emote Wheel'
+  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact', emote: 'Emote Wheel',
+  shiftLock: 'Shift Lock', chat: 'Chat', menu: 'Menu / Close'
 };
+const KEY_GROUPS = [
+  ['Movement', ['moveF', 'moveB', 'moveL', 'moveR', 'jump', 'dive']],
+  ['Ball', ['bump', 'groundSet', 'jumpSet', 'block', 'spike', 'toss', 'serve', 'spawnBall']],
+  ['Interface', ['shiftLock', 'emote', 'interact', 'chat', 'menu']]
+];
 let KEYS = Object.assign({}, KEY_DEFAULTS);
 try { const s = JSON.parse(localStorage.getItem('vg_keys') || 'null'); if (s) KEYS = Object.assign({}, KEY_DEFAULTS, s); } catch (e) { }
+const BOUND = new Set();                     // every code currently in use, so the browser's own shortcut can be suppressed
 function keyName(code) {
   if (!code) return '—';
   if (code.startsWith('Mouse')) return 'M' + (parseInt(code.slice(5)) + 1);
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
-  const m = { ControlLeft: 'CTRL', ControlRight: 'RCTRL', ShiftLeft: 'SHIFT', ShiftRight: 'RSHIFT', AltLeft: 'ALT', AltRight: 'RALT', Space: 'SPACE', Tab: 'TAB', Enter: 'ENTER', CapsLock: 'CAPS', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+  if (code.startsWith('Numpad')) return 'NUM ' + code.slice(6).toUpperCase();
+  const m = {
+    ControlLeft: 'CTRL', ControlRight: 'RCTRL', ShiftLeft: 'SHIFT', ShiftRight: 'RSHIFT', AltLeft: 'ALT', AltRight: 'RALT',
+    MetaLeft: 'META', MetaRight: 'RMETA', Space: 'SPACE', Tab: 'TAB', Enter: 'ENTER', CapsLock: 'CAPS', Escape: 'ESC',
+    Backspace: 'BKSP', Delete: 'DEL', Insert: 'INS', Home: 'HOME', End: 'END', PageUp: 'PGUP', PageDown: 'PGDN',
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']',
+    Minus: '-', Equal: '=', Backquote: '`'
+  };
   return m[code] || code.toUpperCase();
 }
+const moveKeysLabel = () => ['moveF', 'moveL', 'moveB', 'moveR'].map(a => keyName(KEYS[a])).join('');   // "WASD", "↑←↓→", …
+function applyKeys() {                       // rebuild the lookup set and refresh anything that spells a key out
+  BOUND.clear(); for (const a in KEYS) if (KEYS[a]) BOUND.add(KEYS[a]);
+  const ci = $('#chatInput'); if (ci) ci.placeholder = `Press ${keyName(KEYS.chat)} to chat...`;
+  const ch = $('#chatHint'); if (ch) ch.textContent = `${keyName(KEYS.chat)} to chat`;
+  const lh = $('#lockHintKeys'); if (lh) lh.textContent = `${keyName(KEYS.shiftLock)} toggles shift lock. ESC frees the cursor.`;
+}   // the action cards rebuild themselves: updateCards() keys its signature off KEYS
 let rebinding = null;
 function renderKeys() {
   const list = $('#kbList'); list.innerHTML = '';
-  for (const a of Object.keys(KEY_LABELS)) {
-    const row = document.createElement('div'); row.className = 'kb';
-    row.innerHTML = `<span>${KEY_LABELS[a]}</span><span class="key" data-a="${a}">${keyName(KEYS[a])}</span>`;
-    row.querySelector('.key').onclick = (e) => {
-      $$('.kb .key').forEach(k => { k.classList.remove('listening'); k.textContent = keyName(KEYS[k.dataset.a]); });
-      rebinding = a; e.target.classList.add('listening'); e.target.textContent = '...';
-      e.stopPropagation();
-    };
-    list.appendChild(row);
+  for (const [title, actions] of KEY_GROUPS) {
+    const hd = document.createElement('div'); hd.className = 'kbgrp'; hd.textContent = title; list.appendChild(hd);
+    for (const a of actions) {
+      const row = document.createElement('div'); row.className = 'kb';
+      row.innerHTML = `<span>${KEY_LABELS[a]}</span><span class="key" data-a="${a}">${keyName(KEYS[a])}</span>`;
+      row.querySelector('.key').onclick = (e) => {
+        $$('.kb .key').forEach(k => { k.classList.remove('listening'); k.textContent = keyName(KEYS[k.dataset.a]); });
+        rebinding = a; e.target.classList.add('listening'); e.target.textContent = '...';
+        e.stopPropagation();
+      };
+      list.appendChild(row);
+    }
   }
 }
 function setBind(code) {
   if (!rebinding) return;
   KEYS[rebinding] = code; rebinding = null;
-  localStorage.setItem('vg_keys', JSON.stringify(KEYS));
-  renderKeys();
+  try { localStorage.setItem('vg_keys', JSON.stringify(KEYS)); } catch (e) { }
+  applyKeys(); renderKeys();
 }
-$('#kbReset').onclick = () => { KEYS = Object.assign({}, KEY_DEFAULTS); localStorage.removeItem('vg_keys'); renderKeys(); toast('Keybinds reset'); };
+function usePreset(preset, msg) { KEYS = Object.assign({}, preset); try { localStorage.setItem('vg_keys', JSON.stringify(KEYS)); } catch (e) { } applyKeys(); renderKeys(); toast(msg); }
+$('#kbReset').onclick = () => { localStorage.removeItem('vg_keys'); usePreset(KEY_DEFAULTS, 'Default layout'); };
+$('#kbLefty').onclick = () => usePreset(KEY_LEFTY, 'Left-handed layout');
+applyKeys();
 
 /* ---------------- Panels ---------------- */
 const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel'];
@@ -1569,11 +1612,15 @@ const isTyping = () => ['INPUT', 'TEXTAREA'].includes((document.activeElement ||
 document.addEventListener('keydown', e => {
   if (rebinding) { e.preventDefault(); setBind(e.code); return; }
   if (isTyping()) return;
-  if (e.code === 'Escape') { if (uiOpen() && S.padId === null) closePanels(); return; }
-  if (e.code === 'Slash' && !uiOpen()) { e.preventDefault(); $('#chatInput').focus(); return; }
-  if (['Space', 'ControlLeft', 'ControlRight', 'Tab', 'AltLeft', 'ShiftLeft', 'ShiftRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Escape' || e.code === KEYS.menu) {                       // Escape closes no matter what it is bound to
+    if (uiOpen()) { if (S.padId === null) closePanels(); }
+    else if (e.code !== 'Escape') { e.preventDefault(); openPanel('#settingsPanel'); }   // Escape itself only closes: it is also how the browser frees the cursor
+    return;
+  }
+  if (e.code === KEYS.chat && !uiOpen()) { e.preventDefault(); $('#chatInput').focus(); return; }
+  if (BOUND.has(e.code) || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();   // whatever is bound must not also drive the browser
   if (e.repeat || uiOpen()) return;
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { toggleShiftLock(); }
+  if (e.code === KEYS.shiftLock) { toggleShiftLock(); }
   if (!keys.has(e.code)) { keys.add(e.code); onPress(e.code); }
 });
 document.addEventListener('keyup', e => { keys.delete(e.code); if (!uiOpen()) onRelease(e.code); });
@@ -1650,8 +1697,8 @@ function tiltWorld() { return cr().multiplyScalar(P.tilt.x).add(cf().multiplySca
 function withLateral(dir, tx, deg = 30) { const a = tx * deg * D; const r = new V3(-dir.z, 0, dir.x); return dir.clone().multiplyScalar(Math.cos(a)).add(r.multiplyScalar(Math.sin(a))).normalize(); }
 function groundTilt() {                      // WASD while on the ground, relative to the character (W = forward)
   const ui = uiOpen();
-  const ix = (!ui && keys.has('KeyD') ? 1 : 0) - (!ui && keys.has('KeyA') ? 1 : 0);
-  const iz = (!ui && keys.has('KeyW') ? 1 : 0) - (!ui && keys.has('KeyS') ? 1 : 0);
+  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
+  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); const t = new THREE.Vector2(w.dot(cr()), w.dot(cf()));
   if (t.length() > 1) t.normalize(); return t;
 }
@@ -1825,8 +1872,8 @@ function hitBall(type, vel, g, charge = 0) {
 /* ---------------- Player update ---------------- */
 function updatePlayer(dt) {
   const ui = uiOpen();
-  const ix = (!ui && keys.has('KeyD') ? 1 : 0) - (!ui && keys.has('KeyA') ? 1 : 0);
-  const iz = (!ui && keys.has('KeyW') ? 1 : 0) - (!ui && keys.has('KeyS') ? 1 : 0);
+  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
+  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
@@ -2245,7 +2292,7 @@ document.addEventListener('mousemove', e => {
   $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel));
 });
 document.addEventListener('mousedown', e => { if (wheelOpen && e.button === 0) { e.preventDefault(); e.stopPropagation(); closeWheel(true); } }, true);
-document.addEventListener('keydown', e => { if (wheelOpen && e.code === 'Escape') closeWheel(false); }, true);
+document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape' || e.code === KEYS.menu)) closeWheel(false); }, true);
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
   if (idx >= 0) delete wheel[idx]; else { let free = slots.indexOf(null); if (free < 0) { toast('Wheel is full - remove an emote first', 'err'); return; } wheel[free] = id; }
@@ -2629,7 +2676,7 @@ function updateMatchHud() {
   const sh = $('#serveHint');
   let hint = '';
   if (!M.practice && M.state === 'serve' && M.serve) {
-    if (M.serve.sid === SID) hint = (b && b.active) ? `${keyName(KEYS.toss)} to aim, WASD to move the toss, ${keyName(KEYS.toss)} again to toss, then jump and spike` : `YOUR SERVE - press ${keyName(KEYS.spawnBall)} or ${keyName(KEYS.serve)} to get the ball`;
+    if (M.serve.sid === SID) hint = (b && b.active) ? `${keyName(KEYS.toss)} to aim, ${moveKeysLabel()} to move the toss, ${keyName(KEYS.toss)} again to toss, then jump and spike` : `YOUR SERVE - press ${keyName(KEYS.spawnBall)} or ${keyName(KEYS.serve)} to get the ball`;
     else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve`; }
   }
   sh.textContent = hint; sh.classList.toggle('hidden', !hint);
