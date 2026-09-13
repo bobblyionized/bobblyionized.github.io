@@ -657,7 +657,7 @@ function sidForName(n) { for (const [sid, r] of remotes) if ((r.data && r.data.n
 const camRay = new THREE.Raycaster();
 let impactTimer = 0;
 function impactFrame(x, z, frames = 1) {        // impact frames for players near an effect: black/blue + white for a moment, then a white flash
-  const dist = Math.hypot(P.pos.x - x, P.pos.z - z); if (dist > 24) return;
+  const dist = Math.hypot(P.pos.x - x, P.pos.z - z); if (dist > 24 || FX_WARMING) return;
   clearTimeout(impactTimer);
   canvas.classList.add('impact');
   const fl = $('#impactFlash'); fl.style.transition = 'none'; fl.style.opacity = '0';
@@ -1388,7 +1388,7 @@ async function boot(online) {
   buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => c.parent === lobby); COURT_COLL = COLLIDERS.filter(c => c.parent === court);
-  setMyRig('white');
+  setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
   $('#online .dot').classList.toggle('on', online);

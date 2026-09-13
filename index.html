@@ -1300,6 +1300,19 @@ function buildNet(parent, x, z, yaw, half, antX) {
 }
 /* ---- score effects (play where a ball you hit lands in on the other side) ---- */
 const FX_LIST = [];
+/* Effect lights come from a fixed pool that always sits in the scene (intensity 0 when idle). Adding or removing a real light
+   changes the scene's light count, which makes three.js rebuild every material's shader - that was the hitch on the first
+   score effect (and every one after, since the old programs get released). A constant light count means no rebuilds. */
+const FX_LIGHT_POOL = [];
+function initFxLights() { for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xffffff, 0, 10, 1); l.position.set(0, -50, 0); scene.add(l); FX_LIGHT_POOL.push(l); } }
+function fxLight(g, y, color, intensity, distance, decay = 1) {   // borrow a pooled light for effect group g (placed at g's position + y); returned to the pool when the effect ends
+  let l = FX_LIGHT_POOL.find(x => !x.userData.busy);
+  if (!l) l = new THREE.PointLight(color, 0, 1);                                   // pool exhausted: a dummy that is not in the scene (no visual, no rebuild)
+  else l.userData.busy = true;
+  l.color.setHex(color); l.intensity = intensity; l.distance = distance; l.decay = decay; l.position.set(g.position.x, g.position.y + y, g.position.z);
+  g.userData.fxLight = l; return l;
+}
+function releaseFxLight(g) { const l = g.userData.fxLight; if (!l) return; l.intensity = 0; l.userData.busy = false; l.position.set(0, -50, 0); g.userData.fxLight = null; }
 function heartGeo() {
   const sh = new THREE.Shape(); sh.moveTo(0, 0.35); sh.bezierCurveTo(0, 0.6, -0.5, 0.6, -0.5, 0.25); sh.bezierCurveTo(-0.5, 0.0, 0, -0.15, 0, -0.45); sh.bezierCurveTo(0, -0.15, 0.5, 0.0, 0.5, 0.25); sh.bezierCurveTo(0.5, 0.6, 0, 0.6, 0, 0.35);
   return new THREE.ExtrudeGeometry(sh, { depth: 0.18, bevelEnabled: false });
@@ -1321,7 +1334,7 @@ function playScoreFx(id, x, z, model = 'boy') {
     const heart = new THREE.Mesh(heartGeo(), mat(0xff3d8a, { emissive: 0xff2d7a, emissiveIntensity: .8, transparent: true })); heart.position.y = 0.6; g.add(heart);
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), ADD(0xff4fa0, 0.25)); glow.position.y = 0.9; g.add(glow);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 40), ADD(0xff8ad0, 0.9)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
-    const light = new THREE.PointLight(0xff4fa0, 2, 10); light.position.y = 1; g.add(light);
+    const light = fxLight(g, 1, 0xff4fa0, 2, 10);
     const sparkM = SOLID(0xffd6ec, 1), pinkM = SOLID(0xff7ac8, 1), magM = SOLID(0xff2d9a, 1); const parts = [];
     for (let i = 0; i < 70; i++) {                               // burst sparkles
       const m = [sparkM, pinkM, magM][i % 3]; const p = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), m);
@@ -1357,7 +1370,7 @@ function playScoreFx(id, x, z, model = 'boy') {
     const disc = new THREE.Mesh(new THREE.RingGeometry(R * 0.6, R * 4.2, 64), SOLID(0x3a0a80, 0.5)); disc.rotation.x = -Math.PI / 2; disc.position.y = 0.04; g.add(disc);
     const groundRing = new THREE.Mesh(new THREE.TorusGeometry(R * 3.4, 0.12, 8, 80), new THREE.MeshBasicMaterial({ color: 0x1a0530, transparent: true })); groundRing.rotation.x = Math.PI / 2; groundRing.position.y = 0.05; g.add(groundRing);
     const shock = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 8, 64), SOLID(0xc79bff, 1)); shock.rotation.x = Math.PI / 2; shock.position.y = 0.06; g.add(shock);
-    const light = new THREE.PointLight(0x9a4bff, 4, 30); light.position.y = 2; g.add(light);
+    const light = fxLight(g, 2, 0x9a4bff, 4, 30);
     FX_LIST.push({ g, t: 0, dur: 5.5, type: 'blackhole', x, z, pull: R * 4.6, core: R * 0.6, update(dt) {
       this.t += dt; const t = this.t; const k = t / this.dur;
       const rise = Math.min(1, t / 1.2); const ease = 1 - Math.pow(1 - rise, 3);
@@ -1447,7 +1460,7 @@ function playSmite(x, z) {
   const sparks = [];
   for (let i = 0; i < 60; i++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), SOLID(i % 2 ? 0xffffff : 0xffe066, 1)); const a = Math.random() * Math.PI * 2, spd = 4 + Math.random() * 7; sp.userData.v = new THREE.Vector3(Math.cos(a) * spd, 3 + Math.random() * 8, Math.sin(a) * spd); sp.position.y = 0.4; g.add(sp); sparks.push(sp); }
   const groundGlow = new THREE.Mesh(new THREE.CircleGeometry(7, 40), SOLID(0xffe066, 0.55)); groundGlow.rotation.x = -Math.PI / 2; groundGlow.position.y = 0.02; groundGlow.scale.setScalar(0.01); g.add(groundGlow);
-  const light = new THREE.PointLight(0xffe066, 6, 40); light.position.y = 3; g.add(light);
+  const light = fxLight(g, 3, 0xffe066, 6, 40);
   FX_LIST.push({ g, t: 0, dur: 2.6, update(dt) {
     this.t += dt; const t = this.t;
     const boltOn = t < 0.35; bolt.visible = boltOn || (t < 0.6 && Math.floor(t * 40) % 2 === 0); bolt.scale.x = bolt.scale.z = boltOn ? 1 : 0.5;
@@ -1473,12 +1486,32 @@ function lightningFx(pos, dir) {                     // Double Spike: jagged ele
       const seg = new THREE.Mesh(new THREE.BoxGeometry(0.05, n.distanceTo(p), 0.05), m); seg.position.copy(p).add(n).multiplyScalar(0.5); seg.lookAt(n); seg.rotateX(Math.PI / 2); b.add(seg); p = n;
     }
   }
-  const light = new THREE.PointLight(0x9fd4ff, 6, 8, 2); g.add(light);
+  const light = fxLight(g, 0, 0x9fd4ff, 6, 8, 2);
   FX_LIST.push({ g, t: 0, dur: 0.4, update(dt) { this.t += dt; const k = this.t / this.dur; const on = Math.floor(this.t * 40) % 3 !== 2; for (const b of bolts) b.visible = on; m.opacity = 1 - k; light.intensity = 6 * (1 - k) * (on ? 1 : 0.4); } });
   sparkle(pos, 18, 0x9fd4ff, 1.8, 0.9, 0.45, 0.08, dir);
 }
+/* ---- effect warm-up: play every effect once, far away, on the first frame so shaders and textures are ready before anyone scores ---- */
+let FX_WARMING = false;
+function warmUpFx(rig) {
+  FX_WARMING = true;                                                     // impact frames stay off while this runs
+  const X = 4000, Z = 4000; const fwd = new THREE.Vector3(0, 0, 1);
+  try {
+    const cam0 = new THREE.PerspectiveCamera(60, 1, 0.1, 200); cam0.position.set(X + 6, 4, Z + 12); cam0.lookAt(X, 2, Z); cam0.updateMatrixWorld();
+    for (const id of Object.keys(FXS)) { if (id === 'none') continue; playScoreFx(id, X, Z, 'boy'); updateFx(0.05); renderer.render(scene, cam0); for (const f of FX_LIST) { scene.remove(f.g); releaseFxLight(f.g); } FX_LIST.length = 0; }   // one at a time, like in a match
+    for (const id of Object.keys(FXS)) if (id !== 'none') playScoreFx(id, X, Z, 'boy');
+    lightningFx(new THREE.Vector3(X, 2, Z), fwd); sparkle(new THREE.Vector3(X, 1, Z), 6, 0xffffff, 1, 1);
+    jumpFx(X, Z, 0xf3e4bb); landFx(X, Z, 0xf3e4bb); puff(X, Z, 4, 1, 1, 0xf3e4bb);
+    if (rig) for (const k of ['set', 'bump', 'block', 'spike']) actionFx(k, rig, fwd);
+    const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 200); cam.position.set(X + 6, 4, Z + 12); cam.lookAt(X, 2, Z); cam.updateMatrixWorld();
+    renderer.compile(scene, cam);
+    for (let i = 0; i < 3; i++) { updateFx(0.05); renderer.render(scene, cam); }   // a few real frames: compiles the programs and uploads every texture
+  } catch (e) { console.warn('fx warm-up', e); }
+  for (const f of FX_LIST) { scene.remove(f.g); releaseFxLight(f.g); } FX_LIST.length = 0;
+  for (const p of DUST) scene.remove(p); DUST.length = 0;
+  FX_WARMING = false;
+}
 function updateFx(dt) {
-  for (let i = FX_LIST.length - 1; i >= 0; i--) { const f = FX_LIST[i]; f.update(dt); if (f.t >= f.dur) { scene.remove(f.g); FX_LIST.splice(i, 1); } }
+  for (let i = FX_LIST.length - 1; i >= 0; i--) { const f = FX_LIST[i]; f.update(dt); if (f.t >= f.dur) { scene.remove(f.g); releaseFxLight(f.g); FX_LIST.splice(i, 1); } }
 }
 /* ---- movement dust (walking, jumping, landing) ---- */
 const DUST = []; let dustMat = null;
@@ -2382,7 +2415,7 @@ function sidForName(n) { for (const [sid, r] of remotes) if ((r.data && r.data.n
 const camRay = new THREE.Raycaster();
 let impactTimer = 0;
 function impactFrame(x, z, frames = 1) {        // impact frames for players near an effect: black/blue + white for a moment, then a white flash
-  const dist = Math.hypot(P.pos.x - x, P.pos.z - z); if (dist > 24) return;
+  const dist = Math.hypot(P.pos.x - x, P.pos.z - z); if (dist > 24 || FX_WARMING) return;
   clearTimeout(impactTimer);
   canvas.classList.add('impact');
   const fl = $('#impactFlash'); fl.style.transition = 'none'; fl.style.opacity = '0';
@@ -3113,7 +3146,7 @@ async function boot(online) {
   buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => c.parent === lobby); COURT_COLL = COLLIDERS.filter(c => c.parent === court);
-  setMyRig('white');
+  setMyRig('white'); $('#loadMsg').textContent = 'Warming up effects...'; initFxLights(); warmUpFx(P.rig);
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
   else { me.name = 'Guest 1'; applyIdentityUI(); toast('Offline: could not reach the server. Practice mode still works.', 'err', 6000); }
   $('#online .dot').classList.toggle('on', online);
