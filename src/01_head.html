@@ -118,6 +118,8 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 .kb .key{min-width:64px;padding:5px 10px;border:2px solid #fff;border-radius:5px;background:#000;text-align:center;font-size:14px;cursor:pointer}
 .kb .key:hover{background:#333}
 .kb .key.listening{border-color:var(--yellow);color:var(--yellow)}
+.kbgrp{font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--yellow);margin:12px 0 6px}
+.kbgrp:first-child{margin-top:0}
 .flist{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
 .fr{display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.3);border-radius:6px;padding:7px 10px;font-weight:700}
 .fr .st{width:8px;height:8px;border-radius:50%;background:#666;display:inline-block;margin-right:8px}
@@ -182,7 +184,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="impactFlash"></div>
   <div id="npcPrompt" class="hidden"><b>E</b>Talk to Lil Man Dealer</div>
   <div id="chat">
-    <div class="ctabs"><button class="on" data-ct="global">Global</button><button data-ct="party">Party</button><span style="font-size:10px;opacity:.6;align-self:center;margin-left:4px;font-weight:700">/ to chat</span></div>
+    <div class="ctabs"><button class="on" data-ct="global">Global</button><button data-ct="party">Party</button><span id="chatHint" style="font-size:10px;opacity:.6;align-self:center;margin-left:4px;font-weight:700">/ to chat</span></div>
     <div id="chatLog"></div>
     <input id="chatInput" maxlength="120" placeholder="Press / to chat..." autocomplete="off">
   </div>
@@ -191,7 +193,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="inviteBox" class="hidden"><span id="inviteText"></span><button class="btn green small" id="inviteAccept">ACCEPT</button><button class="btn red small" id="inviteDecline">DECLINE</button></div>
   <div id="crosshair" class="hidden"></div>
   <div id="actions"></div>
-  <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small>Shift lock is on. ESC frees the cursor.</small></div></div>
+  <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small id="lockHintKeys">Shift lock is on. ESC frees the cursor.</small></div></div>
 
   <div id="matchHud" class="hidden">
     <button class="btn red small" id="leaveBtn">LEAVE</button>
@@ -238,7 +240,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
   <div id="keysPanel" class="panel hidden" style="width:420px">
     <h2>Keybinds<button class="x" data-close>X</button></h2>
     <div id="kbList"></div>
-    <div class="row between" style="margin-top:8px"><small style="opacity:.6;font-weight:600">Click a key, then press the new key or mouse button.</small><button class="btn grey small" id="kbReset">Reset</button></div>
+    <div class="row between" style="margin-top:10px;gap:10px"><small style="opacity:.6;font-weight:600;flex:1">Click a key, then press the new key or mouse button. ESC always closes menus.</small><button class="btn grey small" id="kbLefty">Left-handed</button><button class="btn grey small" id="kbReset">Reset</button></div>
   </div>
 
   <div id="friendsPanel" class="panel hidden" style="width:420px">

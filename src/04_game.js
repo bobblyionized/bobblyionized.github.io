@@ -60,11 +60,15 @@ const isTyping = () => ['INPUT', 'TEXTAREA'].includes((document.activeElement ||
 document.addEventListener('keydown', e => {
   if (rebinding) { e.preventDefault(); setBind(e.code); return; }
   if (isTyping()) return;
-  if (e.code === 'Escape') { if (uiOpen() && S.padId === null) closePanels(); return; }
-  if (e.code === 'Slash' && !uiOpen()) { e.preventDefault(); $('#chatInput').focus(); return; }
-  if (['Space', 'ControlLeft', 'ControlRight', 'Tab', 'AltLeft', 'ShiftLeft', 'ShiftRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Escape' || e.code === KEYS.menu) {                       // Escape closes no matter what it is bound to
+    if (uiOpen()) { if (S.padId === null) closePanels(); }
+    else if (e.code !== 'Escape') { e.preventDefault(); openPanel('#settingsPanel'); }   // Escape itself only closes: it is also how the browser frees the cursor
+    return;
+  }
+  if (e.code === KEYS.chat && !uiOpen()) { e.preventDefault(); $('#chatInput').focus(); return; }
+  if (BOUND.has(e.code) || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();   // whatever is bound must not also drive the browser
   if (e.repeat || uiOpen()) return;
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { toggleShiftLock(); }
+  if (e.code === KEYS.shiftLock) { toggleShiftLock(); }
   if (!keys.has(e.code)) { keys.add(e.code); onPress(e.code); }
 });
 document.addEventListener('keyup', e => { keys.delete(e.code); if (!uiOpen()) onRelease(e.code); });
@@ -108,7 +112,7 @@ function onPress(code) {
   if (P.holding) { if (code === KEYS.toss) doToss(); return; }
   if (P.dive) return;
   if (P.onGround) {
-    if (P.cd > 0) return;
+    if (P.cd > 0 || T < (P.landLock || 0)) return;
     if (code === KEYS.bump) doBump();
     else if (code === KEYS.groundSet) doGroundSet();
     else if (code === KEYS.dive) doDive();
@@ -122,7 +126,7 @@ function onPress(code) {
 function onRelease(code) { if (P.charging && code === KEYS.spike) releaseSpike(); }
 
 function tryJump() {
-  if (!P.onGround || P.dive) return;
+  if (!P.onGround || P.dive || T < (P.landLock || 0)) return;
   P.vel.y = JUMP_V; P.onGround = false; P.airUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
   P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
@@ -140,8 +144,8 @@ function tiltWorld() { return cr().multiplyScalar(P.tilt.x).add(cf().multiplySca
 function withLateral(dir, tx, deg = 30) { const a = tx * deg * D; const r = new V3(-dir.z, 0, dir.x); return dir.clone().multiplyScalar(Math.cos(a)).add(r.multiplyScalar(Math.sin(a))).normalize(); }
 function groundTilt() {                      // WASD while on the ground, relative to the character (W = forward)
   const ui = uiOpen();
-  const ix = (!ui && keys.has('KeyD') ? 1 : 0) - (!ui && keys.has('KeyA') ? 1 : 0);
-  const iz = (!ui && keys.has('KeyW') ? 1 : 0) - (!ui && keys.has('KeyS') ? 1 : 0);
+  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
+  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); const t = new THREE.Vector2(w.dot(cr()), w.dot(cf()));
   if (t.length() > 1) t.normalize(); return t;
 }
@@ -149,7 +153,7 @@ function groundTilt() {                      // WASD while on the ground, relati
 const ACT_WINDOW = 0.3;                      // bump / set / jump set stay armed this long, so the ball can arrive a bit late
 function doBump() { P.rig.setPose('bump', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'bump', until: T + ACT_WINDOW }; setTimeout(() => actionFx('bump', P.rig, cf()), 60); tryAct(); }
 function doGroundSet() { P.rig.setPose('set', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'set', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
-function doJumpSet() { P.airUsed = true; P.rig.base = 'airDown'; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
+function doJumpSet() { P.airUsed = true; P.airActed = true; P.rig.base = 'airDown'; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
 function tryAct() {
   const a = P.act; if (!a) return;
   if (T > a.until) { P.act = null; return; }
@@ -176,7 +180,7 @@ function tryAct() {
     hitBall('set', launchTo(B.pos, tg, Math.max(4.4, B.pos.y + 1.4)), 1);
   }
 }
-function doBlock() { P.airUsed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
+function doBlock() { P.airUsed = true; P.airActed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
 function blockContact() {
   P.blockHit = true;
   const s = B.vel.length(); const tz = P.tilt.y, tx = P.tilt.x; const nd = netDir();
@@ -315,8 +319,8 @@ function hitBall(type, vel, g, charge = 0) {
 /* ---------------- Player update ---------------- */
 function updatePlayer(dt) {
   const ui = uiOpen();
-  const ix = (!ui && keys.has('KeyD') ? 1 : 0) - (!ui && keys.has('KeyA') ? 1 : 0);
-  const iz = (!ui && keys.has('KeyW') ? 1 : 0) - (!ui && keys.has('KeyS') ? 1 : 0);
+  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
+  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
@@ -366,6 +370,7 @@ function updatePlayer(dt) {
     P.pos.y = 0; P.vel.y = 0;
     if (!P.onGround) {
       P.onGround = true; P.airUsed = false; P.blockUntil = 0;
+      if (P.airActed) { P.landLock = T + 0.5; P.airActed = false; }           // used block / jump set on that jump: on landing, 0.5s of no jump / set / bump / dive
       if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
       P.rig.base = P.holding ? 'hold' : 'idle';
       P.rig.setPose(P.holding ? 'hold' : 'land', P.holding ? 0 : T + 0.16);   // short landing crouch, then back to idle / run
@@ -735,7 +740,7 @@ document.addEventListener('mousemove', e => {
   $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel));
 });
 document.addEventListener('mousedown', e => { if (wheelOpen && e.button === 0) { e.preventDefault(); e.stopPropagation(); closeWheel(true); } }, true);
-document.addEventListener('keydown', e => { if (wheelOpen && e.code === 'Escape') closeWheel(false); }, true);
+document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape' || e.code === KEYS.menu)) closeWheel(false); }, true);
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
   if (idx >= 0) delete wheel[idx]; else { let free = slots.indexOf(null); if (free < 0) { toast('Wheel is full - remove an emote first', 'err'); return; } wheel[free] = id; }
@@ -1119,7 +1124,7 @@ function updateMatchHud() {
   const sh = $('#serveHint');
   let hint = '';
   if (!M.practice && M.state === 'serve' && M.serve) {
-    if (M.serve.sid === SID) hint = (b && b.active) ? `${keyName(KEYS.toss)} to aim, WASD to move the toss, ${keyName(KEYS.toss)} again to toss, then jump and spike` : `YOUR SERVE - press ${keyName(KEYS.spawnBall)} or ${keyName(KEYS.serve)} to get the ball`;
+    if (M.serve.sid === SID) hint = (b && b.active) ? `${keyName(KEYS.toss)} to aim, ${moveKeysLabel()} to move the toss, ${keyName(KEYS.toss)} again to toss, then jump and spike` : `YOUR SERVE - press ${keyName(KEYS.spawnBall)} or ${keyName(KEYS.serve)} to get the ball`;
     else { const p = M.players[M.serve.sid]; hint = `Waiting for ${p ? p.name : 'opponent'} to serve`; }
   }
   sh.textContent = hint; sh.classList.toggle('hidden', !hint);

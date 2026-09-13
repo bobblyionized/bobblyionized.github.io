@@ -63,45 +63,86 @@ const SID = 's' + rnd() + Date.now().toString(36);   // unique per tab
 const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {} };
 
 /* ---------------- Keybinds ---------------- */
+/* Every control the game reads goes through KEYS — movement, shift lock, chat and the menu included,
+   so a player can move the whole scheme to whichever hand they like. Escape always closes panels on top
+   of whatever it is bound to, so a bad binding can never trap you with the cursor locked. */
 const KEY_DEFAULTS = {
+  moveF: 'KeyW', moveB: 'KeyS', moveL: 'KeyA', moveR: 'KeyD',
   block: 'KeyQ', bump: 'KeyQ', dive: 'ControlLeft', jumpSet: 'KeyE',
-  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE', emote: 'KeyB'
+  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE', emote: 'KeyB',
+  shiftLock: 'ShiftLeft', chat: 'Slash', menu: 'Escape'
+};
+// mirrored to the right of the keyboard, for players who hold the mouse in their left hand
+const KEY_LEFTY = {
+  moveF: 'ArrowUp', moveB: 'ArrowDown', moveL: 'ArrowLeft', moveR: 'ArrowRight',
+  block: 'KeyP', bump: 'KeyP', dive: 'ControlRight', jumpSet: 'KeyO',
+  groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyL', serve: 'Digit0', jump: 'Space', interact: 'KeyO', emote: 'Semicolon',
+  shiftLock: 'ShiftRight', chat: 'Slash', menu: 'Escape'
 };
 const KEY_LABELS = {
+  moveF: 'Move Forward', moveB: 'Move Back', moveL: 'Move Left', moveR: 'Move Right',
   block: 'Block', bump: 'Bump', dive: 'Dive', jumpSet: 'Jump Set', groundSet: 'Ground Set',
-  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact', emote: 'Emote Wheel'
+  spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact', emote: 'Emote Wheel',
+  shiftLock: 'Shift Lock', chat: 'Chat', menu: 'Menu / Close'
 };
+const KEY_GROUPS = [
+  ['Movement', ['moveF', 'moveB', 'moveL', 'moveR', 'jump', 'dive']],
+  ['Ball', ['bump', 'groundSet', 'jumpSet', 'block', 'spike', 'toss', 'serve', 'spawnBall']],
+  ['Interface', ['shiftLock', 'emote', 'interact', 'chat', 'menu']]
+];
 let KEYS = Object.assign({}, KEY_DEFAULTS);
 try { const s = JSON.parse(localStorage.getItem('vg_keys') || 'null'); if (s) KEYS = Object.assign({}, KEY_DEFAULTS, s); } catch (e) { }
+const BOUND = new Set();                     // every code currently in use, so the browser's own shortcut can be suppressed
 function keyName(code) {
   if (!code) return '—';
   if (code.startsWith('Mouse')) return 'M' + (parseInt(code.slice(5)) + 1);
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
-  const m = { ControlLeft: 'CTRL', ControlRight: 'RCTRL', ShiftLeft: 'SHIFT', ShiftRight: 'RSHIFT', AltLeft: 'ALT', AltRight: 'RALT', Space: 'SPACE', Tab: 'TAB', Enter: 'ENTER', CapsLock: 'CAPS', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+  if (code.startsWith('Numpad')) return 'NUM ' + code.slice(6).toUpperCase();
+  const m = {
+    ControlLeft: 'CTRL', ControlRight: 'RCTRL', ShiftLeft: 'SHIFT', ShiftRight: 'RSHIFT', AltLeft: 'ALT', AltRight: 'RALT',
+    MetaLeft: 'META', MetaRight: 'RMETA', Space: 'SPACE', Tab: 'TAB', Enter: 'ENTER', CapsLock: 'CAPS', Escape: 'ESC',
+    Backspace: 'BKSP', Delete: 'DEL', Insert: 'INS', Home: 'HOME', End: 'END', PageUp: 'PGUP', PageDown: 'PGDN',
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']',
+    Minus: '-', Equal: '=', Backquote: '`'
+  };
   return m[code] || code.toUpperCase();
 }
+const moveKeysLabel = () => ['moveF', 'moveL', 'moveB', 'moveR'].map(a => keyName(KEYS[a])).join('');   // "WASD", "↑←↓→", …
+function applyKeys() {                       // rebuild the lookup set and refresh anything that spells a key out
+  BOUND.clear(); for (const a in KEYS) if (KEYS[a]) BOUND.add(KEYS[a]);
+  const ci = $('#chatInput'); if (ci) ci.placeholder = `Press ${keyName(KEYS.chat)} to chat...`;
+  const ch = $('#chatHint'); if (ch) ch.textContent = `${keyName(KEYS.chat)} to chat`;
+  const lh = $('#lockHintKeys'); if (lh) lh.textContent = `${keyName(KEYS.shiftLock)} toggles shift lock. ESC frees the cursor.`;
+}   // the action cards rebuild themselves: updateCards() keys its signature off KEYS
 let rebinding = null;
 function renderKeys() {
   const list = $('#kbList'); list.innerHTML = '';
-  for (const a of Object.keys(KEY_LABELS)) {
-    const row = document.createElement('div'); row.className = 'kb';
-    row.innerHTML = `<span>${KEY_LABELS[a]}</span><span class="key" data-a="${a}">${keyName(KEYS[a])}</span>`;
-    row.querySelector('.key').onclick = (e) => {
-      $$('.kb .key').forEach(k => { k.classList.remove('listening'); k.textContent = keyName(KEYS[k.dataset.a]); });
-      rebinding = a; e.target.classList.add('listening'); e.target.textContent = '...';
-      e.stopPropagation();
-    };
-    list.appendChild(row);
+  for (const [title, actions] of KEY_GROUPS) {
+    const hd = document.createElement('div'); hd.className = 'kbgrp'; hd.textContent = title; list.appendChild(hd);
+    for (const a of actions) {
+      const row = document.createElement('div'); row.className = 'kb';
+      row.innerHTML = `<span>${KEY_LABELS[a]}</span><span class="key" data-a="${a}">${keyName(KEYS[a])}</span>`;
+      row.querySelector('.key').onclick = (e) => {
+        $$('.kb .key').forEach(k => { k.classList.remove('listening'); k.textContent = keyName(KEYS[k.dataset.a]); });
+        rebinding = a; e.target.classList.add('listening'); e.target.textContent = '...';
+        e.stopPropagation();
+      };
+      list.appendChild(row);
+    }
   }
 }
 function setBind(code) {
   if (!rebinding) return;
   KEYS[rebinding] = code; rebinding = null;
-  localStorage.setItem('vg_keys', JSON.stringify(KEYS));
-  renderKeys();
+  try { localStorage.setItem('vg_keys', JSON.stringify(KEYS)); } catch (e) { }
+  applyKeys(); renderKeys();
 }
-$('#kbReset').onclick = () => { KEYS = Object.assign({}, KEY_DEFAULTS); localStorage.removeItem('vg_keys'); renderKeys(); toast('Keybinds reset'); };
+function usePreset(preset, msg) { KEYS = Object.assign({}, preset); try { localStorage.setItem('vg_keys', JSON.stringify(KEYS)); } catch (e) { } applyKeys(); renderKeys(); toast(msg); }
+$('#kbReset').onclick = () => { localStorage.removeItem('vg_keys'); usePreset(KEY_DEFAULTS, 'Default layout'); };
+$('#kbLefty').onclick = () => usePreset(KEY_LEFTY, 'Left-handed layout');
+applyKeys();
 
 /* ---------------- Panels ---------------- */
 const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel'];
