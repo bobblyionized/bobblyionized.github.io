@@ -3495,8 +3495,8 @@ function finishSet(vel, g) {                     // every set (ground, jump, 4th
       const toward = new V3(-info.n.nx * info.sign, 0, -info.n.nz * info.sign);   // unit vector from the ball to the net plane
       const h = new V3(vel.x, 0, vel.z); const hs = h.length();
       if (hs > 0.1 && h.clone().normalize().dot(toward) > 0.35) {          // aimed at the nearest net: Perfect Set
-        const s0 = hs * 1.5; h.normalize().multiplyScalar(s0);            // 50% faster leaving the hands...
-        const tNet = info.dist / (h.dot(toward) * 0.665);                 // ...but it slows to 33% by the net, so it arrives at the average of the two
+        const s0 = hs * 3; h.normalize().multiplyScalar(s0);              // 3x faster leaving the hands...
+        const tNet = info.dist / h.dot(toward) * 1.83;                    // ...decaying exponentially to 33% by the net (integral of 1 / 0.33^p over the run = 1.83)
         const apex = Math.max(ANTENNA_TOP() + 0.3, B.pos.y + 0.5);       // and peaks just over the antennas, right at the net
         const gg = 2 * (apex - B.pos.y) / (tNet * tNet); const vy = gg * tNet;
         hitBall('set', new V3(h.x, vy, h.z), gg / BALL_G);
@@ -3506,7 +3506,7 @@ function finishSet(vel, g) {                     // every set (ground, jump, 4th
     }
   }
   if (hasTrait('b2p2') && g !== 1) { hitBall('set', vel, g); return; }   // 4th Tempo keeps its own float
-  if (hasTrait('b4p1')) { vel.y *= 0.5; vel.x *= 1.25; vel.z *= 1.25; }  // Speed Set: flat and fast
+  if (hasTrait('b4p1')) { vel.y *= 1.2; vel.x *= 2; vel.z *= 2; }        // Speed Set: 2x the horizontal speed, 1.2x the height
   hitBall('set', vel, g);
 }
 function doBlock() { P.airUsed = true; P.airActed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
@@ -3815,7 +3815,7 @@ function simBall(b, dt) {
     if (b.pf) {                                                            // Perfect Set: slow toward the net, then hand over to plain physics once it is there
       const f = b.pf; const dn = (b.pos.x - f.cx) * f.nx + (b.pos.z - f.cz) * f.nz;
       if (Math.sign(dn) !== f.side || Math.abs(dn) < 0.05) { b.pf = null; b.g = 1; }
-      else { const want = f.s0 * (1 - 0.67 * clamp(1 - Math.abs(dn) / f.d0, 0, 1)); const hs = Math.hypot(b.vel.x, b.vel.z); if (hs > 1e-3) { const k = want / hs; b.vel.x *= k; b.vel.z *= k; } }
+      else { const want = f.s0 * Math.pow(0.33, clamp(1 - Math.abs(dn) / f.d0, 0, 1)); /* exponential: fast off the hands, gentle at the net */ const hs = Math.hypot(b.vel.x, b.vel.z); if (hs > 1e-3) { const k = want / hs; b.vel.x *= k; b.vel.z *= k; } }
     }
     b.vel.y -= BALL_G * b.g * h; b.vel.multiplyScalar(1 - 0.015 * h);
     if (b.scene === 'lobby' && b.pos.y > 0.5) { b.vel.x += WIND.x * 0.35 * h; b.vel.z += WIND.z * 0.35 * h; }   // wind drift outside
@@ -4175,9 +4175,9 @@ const TRAITS = {
   b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get one more swing - a spike only: instantly full charge, 1.2x power, lightning on contact.' },
   b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
   b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
-  b4p1: { name: 'Speed Set', type: 'passive', sym: 'SP', desc: 'Your sets leave with half the height and 25% more horizontal speed: flat, fast balls.' },
+  b4p1: { name: 'Speed Set', type: 'passive', sym: 'SP', desc: 'Your sets leave with 2x the horizontal speed and 1.2x the height.' },
   b4p2: { name: 'Setter Vision', type: 'passive', sym: 'SV', desc: 'You fall at 0.7x gravity, and every player near you gets a coloured marker over their head.' },
-  b4a:  { name: 'Perfect Set', type: 'ability', sym: 'PS', desc: 'Sets aimed at the nearest net leave 50% faster, climb to just above the antennas and slow to a third of their speed as they reach the net.' },
+  b4a:  { name: 'Perfect Set', type: 'ability', sym: 'PS', desc: 'Sets aimed at the nearest net leave 3x faster, climb to just above the antennas and decay to a third of their speed as they reach the net.' },
   b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It kills all your momentum and refreshes your action the moment you dash, your next spike starts half charged, and in the air you then glide the way you were tilting.' },
 };
 const TRAIT_BOXES = {
