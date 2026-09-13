@@ -700,6 +700,22 @@ function playSmite(x, z) {
     light.intensity = (boltOn ? 8 : 6) * fade;
   } });
 }
+function lightningFx(pos, dir) {                     // Double Spike: jagged electric bolts + blue sparks bursting off the ball
+  const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+  const m = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 1, depthWrite: false });
+  const bolts = [];
+  for (let i = 0; i < 7; i++) {
+    const b = new THREE.Group(); g.add(b); bolts.push(b);
+    let p = new THREE.Vector3(); const d = new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize().addScaledVector(dir, 0.6).normalize();
+    for (let k = 0; k < 5; k++) {
+      const n = p.clone().addScaledVector(d, 0.28 + Math.random() * 0.2).add(new THREE.Vector3((Math.random() - .5) * 0.25, (Math.random() - .5) * 0.25, (Math.random() - .5) * 0.25));
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.05, n.distanceTo(p), 0.05), m); seg.position.copy(p).add(n).multiplyScalar(0.5); seg.lookAt(n); seg.rotateX(Math.PI / 2); b.add(seg); p = n;
+    }
+  }
+  const light = new THREE.PointLight(0x9fd4ff, 6, 8, 2); g.add(light);
+  FX_LIST.push({ g, t: 0, dur: 0.4, update(dt) { this.t += dt; const k = this.t / this.dur; const on = Math.floor(this.t * 40) % 3 !== 2; for (const b of bolts) b.visible = on; m.opacity = 1 - k; light.intensity = 6 * (1 - k) * (on ? 1 : 0.4); } });
+  sparkle(pos, 18, 0x9fd4ff, 1.8, 0.9, 0.45, 0.08, dir);
+}
 function updateFx(dt) {
   for (let i = FX_LIST.length - 1; i >= 0; i--) { const f = FX_LIST[i]; f.update(dt); if (f.t >= f.dur) { scene.remove(f.g); FX_LIST.splice(i, 1); } }
 }

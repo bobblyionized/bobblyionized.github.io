@@ -128,7 +128,7 @@ function onRelease(code) { if (P.charging && code === KEYS.spike) releaseSpike()
 
 function tryJump() {
   if (!P.onGround || P.dive || T < (P.landLock || 0)) return;
-  P.vel.y = JUMP_V; P.onGround = false; P.airUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);
+  P.vel.y = JUMP_V; P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
   P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
   P.rig.setPose(P.holding ? 'hold' : 'jumpUp', P.holding ? 0 : T + 0.18);   // take-off extension, then settle into the spike-ready air pose
@@ -157,7 +157,14 @@ function doGroundSet() { P.rig.setPose('set', T + 0.45); P.cd = GROUND_CD; P.act
 function doJumpSet() { P.airUsed = true; P.airActed = true; P.rig.base = 'airDown'; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
 function tryAct() {
   const a = P.act; if (!a) return;
-  if (T > a.until) { P.act = null; return; }
+  if (T > a.until) {
+    P.act = null;
+    if ((a.type === 'spike' || a.type === 'tip') && !P.onGround && !P.doubleSpike && !P.dsUsed && hasTrait('b2a')) {   // Double Spike: a whiffed swing arms one more, full-power lightning spike this jump
+      P.doubleSpike = true; P.dsUsed = true; P.airUsed = false; P.rig.base = 'air'; P.rig.setPose('air'); showBallMsg('DOUBLE SPIKE', P.pos.clone().add(new V3(0, 2.2, 0)));
+      sparkle(P.rig.handPos('R'), 10, 0x9fd4ff, 0.8, 1.2, 0.4, 0.06);
+    }
+    return;
+  }
   if (a.type === 'bump') {
     if (!ballReach(chestPos(), REACH_G)) return; P.act = null;
     const gt = groundTilt();                                   // forward = stronger, back = softer bump
@@ -167,8 +174,13 @@ function tryAct() {
   } else if (a.type === 'set') {
     if (!ballReach(chestPos().add(new V3(0, 0.5, 0)), REACH_G + 0.2)) return; P.act = null;
     const dir = P.moving ? P.moveDir.clone() : cf().multiplyScalar(0.12);
+    if (hasTrait('b2p2')) {                                    // 4th Tempo: floaty, higher set that carries further in the direction you are running
+      const tg = P.pos.clone().addScaledVector(dir, P.moving ? 6.5 : 1.2); tg.y = 0; const g4 = 0.55;
+      hitBall('set', launchTo(B.pos, tg, Math.max(7.0, B.pos.y + 3.5), BALL_G * g4), g4);
+    } else {
     const tg = P.pos.clone().addScaledVector(dir, 3.7); tg.y = 0;
     hitBall('set', launchTo(B.pos, tg, Math.max(5.3, B.pos.y + 2.2)), 1);
+    }
   } else if (a.type === 'spike' || a.type === 'tip') {
     if (P.onGround) { P.act = null; return; }
     if (a.type === 'spike' ? doSpike(a.c) : doTip()) P.act = null;
@@ -197,11 +209,16 @@ function blockContact() {
   hitBall('block', vel, g);
 }
 function chargeAt(dt) { return dt <= 0.1875 ? dt / 0.1875 * 0.5 : clamp(0.5 + (dt - 0.1875) / 0.375 * 0.5, 0, 1); }   // 0.19s to half, 0.56s to full
-function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0; $('#chargeBar').classList.remove('hidden'); }   // stays in the jump pose while charging; the swing plays on release
+function startSpike() {
+  P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0;
+  if (P.doubleSpike) { P.chargeStart = T - 1; P.charge = 1; }                            // Double Spike: the second swing is always a full charge
+  else if (hasTrait('b2p1')) { P.chargeStart = T - 0.1875; P.charge = 0.5; }              // Spike Startup: the bar begins at 50%
+  $('#chargeBar').classList.remove('hidden'); $('#chargeBar').classList.toggle('storm', !!P.doubleSpike);
+}   // stays in the jump pose while charging; the swing plays on release
 function releaseSpike() {
   P.charging = false; $('#chargeBar').classList.add('hidden');
   const c = P.charge;                                            // decide from the charge that is on screen, so a frame hitch between press and release can never turn a tap into a spike
-  if (c <= 0.25) { /* a tap up to a quarter charge is a tip; past that it swings */ P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
+  if (c <= 0.35) { /* a tap up to 35% charge is a tip; past that it swings */ P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
   else { P.rig.setPose('spikeCharge', T + 0.07); P.swingAt = T + 0.07; if (!doSpike(c)) P.act = { type: 'spike', c, until: T + 0.16 }; }   // the hit stays armed briefly after the swing
 }
 function netAhead(from, fwd) {                 // distance to the nearest net in front of the ball (Infinity if none)
@@ -228,7 +245,7 @@ function spikeGeom() {
 function doSpike(c) {
   if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
-  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1);        // W tilt trades power for steepness
+  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.25 : 1);   // W tilt trades power for steepness; Double Spike hits 25% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
     const pitch = lerp(20, 5, c) * D, ss = 12 + 8 * c;         // softer serves arc higher; full charge is flat and lands near the far back line
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
@@ -319,7 +336,10 @@ function hitBall(type, vel, g, charge = 0) {
   if (type !== 'toss') b.serve = false;
   b.spin.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(vel.length() * 0.4);
   b.landed = false;
-  if (type === 'spike') sparkle(b.pos, 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, vel.clone().normalize());   // impact sparks (also seen by others via the ball's hit sync)
+  b.ds = type === 'spike' && !!P.doubleSpike;                                                         // lightning spike: everyone sees the bolts
+  if (b.ds) lightningFx(b.pos.clone(), vel.clone().normalize());
+  else if (type === 'spike') sparkle(b.pos, 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, vel.clone().normalize());   // impact sparks (also seen by others via the ball's hit sync)
+  if (type === 'spike' || type === 'tip') { P.doubleSpike = false; $('#chargeBar').classList.remove('storm'); }
   writeBall(b); hostCheckHit();
 }
 
@@ -376,7 +396,7 @@ function updatePlayer(dt) {
   if (P.pos.y <= 0) {
     P.pos.y = 0; P.vel.y = 0;
     if (!P.onGround) {
-      P.onGround = true; P.airUsed = false; P.blockUntil = 0;
+      P.onGround = true; P.airUsed = false; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; $('#chargeBar').classList.remove('storm');
       if (P.airActed) { P.landLock = T + 0.5; P.airActed = false; }           // used block / jump set on that jump: on landing, 0.5s of no jump / set / bump / dive
       if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
       P.rig.base = P.holding ? 'hold' : 'idle';
@@ -486,7 +506,7 @@ function projectServeAim() {
 }
 
 /* ---------------- Ball sync ---------------- */
-function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, skin: b.skin || 'default', fx: b.fx || 'none', hm: b.hm || 'boy', hitterPos: b.hitterPos || null, by: SID }; }
+function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, skin: b.skin || 'default', fx: b.fx || 'none', hm: b.hm || 'boy', hitterPos: b.hitterPos || null, ds: !!b.ds, by: SID }; }
 function writeBall(b) {
   if (!b || !S.online) return;
   if (b.id === 'match') { const r = mref('ball'); if (r) r.set(ballRecord(b)); }
@@ -504,7 +524,7 @@ function receiveBall(b, v) {
   const newHit = v.hitType === 'spike' && v.seq !== b.lastSparkSeq; b.lastSparkSeq = v.seq;
   if (b.active && !b.held) {
     b.pos.set(v.x, v.y, v.z); b.vel.set(v.vx, v.vy, v.vz);
-    if (newHit) sparkle(b.pos.clone(), 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, b.vel.clone().normalize());
+    if (newHit) { if (v.ds) lightningFx(b.pos.clone(), b.vel.clone().normalize()); else sparkle(b.pos.clone(), 12, 0xffffff, 1.4, 0.6, 0.35, 0.07, b.vel.clone().normalize()); }
     const dt = clamp((snow() - b.t) / 1000, 0, 0.6);
     if (!b.frozen && dt > 0) { b.pos.addScaledVector(b.vel, dt); b.pos.y -= 0.5 * BALL_G * b.g * dt * dt; b.vel.y -= BALL_G * b.g * dt; }
     b.spin.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(b.vel.length() * 0.4);
@@ -716,14 +736,14 @@ function equipItem(kind, id) {
 
 /* ---------------- Big Man Dealer: trait boxes ---------------- */
 // Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
-// Box 1 traits are live (see hasTrait uses); boxes 2 and 3 are still placeholders.
+// Box 1 and 2 traits are live (see hasTrait uses); box 3 is still placeholders.
 const TRAITS = {
   b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
   b1p2: { name: 'Fake Block', type: 'passive', sym: 'FB', desc: 'Your block tilts are reversed: S acts like W and W like S.' },
   b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 3 m up, then slam straight down under heavy gravity.' },
-  b2p1: { name: 'Iron Wall', type: 'passive', sym: 'IW', desc: 'Placeholder passive trait.' },
-  b2p2: { name: 'Long Reach', type: 'passive', sym: 'LR', desc: 'Placeholder passive trait.' },
-  b2a:  { name: 'Blink', type: 'ability', sym: 'BL', desc: 'Placeholder ability trait.' },
+  b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 50%.' },
+  b2p2: { name: '4th Tempo', type: 'passive', sym: '4T', desc: 'Ground sets float higher with less gravity and carry further in the direction you run.' },
+  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.25x power, lightning on contact.' },
   b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
   b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
   b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },
