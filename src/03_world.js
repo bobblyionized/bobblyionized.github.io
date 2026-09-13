@@ -723,16 +723,29 @@ function buildClock() {                          // face + hands, hands stored i
   g.userData.hour = hand(0.42, 0.06, 0.1); g.userData.minute = hand(0.66, 0.045, 0.12); g.userData.face = face; g.userData.glow = glow;
   return g;
 }
-const TIMESTOP_R = 3.4, TIMESTOP_SLOW = 0.12;   // radius of the clock on the floor; balls inside move at 12% speed
+const TIMESTOP_R = 3.4, TIMESTOP_AURA = 1.7, TIMESTOP_SLOW = 0.12;   // clock radius on the floor; the aura around it is 1.7x wider and is the slow zone; balls inside move at 12% speed
+let AURA_WALL_TEX = null;
+const auraWallTex = () => AURA_WALL_TEX || (AURA_WALL_TEX = canvasTex(64, 256, (g, W, H) => { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(120,190,255,0)'); gr.addColorStop(0.55, 'rgba(120,190,255,0.35)'); gr.addColorStop(1, 'rgba(160,220,255,0.9)'); g.fillStyle = gr; g.fillRect(0, 0, W, H); }));
 function playTimeStop(x, z) {
   const g = buildClock(); g.scale.setScalar(TIMESTOP_R); g.position.set(x, 0, z); scene.add(g);
   const light = fxLight(g, 1.2, 0x3a8cff, 4, TIMESTOP_R * 3, 1.5);
+  // the aura: a soft blue dome over the clock, a glowing wall around its edge and a ring on the floor - everything inside it is slowed
+  const aura = new THREE.Group(); aura.position.set(x, 0, z); scene.add(aura); const A = TIMESTOP_R * TIMESTOP_AURA;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), ADD(0x3a8cff, 0.09)); aura.add(dome);
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.42, 64, 1, true), new THREE.MeshBasicMaterial({ map: auraWallTex(), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); wall.position.y = 0.21; aura.add(wall);
+  const edge = new THREE.Mesh(new THREE.RingGeometry(0.965, 1, 96), ADD(0x9fd4ff, 0.7)); edge.rotation.x = -Math.PI / 2; edge.position.y = 0.01; aura.add(edge);
+  const motes = []; const moteM = ADD(0xbfe8ff, 0.8);
+  for (let i = 0; i < 40; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), moteM); const a = Math.random() * Math.PI * 2, r = 0.55 + Math.random() * 0.45; m.userData.a = a; m.userData.r = r; m.userData.h = Math.random() * 0.4; m.userData.w = 0.15 + Math.random() * 0.25; m.scale.setScalar(1 / A); aura.add(m); motes.push(m); }
+  g.userData.aura = aura;
   const shards = []; const shardM = ADD(0x9fd4ff, 0.9);
   for (let i = 0; i < 26; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1 + Math.random() * 0.3, 0.05), shardM); const a = Math.random() * Math.PI * 2, r = (0.3 + Math.random() * 0.75); s.position.set(Math.cos(a) * r, Math.random() * 0.4, Math.sin(a) * r); s.userData.vy = 0.05 + Math.random() * 0.12; s.userData.spin = (Math.random() - .5) * 3; s.scale.setScalar(1 / TIMESTOP_R); g.add(s); shards.push(s); }
   const H = g.userData.hour, M = g.userData.minute;
-  FX_LIST.push({ g, t: 0, dur: 6, type: 'timestop', x, z, r: TIMESTOP_R, update(dt) {
+  FX_LIST.push({ g, t: 0, dur: 6, type: 'timestop', x, z, r: TIMESTOP_R * TIMESTOP_AURA, update(dt) {
     this.t += dt; const k = this.t / this.dur; const grow = Math.min(1, this.t / 0.35); const fade = 1 - Math.max(0, k - 0.8) / 0.2;
-    g.scale.setScalar(TIMESTOP_R * (0.6 + 0.4 * grow)); this.r = TIMESTOP_R * (0.6 + 0.4 * grow);
+    g.scale.setScalar(TIMESTOP_R * (0.6 + 0.4 * grow)); this.r = A * (0.6 + 0.4 * grow);
+    const ag = Math.min(1, this.t / 0.5); aura.scale.setScalar(A * (0.5 + 0.5 * ag)); const breathe = 0.9 + 0.1 * Math.sin(this.t * 2.5);
+    dome.material.opacity = 0.09 * ag * fade * breathe; wall.material.opacity = 0.8 * ag * fade * breathe; edge.material.opacity = 0.7 * ag * fade; edge.rotation.z += dt * 0.4; moteM.opacity = 0.8 * ag * fade;
+    for (const m of motes) { m.userData.a += m.userData.w * dt; m.position.set(Math.cos(m.userData.a) * m.userData.r, m.userData.h + 0.08 * Math.sin(this.t * 2 + m.userData.a * 3), Math.sin(m.userData.a) * m.userData.r); }
     M.rotation.y = -this.t * 5.5; H.rotation.y = -this.t * 5.5 / 12 - 1.2;                                        // hands race round backwards
     const pulse = 0.85 + 0.15 * Math.sin(this.t * 6);
     g.userData.face.material.opacity = grow * fade * pulse; g.userData.base.material.opacity = 0.5 * grow * fade; g.userData.glow.material.opacity = 0.35 * grow * fade * pulse; g.userData.glow.scale.setScalar(1 + 0.04 * Math.sin(this.t * 4));
@@ -793,7 +806,7 @@ function warmUpFx(rig) {
   const X = 4000, Z = 4000; const fwd = new THREE.Vector3(0, 0, 1);
   try {
     const cam0 = new THREE.PerspectiveCamera(60, 1, 0.1, 200); cam0.position.set(X + 6, 4, Z + 12); cam0.lookAt(X, 2, Z); cam0.updateMatrixWorld();
-    for (const id of Object.keys(FXS)) { if (id === 'none') continue; playScoreFx(id, X, Z, 'boy'); updateFx(0.05); renderer.render(scene, cam0); for (const f of FX_LIST) { scene.remove(f.g); releaseFxLight(f.g); } FX_LIST.length = 0; }   // one at a time, like in a match
+    for (const id of Object.keys(FXS)) { if (id === 'none') continue; playScoreFx(id, X, Z, 'boy'); updateFx(0.05); renderer.render(scene, cam0); for (const f of FX_LIST) { scene.remove(f.g); if (f.g.userData.aura) scene.remove(f.g.userData.aura); releaseFxLight(f.g); } FX_LIST.length = 0; }   // one at a time, like in a match
     for (const id of Object.keys(FXS)) if (id !== 'none') playScoreFx(id, X, Z, 'boy');
     lightningFx(new THREE.Vector3(X, 2, Z), fwd); sparkle(new THREE.Vector3(X, 1, Z), 6, 0xffffff, 1, 1);
     jumpFx(X, Z, 0xf3e4bb); landFx(X, Z, 0xf3e4bb); puff(X, Z, 4, 1, 1, 0xf3e4bb);
@@ -802,12 +815,12 @@ function warmUpFx(rig) {
     renderer.compile(scene, cam);
     for (let i = 0; i < 3; i++) { updateFx(0.05); renderer.render(scene, cam); }   // a few real frames: compiles the programs and uploads every texture
   } catch (e) { console.warn('fx warm-up', e); }
-  for (const f of FX_LIST) { scene.remove(f.g); releaseFxLight(f.g); } FX_LIST.length = 0;
+  for (const f of FX_LIST) { scene.remove(f.g); if (f.g.userData.aura) scene.remove(f.g.userData.aura); releaseFxLight(f.g); } FX_LIST.length = 0;
   for (const p of DUST) scene.remove(p); DUST.length = 0;
   FX_WARMING = false;
 }
 function updateFx(dt) {
-  for (let i = FX_LIST.length - 1; i >= 0; i--) { const f = FX_LIST[i]; f.update(dt); if (f.t >= f.dur) { scene.remove(f.g); releaseFxLight(f.g); FX_LIST.splice(i, 1); } }
+  for (let i = FX_LIST.length - 1; i >= 0; i--) { const f = FX_LIST[i]; f.update(dt); if (f.t >= f.dur) { scene.remove(f.g); if (f.g.userData.aura) scene.remove(f.g.userData.aura); releaseFxLight(f.g); FX_LIST.splice(i, 1); } }
 }
 /* ---- movement dust (walking, jumping, landing) ---- */
 const DUST = []; let dustMat = null;
