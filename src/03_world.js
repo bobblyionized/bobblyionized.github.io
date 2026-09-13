@@ -1735,6 +1735,7 @@ function buildNet(parent, x, z, yaw, half, antX) {
 }
 /* ---- score effects (play where a ball you hit lands in on the other side) ---- */
 const FX_LIST = [];
+let ULTRA = false;                                 // Graphics = Ultra low: no effects, no animated scenery, classic ball for everyone (set by applyQuality)
 /* Effect lights come from a fixed pool that always sits in the scene (intensity 0 when idle). Adding or removing a real light
    changes the scene's light count, which makes three.js rebuild every material's shader - that was the hitch on the first
    score effect (and every one after, since the old programs get released). A constant light count means no rebuilds. */
@@ -1771,6 +1772,7 @@ function fxPreview(id) {
 const ADD = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
 const SOLID = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
 function playScoreFx(id, x, z, model = 'boy') {
+  if (ULTRA && !FX_WARMING) return;
   if (id !== 'hammock' && typeof impactFrame === 'function') impactFrame(x, z, id === 'blackhole' || id === 'smite' ? 2 : 1);
   if (id === 'heart') {
     const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
@@ -2180,6 +2182,7 @@ function playSmite(x, z) {
   } });
 }
 function lightningFx(pos, dir, boltHex = 0xbfe6ff, glowHex = 0x9fd4ff, n = 7) {   // jagged electric bolts + sparks bursting from pos (blue for Double Spike, yellow for Dash)
+  if (ULTRA && !FX_WARMING) return;
   const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
   const m = new THREE.MeshBasicMaterial({ color: boltHex, transparent: true, opacity: 1, depthWrite: false });
   const bolts = [];
@@ -2222,6 +2225,7 @@ function updateFx(dt) {
 const DUST = []; let dustMat = null;
 const noDustHere = (x, z) => S.scene === 'lobby' && indoors(x, z);
 function puff(x, z, n, spread, up, colorHex) {
+  if (ULTRA && !FX_WARMING) return;
   if (noDustHere(x, z)) return;
   dustMat = dustMat || new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
   const m = dustMat.clone(); m.color.setHex(colorHex);
@@ -2236,6 +2240,7 @@ function updateDust(dt) {
 }
 /* ---- jump / landing effects (separate from the walking puffs) ---- */
 function jumpFx(x, z, colorHex) {
+  if (ULTRA && !FX_WARMING) return;
   if (noDustHere(x, z)) return;
   const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.42, 28), new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
@@ -2244,6 +2249,7 @@ function jumpFx(x, z, colorHex) {
   FX_LIST.push({ g, t: 0, dur: 0.5, update(dt) { this.t += dt; const k = this.t / this.dur; ring.scale.setScalar(1 + k * 3.5); ring.material.opacity = 0.85 * (1 - k); for (const s of streaks) { s.position.y += s.userData.vy * dt; s.userData.vy *= (1 - 3 * dt); s.material.opacity = 0.9 * (1 - k); } } });
 }
 function landFx(x, z, colorHex) {
+  if (ULTRA && !FX_WARMING) return;
   const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.12, 6, 28), new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.06; g.add(ring);
   const chunks = [];
@@ -2253,12 +2259,14 @@ function landFx(x, z, colorHex) {
 }
 /* ---- action effects: set / bump / spike / block (small, quick, readable) ---- */
 function sparkle(pos, n, colorHex, spread, up, dur = 0.45, size = 0.07, dir = null) {
+  if (ULTRA && !FX_WARMING) return;
   const g = new THREE.Group(); g.position.copy(pos); scene.add(g); const parts = [];
   const m = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95, depthWrite: false });
   for (let i = 0; i < n; i++) { const p = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), m); const a = Math.random() * Math.PI * 2, sp = spread * (0.3 + Math.random()); p.userData.v = new THREE.Vector3(Math.cos(a) * sp, up * (0.4 + Math.random()), Math.sin(a) * sp); if (dir) p.userData.v.addScaledVector(dir, spread * 1.2); p.rotation.set(Math.random() * 3, Math.random() * 3, 0); g.add(p); parts.push(p); }
   FX_LIST.push({ g, t: 0, dur, update(dt) { this.t += dt; const k = this.t / this.dur; for (const p of parts) { p.position.addScaledVector(p.userData.v, dt); p.userData.v.multiplyScalar(1 - 2 * dt); p.rotation.y += dt * 6; } m.opacity = 0.95 * (1 - k); } });
 }
 function actionFx(kind, rig, fwd) {                 // kind: set | bump | block | spike | spikeHit
+  if (ULTRA && !FX_WARMING) return;
   if (!rig) return;
   const hl = rig.handPos('L'), hr = rig.handPos('R'); const mid = hl.clone().add(hr).multiplyScalar(0.5);
   if (kind === 'set') sparkle(mid, 10, 0xfff3b0, 0.5, 1.6, 0.5, 0.06);                                   // soft golden specks lifting off the fingertips
@@ -2276,6 +2284,7 @@ function actionFx(kind, rig, fwd) {                 // kind: set | bump | block 
 /* ---- landing marks ---- */
 const MARKS = [];
 function landingMark(x, z, inCourt) {
+  if (ULTRA && !FX_WARMING) return;
   const m = new THREE.Mesh(new THREE.CircleGeometry(BALL_R, 28), new THREE.MeshBasicMaterial({ color: inCourt ? 0x3ecf5a : 0xe5484d, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); scene.add(m); MARKS.push({ m, t0: performance.now() });
 }
@@ -2475,7 +2484,7 @@ function skinMaterial(id) {
 }
 const BALL_GEO = new THREE.SphereGeometry(BALL_R, 20, 16), BALL_GEO_LP = new THREE.IcosahedronGeometry(BALL_R, 1);
 function applySkin(mesh, id) {
-  id = SKINS[id] ? id : 'default'; mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
+  id = SKINS[id] ? id : 'default'; if (ULTRA) id = 'default';   // ultra low: every ball is drawn as the classic one (the owner's skin is still sent to others) mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
   // chromatic: glowing rainbow aura around the ball (visual only - hitbox is unchanged)
   const old = mesh.getObjectByName('aura'); if (old) { mesh.remove(old); const i = AURAS.indexOf(old.material); if (i >= 0) AURAS.splice(i, 1); const j = NEUTRONS.indexOf(old); if (j >= 0) NEUTRONS.splice(j, 1); }
   if (id === 'chromatic') {

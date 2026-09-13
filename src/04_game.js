@@ -753,6 +753,7 @@ function sidForName(n) { for (const [sid, r] of remotes) if ((r.data && r.data.n
 const camRay = new THREE.Raycaster();
 let impactTimer = 0;
 function impactFrame(x, z, frames = 1) {        // impact frames for players near an effect: black/blue + white for a moment, then a white flash
+  if (ULTRA) return;
   const dist = Math.hypot(P.pos.x - x, P.pos.z - z); if (dist > 24 || FX_WARMING) return;
   clearTimeout(impactTimer);
   canvas.classList.add('impact');
@@ -1558,7 +1559,8 @@ function simulate(dt) {
   updatePlayer(dt); P.rig.update(dt, T);
   updateBalls(dt); updateRemotes(dt); checkPads();
   WATER_T.value = T;                                                          // both maps' sea share one clock
-  if (S.scene === 'lobby') updateAmbient(T, dt);
+  if (ULTRA) { if (S.scene === 'lobby') updateWind(); }                                  // ultra low: scenery stands still (wind still blows for the ball)
+  else if (S.scene === 'lobby') updateAmbient(T, dt);
   else if (S.match) { if (S.match.map === 'beach') updateBeachAmbient(T, dt); else updateCourtAmbient(T, dt); }
   updateDust(dt);
 }
@@ -1600,13 +1602,15 @@ async function cleanupStale() {
   } catch (e) { }
 }
 let GFX = 'high';
-function applyQuality(q) {                       // high: as designed; medium: smaller shadow map, 1x pixels; low: no shadows, 0.85x pixels, no drifting sand grains
-  GFX = q;
-  const shadows = q !== 'low'; const size = q === 'high' ? 1024 : 512;
+function applyQuality(q) {                       // high: as designed; medium: smaller shadow map, 1x pixels; low: no shadows, 0.85x pixels, no drifting sand grains; ultra: low + no effects, no animated scenery, classic balls
+  GFX = q; const wasUltra = ULTRA; ULTRA = q === 'ultra';
+  if (wasUltra !== ULTRA) { for (const b of balls.values()) applySkin(b.mesh, b.skin || 'default'); if (ULTRA) { for (const f of FX_LIST) { scene.remove(f.g); releaseFxLight(f.g); } FX_LIST.length = 0; } }   // re-skin the balls, drop any running effects
+  scene.traverse(o => { if (o.isPoints) o.visible = !ULTRA; });                                   // sand grains, motes
+  const shadows = q !== 'low' && q !== 'ultra'; const size = q === 'high' ? 1024 : 512;
   if (renderer.shadowMap.enabled !== shadows) { renderer.shadowMap.enabled = shadows; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); }); }
   if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
-  renderer.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 1.25 : q === 'medium' ? 1 : 0.85)); resize();
-  const grains = lobby.getObjectByName('sandGrains'); if (grains) grains.visible = q !== 'low';
+  renderer.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 1.25 : q === 'medium' ? 1 : q === 'low' ? 0.85 : 0.75)); resize();
+  const grains = lobby.getObjectByName('sandGrains'); if (grains) grains.visible = q !== 'low' && q !== 'ultra';
   renderer.shadowMap.needsUpdate = true;
 }
 function optimizeScenery() {                    // fold static scenery into a handful of meshes (see mergeStatic); things that move keep their own
