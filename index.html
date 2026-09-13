@@ -2566,8 +2566,8 @@ const TRAITS = {
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
-  2: { name: 'Trait Box 2', price: 5000, traits: ['b2p1', 'b2p2', 'b2a'] },
-  3: { name: 'Trait Box 3', price: 10000, traits: ['b3p1', 'b3p2', 'b3a'] },
+  2: { name: 'Trait Box 2', price: 2000, traits: ['b2p1', 'b2p2', 'b2a'] },
+  3: { name: 'Trait Box 3', price: 5000, traits: ['b3p1', 'b3p2', 'b3a'] },
 };
 const BOX_ODDS = [0.4, 0.4, 0.2];
 function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
