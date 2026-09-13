@@ -193,6 +193,7 @@ const POSES = {
   diveB:       { shL: [-150, 0, 20], shR: [-150, 0, -20], elL: [-10, 0, 0], elR: [-10, 0, 0], hipL: [-35, 0, 0], hipR: [-35, 0, 0], knL: [55, 0, 0], knR: [55, 0, 0], spine: [-10, 0, 0], neck: [-20, 0, 0] },
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   sit:         { shL: [-28, 0, 12], shR: [-28, 0, -12], elL: [-58, 0, 0], elR: [-58, 0, 0], hipL: [-76, 0, 6], hipR: [-76, 0, -6], knL: [76, 0, 0], knR: [76, 0, 0], spine: [-6, 0, 0], neck: [4, 0, 0] },   // couch sit: thighs forward, shins hanging, hands in the lap
+  dash:        { shL: [38, 0, 14], shR: [38, 0, -14], elL: [-24, 0, 0], elR: [-24, 0, 0], hipL: [-38, 0, 0], hipR: [26, 0, 0], knL: [30, 0, 0], knR: [52, 0, 0], spine: [24, 0, 0], neck: [-14, 0, 0] },   // dash: leaning hard into it, arms swept back
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
 const POSE_SNAP = { jumpUp: 22, land: 20, spikeCharge: 26, spikeHit: 32 };   // how hard each pose snaps in; everything else uses the default blend
@@ -335,7 +336,7 @@ function renderPoseIcons() {
   const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.1)); const dl = new THREE.DirectionalLight(0xffffff, .7); dl.position.set(2, 4, 3); sc.add(dl);
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 20); cam.position.set(1.6, 1.5, 2.9); cam.lookAt(0, 0.85, 0);
   const rig = new Rig('white'); sc.add(rig.root);
-  const specs = { bump: {}, set: {}, dive: { pitch: 1.25 }, block: {}, spikeCharge: {}, spikeHit: {}, hold: {}, toss: {}, tip: {} };
+  const specs = { bump: {}, set: {}, dive: { pitch: 1.25 }, block: {}, spikeCharge: {}, spikeHit: {}, hold: {}, toss: {}, tip: {}, dash: { pitch: 0.3 } };
   rig.rollTarget = 0;
   for (const name in specs) {
     rig.setPose(name); rig.pitchTarget = specs[name].pitch || 0; rig.pitch = rig.pitchTarget;

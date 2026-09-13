@@ -108,10 +108,11 @@ function onPress(code) {
   if (code === KEYS.interact && P.onGround && nearNPC()) { openShop(); return; }
   if (code === KEYS.interact && P.onGround && nearNPC2()) { openTraitShop(); return; }
   if (code === KEYS.jump) tryJump();
+  if (code === KEYS.ability) { tryDash(); return; }
   if (code === KEYS.serve) trySpawnBall(true);
   else if (code === KEYS.spawnBall) trySpawnBall(false);
   if (P.holding) { if (code === KEYS.toss) doToss(); return; }
-  if (P.dive) return;
+  if (P.dive || P.dash) return;
   if (P.onGround) {
     if (P.cd > 0 || T < (P.landLock || 0)) return;
     if (code === KEYS.bump) doBump();
@@ -128,7 +129,7 @@ function onRelease(code) { if (P.charging && code === KEYS.spike) releaseSpike()
 
 function tryJump() {
   if (!P.onGround || P.dive || T < (P.landLock || 0)) return;
-  P.vel.y = JUMP_V; P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);
+  P.vel.y = JUMP_V * (hasTrait('b3p2') ? Math.sqrt(1.32) : 1); P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);   // Power Jump: 20% more height under 10% more gravity
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
   P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
   P.rig.setPose(P.holding ? 'hold' : 'jumpUp', P.holding ? 0 : T + 0.18);   // take-off extension, then settle into the spike-ready air pose
@@ -246,7 +247,7 @@ function doSpike(c) {
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.3 : 1);   // W tilt trades power for steepness; Double Spike hits 30% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
-    const pitch = lerp(20, 5, c) * D, ss = 12 + 8 * c;         // softer serves arc higher; full charge is flat and lands near the far back line
+    const pitch = lerp(20, 5, c) * D, ss = (13 + 22 * c) * (P.doubleSpike ? 1.3 : 1) * (hasTrait('b3p1') ? 1.1 : 1) * 0.57;   // serve speed is spike power x 0.57 (20 m/s at full charge), so every spike modifier carries over; King Serve +10%
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
     return true;
   }
@@ -288,6 +289,20 @@ function doTip() {
     hitBall('tip', launchTo(B.pos, tg, B.pos.y + 3, BALL_G * gd), gd); return true;
   }
   hitBall('tip', v, 1); return true;
+}
+function tryDash() {                          // Dash (ability trait): a burst in your movement direction, 3 s cooldown; in the air it kills vertical momentum and refreshes your air action
+  if (!hasTrait('b3a') || P.dash || P.dive || P.holding || P.emote) return;
+  if (T < (P.dashReady || 0)) return;
+  const ui = uiOpen();
+  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
+  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
+  P.dash = { t0: T, dur: 0.24, dir }; P.dashReady = T + 3; P.vel.y = 0;
+  if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
+    P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
+    if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
+  } else { P.moveDir.copy(dir); P.moving = true; }
+  P.rig.setPose('dash', T + 0.24); sparkle(P.pos.clone().add(new V3(0, 0.9, 0)), 12, 0xffffff, 1.0, 0.3, 0.3, 0.06, dir.clone().negate());
 }
 function doDive() {
   const dir = P.moving ? P.moveDir.clone() : cf();
@@ -351,7 +366,11 @@ function updatePlayer(dt) {
   const steering = !!(P.holding && P.serveAim);
   tryAct();
   if (P.swingAt && T >= P.swingAt) { P.swingAt = 0; if (!P.onGround) { P.rig.base = 'airDown'; P.rig.setPose('spikeHit', T + 0.4); actionFx('spike', P.rig, P.jumpFwd); } }   // the arm stays down through the fall instead of re-cocking
-  if (P.dive) {
+  if (P.dash) {
+    const e = (T - P.dash.t0) / P.dash.dur;
+    if (e >= 1) { P.dash = null; if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); } else { P.rig.base = 'air'; P.rig.setPose('air'); } }
+    else { const sp = 24 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.6) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 2, 0xffffff, 0.3, 0.2, 0.25, 0.05); }
+  } else if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
     else { const sp = 15 * (1 - e * 0.6); P.vel.x = P.dive.dir.x * sp; P.vel.z = P.dive.dir.z * sp; }   // ~2x dive distance
@@ -378,7 +397,7 @@ function updatePlayer(dt) {
   }
   if (P.onGround && P.moving && !P.dive) { P.stepAcc = (P.stepAcc || 0) + dt; if (P.stepAcc > 0.16) { P.stepAcc = 0; puff(P.pos.x - P.moveDir.x * 0.2, P.pos.z - P.moveDir.z * 0.2, 2, 0.6, 0.8, groundDustColor()); } }
   P.tilt.lerp(P.onGround ? new THREE.Vector2() : P.tiltIn, Math.min(1, dt * 12));
-  P.vel.y -= G * dt;
+  if (!P.dash) P.vel.y -= G * (hasTrait('b3p2') ? 1.1 : 1) * dt;                // a dash holds you at your height; Power Jump falls 10% harder
   const prevPos = P.pos.clone();
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
   if (S.scene === 'lobby') {
@@ -687,14 +706,16 @@ function updateCamera() {
 const CARD_SETS = {
   ground: [['bump', 'BUMP', 'bump'], ['groundSet', 'SET', 'set'], ['dive', 'DIVE', 'dive']],
   air: [['block', 'BLOCK', 'block'], ['jumpSet', 'JUMP SET', 'set'], ['spike', 'SPIKE', 'spikeHit', true]],
+  dash: ['ability', 'DASH', 'dash'],           // added to the right of the ground / air sets while the Dash trait is equipped
   hold: [['toss', 'TOSS', 'toss']],
 };
 let cardSig = '', utilSig = '';
-function cardHtml(act, label, pose, hold) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div><div class="lbl">${label}</div></div>`; }
+function cardHtml(act, label, pose, hold, cd = 0) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div>${cd > 0 ? `<div class="cdov" style="height:${Math.min(100, cd / 3 * 100).toFixed(0)}%"></div><div class="cdt">${cd.toFixed(1)}</div>` : ''}<div class="lbl">${label}</div></div>`; }
 function updateCards() {
   const set = P.holding ? 'hold' : P.onGround ? 'ground' : 'air';
-  const sig = set + '|' + CARD_SETS[set].map(c => KEYS[c[0]]).join(',');
-  if (sig !== cardSig) { cardSig = sig; $('#actions').innerHTML = CARD_SETS[set].map(c => cardHtml(...c)).join(''); }
+  const dash = set !== 'hold' && hasTrait('b3a'); const dcd = dash ? Math.max(0, (P.dashReady || 0) - T) : 0;
+  const sig = set + '|' + CARD_SETS[set].map(c => KEYS[c[0]]).join(',') + (dash ? '|D' + KEYS.ability + ':' + Math.ceil(dcd * 10) : '');
+  if (sig !== cardSig) { cardSig = sig; $('#actions').innerHTML = CARD_SETS[set].map(c => cardHtml(...c)).join('') + (dash ? cardHtml(...CARD_SETS.dash, false, dcd) : ''); }
   // spawn / serve cards in practice and outside on the beach
   const show = (S.match && S.match.practice) || (S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z));
   const usig = (show ? 1 : 0) + '|' + KEYS.spawnBall + KEYS.serve;
@@ -760,7 +781,7 @@ function equipItem(kind, id) {
 
 /* ---------------- Big Man Dealer: trait boxes ---------------- */
 // Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
-// Box 1 and 2 traits are live (see hasTrait uses); box 3 is still placeholders.
+// All three boxes' traits are live (see hasTrait uses).
 const TRAITS = {
   b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
   b1p2: { name: 'Fake Block', type: 'passive', sym: 'FB', desc: 'Your block tilts are reversed: S acts like W and W like S.' },
@@ -768,9 +789,9 @@ const TRAITS = {
   b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 50%.' },
   b2p2: { name: '4th Tempo', type: 'passive', sym: '4T', desc: 'Ground sets float higher with less gravity and carry further in the direction you run.' },
   b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.3x power, lightning on contact.' },
-  b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
-  b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
-  b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },
+  b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
+  b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
+  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (3 s cooldown). In the air it cancels your fall and refreshes your air action: spike, dash, spike again.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },

@@ -68,25 +68,25 @@ const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends:
    of whatever it is bound to, so a bad binding can never trap you with the cursor locked. */
 const KEY_DEFAULTS = {
   moveF: 'KeyW', moveB: 'KeyS', moveL: 'KeyA', moveR: 'KeyD',
-  block: 'KeyQ', bump: 'KeyQ', dive: 'ControlLeft', jumpSet: 'KeyE',
+  block: 'KeyQ', bump: 'KeyQ', dive: 'ControlLeft', jumpSet: 'KeyE', ability: 'KeyR',
   groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyG', serve: 'Digit1', jump: 'Space', interact: 'KeyE', emote: 'KeyB',
   shiftLock: 'ShiftLeft', chat: 'Slash', menu: 'Escape'
 };
 // mirrored to the right of the keyboard, for players who hold the mouse in their left hand
 const KEY_LEFTY = {
   moveF: 'ArrowUp', moveB: 'ArrowDown', moveL: 'ArrowLeft', moveR: 'ArrowRight',
-  block: 'KeyP', bump: 'KeyP', dive: 'ControlRight', jumpSet: 'KeyO',
+  block: 'KeyP', bump: 'KeyP', dive: 'ControlRight', jumpSet: 'KeyO', ability: 'KeyU',
   groundSet: 'Mouse0', spike: 'Mouse0', toss: 'Mouse0', spawnBall: 'KeyL', serve: 'Digit0', jump: 'Space', interact: 'KeyO', emote: 'Semicolon',
   shiftLock: 'ShiftRight', chat: 'Slash', menu: 'Escape'
 };
 const KEY_LABELS = {
   moveF: 'Move Forward', moveB: 'Move Back', moveL: 'Move Left', moveR: 'Move Right',
-  block: 'Block', bump: 'Bump', dive: 'Dive', jumpSet: 'Jump Set', groundSet: 'Ground Set',
+  block: 'Block', bump: 'Bump', dive: 'Dive', ability: 'Ability', jumpSet: 'Jump Set', groundSet: 'Ground Set',
   spike: 'Spike', toss: 'Toss / Serve toss', spawnBall: 'Spawn Ball', serve: 'Serve', jump: 'Jump', interact: 'Interact', emote: 'Emote Wheel',
   shiftLock: 'Shift Lock', chat: 'Chat', menu: 'Menu / Close'
 };
 const KEY_GROUPS = [
-  ['Movement', ['moveF', 'moveB', 'moveL', 'moveR', 'jump', 'dive']],
+  ['Movement', ['moveF', 'moveB', 'moveL', 'moveR', 'jump', 'dive', 'ability']],
   ['Ball', ['bump', 'groundSet', 'jumpSet', 'block', 'spike', 'toss', 'serve', 'spawnBall']],
   ['Interface', ['shiftLock', 'emote', 'interact', 'chat', 'menu']]
 ];
