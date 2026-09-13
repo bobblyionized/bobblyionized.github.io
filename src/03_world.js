@@ -4,8 +4,12 @@
 const canvas = $('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-renderer.shadowMap.enabled = false;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;      // soft-edged contact shadows rather than hard pixel steps
+renderer.shadowMap.autoUpdate = false;                 // refreshed every other frame from the tick
 renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;    // filmic roll-off: highlights bloom out softly instead of clipping flat
+renderer.toneMappingExposure = 0.85;
 const scene = new THREE.Scene();
 const SKY = 0x8fd0f5;
 scene.background = new THREE.Color(SKY);
@@ -15,9 +19,11 @@ function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProje
 addEventListener('resize', resize); resize();
 
 const hemi = new THREE.HemisphereLight(0xdff2ff, 0xc9b08a, 0.5); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = false;
-sun.shadow.mapSize.set(1536, 1536); sun.shadow.camera.left = -28; sun.shadow.camera.right = 28; sun.shadow.camera.top = 28; sun.shadow.camera.bottom = -28; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90; sun.shadow.bias = -0.0005;
+const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -26; sun.shadow.camera.right = 26; sun.shadow.camera.top = 26; sun.shadow.camera.bottom = -26; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.035; sun.shadow.radius = 3;   // normalBias keeps the filleted edges free of acne
 sun.position.set(14, 26, 10); scene.add(sun); scene.add(sun.target);
+const bounce = new THREE.DirectionalLight(0xbcd8ff, 0.2); bounce.castShadow = false; scene.add(bounce);   // cool fill from the shadow side, so shadowed faces stay readable
 const SUN_DIR = new THREE.Vector3(0.5, 0.8, -0.3).normalize();
 const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(7, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff1a8, fog: false })); scene.add(sunMesh);
 const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false })); scene.add(moonMesh);
@@ -35,22 +41,71 @@ function updateDayNight(force) {
   if (day) { a = (h - 8) / 12 * Math.PI; el = Math.sin(a); }
   else { a = (((h - 20) + 24) % 24) / 12 * Math.PI; el = Math.sin(a); }
   SUN_DIR.set(Math.cos(a) * 0.9, Math.max(0.05, el), -0.35).normalize();   // rises in the east, sets in the west, over the sea side
+  bounce.position.set(-SUN_DIR.x * 30, 14, -SUN_DIR.z * 30);                                  // opposite the sun, slightly above
   sunMesh.visible = day; moonMesh.visible = !day; if (typeof applyGymLights === 'function') applyGymLights();
   if (day) {
-    sun.intensity = (0.18 + 0.3 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.22 + 0.16 * el) * LIGHT_SCALE; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
+    sun.intensity = (0.24 + 0.42 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.09 + 0.06 * el) * LIGHT_SCALE; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
+    bounce.intensity = (0.06 + 0.05 * el) * LIGHT_SCALE; bounce.color.setHex(0xbcd8ff);   // same total light as before, but ~2.2:1 key-to-fill so the new shadows actually read
     const sky = el < 0.25 ? DUSK_SKY.clone().lerp(DAY_SKY, el / 0.25) : DAY_SKY;
     if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = sky; if (scene.fog) scene.fog.color = sky; }
   } else {
-    sun.intensity = 0.05 * LIGHT_SCALE; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.045 * LIGHT_SCALE;
+    sun.intensity = 0.07 * LIGHT_SCALE; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.04 * LIGHT_SCALE; bounce.intensity = 0.03 * LIGHT_SCALE; bounce.color.setHex(0x9fb4ff);
     if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = NIGHT_SKY; if (scene.fog) scene.fog.color = NIGHT_SKY; }
   }
 }
 setInterval(updateDayNight, 15000);
 
 /* ---- helpers ---- */
-const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 1, metalness: 0 }, extra));
-function box(w, h, d, m, x = 0, y = 0, z = 0, parent) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; (parent || scene).add(o); return o; }
-function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, parent, seg = 12) { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; (parent || scene).add(o); return o; }
+const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.95, metalness: 0 }, extra));
+
+/* Rounded box. Same six material groups and UV layout as THREE.BoxGeometry (the jersey number, the face
+   and every other per-face texture rely on that), but the edges are filleted and the shoulder normals are
+   computed analytically so shading flows across the seams instead of breaking at them.
+   Grid lines are placed only where the fillet needs them, so a 12 m wall costs the same as a 20 cm limb. */
+const BEVEL = 0.24;                                   // fillet radius as a fraction of the smallest side
+function roundedBoxGeo(w, h, d, rr, k = 2) {
+  const r = Math.min(rr, w * 0.495, h * 0.495, d * 0.495);
+  if (!(r > 1e-4)) return new THREE.BoxGeometry(w, h, d);
+  const inner = [w / 2 - r, h / 2 - r, d / 2 - r];
+  const ax = L => { const lo = -L / 2, hi = L / 2 - r, o = []; for (let i = 0; i <= k; i++) o.push(lo + r * i / k); for (let i = 0; i <= k; i++) o.push(hi + r * i / k); return o; };
+  const cx = ax(w), cy = ax(h), cz = ax(d);
+  const pos = [], nor = [], uvs = [], idx = [], groups = [], t = [0, 0, 0];
+  const plane = (u, v, n, ud, vd, uc, vc, uL, vL, nHalf) => {
+    const start = idx.length, base = pos.length / 3, gw = uc.length;
+    for (let j = 0; j < vc.length; j++) for (let i = 0; i < gw; i++) {
+      t[u] = uc[i] * ud; t[v] = vc[j] * vd; t[n] = nHalf;
+      const qx = clamp(t[0], -inner[0], inner[0]), qy = clamp(t[1], -inner[1], inner[1]), qz = clamp(t[2], -inner[2], inner[2]);
+      let dx = t[0] - qx, dy = t[1] - qy, dz = t[2] - qz;
+      const len = Math.hypot(dx, dy, dz) || 1; dx /= len; dy /= len; dz /= len;
+      pos.push(qx + dx * r, qy + dy * r, qz + dz * r); nor.push(dx, dy, dz);
+      uvs.push((uc[i] + uL / 2) / uL, 1 - (vc[j] + vL / 2) / vL);
+    }
+    for (let j = 0; j < vc.length - 1; j++) for (let i = 0; i < gw - 1; i++) {
+      const a = base + i + gw * j, b = base + i + gw * (j + 1), c = base + i + 1 + gw * (j + 1), e = base + i + 1 + gw * j;
+      idx.push(a, b, e, b, c, e);
+    }
+    groups.push([start, idx.length - start]);
+  };
+  plane(2, 1, 0, -1, -1, cz, cy, d, h, w / 2); plane(2, 1, 0, 1, -1, cz, cy, d, h, -w / 2);    // +x, -x
+  plane(0, 2, 1, 1, 1, cx, cz, w, d, h / 2); plane(0, 2, 1, 1, -1, cx, cz, w, d, -h / 2);      // +y, -y
+  plane(0, 1, 2, 1, -1, cx, cy, w, h, d / 2); plane(0, 1, 2, -1, -1, cx, cy, w, h, -d / 2);    // +z, -z
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(idx); groups.forEach((gr, i) => g.addGroup(gr[0], gr[1], i));
+  return g;
+}
+const GEO_CACHE = new Map();
+function boxGeo(w, h, d, rr) {
+  const r = rr === undefined ? Math.min(Math.min(w, h, d) * BEVEL, 0.13) : rr;
+  const k = Math.min(w, h, d) < 0.7 ? 2 : 1;              // characters and props get a rounder fillet; walls and floors chamfer once
+  const key = w + ',' + h + ',' + d + ',' + r.toFixed(4) + ',' + k;
+  let g = GEO_CACHE.get(key); if (!g) { g = roundedBoxGeo(w, h, d, r, k); GEO_CACHE.set(key, g); }
+  return g;
+}
+function box(w, h, d, m, x = 0, y = 0, z = 0, parent) { const o = new THREE.Mesh(boxGeo(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; (parent || scene).add(o); return o; }
+function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, parent, seg = 24) { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; (parent || scene).add(o); return o; }
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h);
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
@@ -71,8 +126,8 @@ function textPlane(w, h, text, opts = {}) {
    RIG  (blocky, Roblox-like, jersey)
    ===================================================================== */
 const SKIN = mat(0xf3d1b0), SHOE = mat(0x1a1a1a), HAIR = mat(0xe8cf7a), HAIR_TIP = mat(0x2a5fe0);
-const HIP_Y = 0.62, TORSO_H = 0.55, SHOULDER_Y = HIP_Y + TORSO_H - 0.05, HEAD_Y = HIP_Y + TORSO_H;
-const RIG_SCALE = 1.065;   // ~1.7m tall
+const HIP_Y = 0.86, TORSO_H = 0.58, SHOULDER_Y = HIP_Y + TORSO_H - 0.06, HEAD_Y = HIP_Y + TORSO_H;   // human proportions: legs ~half the height
+const RIG_SCALE = 0.86;   // ~1.7m tall
 const JERSEY = {};
 function jerseyTex(variant, face) {
   const dark = variant === 'black'; const base = dark ? '#151515' : '#f5f5f5'; const ink = dark ? '#d9b44a' : '#111'; const trim = dark ? '#7c8f57' : '#d4b45a';
@@ -167,41 +222,45 @@ class Rig {
     const jm = dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
-    this.torso = box(girl ? 0.5 : 0.56, TORSO_H, girl ? 0.27 : 0.3, jm.torso, 0, TORSO_H / 2, 0, spine);
-    const neck = joint('neck', spine, 0, TORSO_H, 0);
+    const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
+    box(girl ? 0.36 : 0.4, 0.3, 0.24, sideM, 0, 0.14, 0, spine);                                   // waist / lower torso
+    this.torso = box(girl ? 0.46 : 0.52, 0.34, girl ? 0.25 : 0.28, jm.torso, 0, TORSO_H - 0.17, 0, spine);   // chest (jersey front/back)
     const skinM = dealer ? mat(0x6b4a30) : SKIN;
+    cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
+    const neck = joint('neck', spine, 0, TORSO_H + 0.04, 0);
     const skinFace = mat(0xffffff, { map: dealer ? FACE_TEX_DARK : (girl ? FACE_TEX_GIRL : FACE_TEX) });
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.23; head.castShadow = true; neck.add(head);
+    const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.1), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
-      box(0.46, 0.14, 0.46, mat(0x111111), 0, 0.42, 0, neck); box(0.44, 0.05, 0.22, mat(0x111111), 0, 0.37, 0.3, neck);
-      box(0.44, 0.09, 0.05, mat(0x050505), 0, 0.27, 0.22, neck);
-      box(0.3, 0.05, 0.05, mat(0xf5c542), 0, 0.52, 0.17, spine);
-      box(0.6, 0.16, 0.34, mat(0x111111), 0, 0.5, -0.02, spine);
+      box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
+      box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck);
+      box(0.28, 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine);
+      box(0.56, 0.14, 0.32, mat(0x111111), 0, 0.56, -0.02, spine);
       this.torso.material = jm.torso;
     } else {
     // hair: simple blond cap + bangs, blue tips on the sides (head stays visible)
     const hairM = tux ? mat(0x111111) : HAIR, tipM = tux ? mat(0x111111) : HAIR_TIP;
-    box(0.46, 0.12, 0.46, hairM, 0, 0.42, 0, neck);
-    box(0.46, 0.1, 0.06, hairM, 0, 0.37, 0.22, neck);
-    box(0.06, 0.16, 0.22, tipM, 0.24, 0.3, -0.06, neck); box(0.06, 0.16, 0.22, tipM, -0.24, 0.3, -0.06, neck);
+    box(0.4, 0.12, 0.4, hairM, 0, 0.43, 0, neck);
+    box(0.4, 0.1, 0.06, hairM, 0, 0.39, 0.19, neck);
+    box(0.06, 0.16, 0.2, tipM, 0.21, 0.32, -0.06, neck); box(0.06, 0.16, 0.2, tipM, -0.21, 0.32, -0.06, neck);
     if (girl) {                                                               // long hair down the back, side strands, bow
-      box(0.44, 0.55, 0.12, HAIR, 0, 0.05, -0.25, neck); box(0.3, 0.2, 0.1, HAIR_TIP, 0, -0.27, -0.25, neck);
-      box(0.08, 0.42, 0.18, HAIR, 0.25, 0.12, -0.04, neck); box(0.08, 0.42, 0.18, HAIR, -0.25, 0.12, -0.04, neck);
-      box(0.08, 0.12, 0.18, HAIR_TIP, 0.25, -0.13, -0.04, neck); box(0.08, 0.12, 0.18, HAIR_TIP, -0.25, -0.13, -0.04, neck);
-      box(0.16, 0.1, 0.06, HAIR_BOW, 0.17, 0.46, 0.05, neck); box(0.05, 0.14, 0.06, HAIR_BOW, 0.17, 0.46, 0.05, neck);
+      box(0.38, 0.55, 0.12, HAIR, 0, 0.06, -0.22, neck); box(0.26, 0.2, 0.1, HAIR_TIP, 0, -0.26, -0.22, neck);
+      box(0.08, 0.42, 0.16, HAIR, 0.22, 0.14, -0.04, neck); box(0.08, 0.42, 0.16, HAIR, -0.22, 0.14, -0.04, neck);
+      box(0.08, 0.12, 0.16, HAIR_TIP, 0.22, -0.11, -0.04, neck); box(0.08, 0.12, 0.16, HAIR_TIP, -0.22, -0.11, -0.04, neck);
+      box(0.14, 0.1, 0.06, HAIR_BOW, 0.15, 0.47, 0.05, neck); box(0.05, 0.14, 0.06, HAIR_BOW, 0.15, 0.47, 0.05, neck);
     }
     }
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
-      const sh = joint('sh' + n, spine, sx * 0.41, SHOULDER_Y - HIP_Y, 0);
-      box(0.25, 0.3, 0.25, jm.sleeve, 0, -0.15, 0, sh);
-      const el = joint('el' + n, sh, 0, -0.3, 0);
-      box(0.24, 0.3, 0.24, dealer || tux ? jm.sleeve : SKIN, 0, -0.15, 0, el);
-      this['hand' + n] = box(0.24, 0.04, 0.24, skinM, 0, -0.31, 0, el);
-      const hip = joint('hip' + n, this.body, sx * 0.145, HIP_Y, 0);
-      box(0.26, 0.32, 0.26, jm.shorts, 0, -0.16, 0, hip);
-      const kn = joint('kn' + n, hip, 0, -0.32, 0);
-      box(0.25, 0.3, 0.25, dealer || tux ? jm.shorts : SKIN, 0, -0.14, 0, kn);
-      box(0.26, 0.08, 0.3, SHOE, 0, -0.27, 0.02, kn);
+      const sh = joint('sh' + n, spine, sx * (girl ? 0.28 : 0.31), SHOULDER_Y - HIP_Y, 0);
+      box(0.16, 0.12, 0.16, jm.sleeve, 0, -0.03, 0, sh);                                            // shoulder / sleeve cap
+      box(0.14, 0.32, 0.14, jm.sleeve, 0, -0.17, 0, sh);                                            // upper arm
+      const el = joint('el' + n, sh, 0, -0.33, 0);
+      box(0.12, 0.3, 0.12, dealer || tux ? jm.sleeve : SKIN, 0, -0.15, 0, el);                       // forearm
+      this['hand' + n] = box(0.11, 0.12, 0.07, skinM, 0, -0.35, 0.01, el);                          // hand
+      const hip = joint('hip' + n, this.body, sx * (girl ? 0.12 : 0.11), HIP_Y, 0);
+      box(0.2, 0.44, 0.2, jm.shorts, 0, -0.22, 0, hip);                                              // thigh
+      const kn = joint('kn' + n, hip, 0, -0.44, 0);
+      box(0.16, 0.42, 0.16, dealer || tux ? jm.shorts : SKIN, 0, -0.21, 0, kn);                      // shin
+      box(0.19, 0.11, 0.32, SHOE, 0, -0.44, 0.06, kn);                                               // shoe
     }
     this.cur = {}; this.target = {};
     for (const k in J) { this.cur[k] = new THREE.Vector3(); this.target[k] = new THREE.Vector3(); }
@@ -216,7 +275,7 @@ class Rig {
     this.tilt.rotation.z = this.tiltX * 0.45 + this.roll;                    // lean toward the tilt side (+ dive roll)
     this.tilt.rotation.y = this.emoteYaw;
     const drop = Math.max(Math.sin(Math.abs(this.pitch)), Math.sin(Math.abs(this.roll)));
-    this.tilt.position.y = HIP_Y - drop * 0.42 + this.emoteBob;              // dives: body drops toward the floor
+    this.tilt.position.y = HIP_Y - drop * HIP_Y * 0.7 + this.emoteBob;       // dives: body drops toward the floor
   }
   update(dt, t) {
     if (this.animUntil && t > this.animUntil) { this.anim = this.base; this.animUntil = 0; }
@@ -248,6 +307,7 @@ class Rig {
 const ICONS = {};
 function renderPoseIcons() {
   const r2 = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); r2.setSize(160, 160); r2.outputEncoding = THREE.sRGBEncoding;
+  r2.toneMapping = THREE.ACESFilmicToneMapping; r2.toneMappingExposure = 0.95;   // card icons match the world's grade
   const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.1)); const dl = new THREE.DirectionalLight(0xffffff, .7); dl.position.set(2, 4, 3); sc.add(dl);
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 20); cam.position.set(1.6, 1.5, 2.9); cam.lookAt(0, 0.85, 0);
   const rig = new Rig('white'); sc.add(rig.root);
@@ -734,7 +794,7 @@ function buildCourt() {
     const x = sx * (GYM_X - 1.0 - (6 - i) * 1.3), y = 0.5 + i * 0.55;
     seats.push({ x, y, z, ph: Math.random() * 6, spd: 1.4 + Math.random() * 1.2, sx });
   }
-  const bodyGeo = new THREE.BoxGeometry(0.48, 0.62, 0.36), headGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32), armGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+  const bodyGeo = roundedBoxGeo(0.48, 0.62, 0.36, 0.1, 1), headGeo = roundedBoxGeo(0.32, 0.32, 0.32, 0.09, 1), armGeo = roundedBoxGeo(0.12, 0.5, 0.12, 0.05, 1);   // k=1: the crowd is small and far, one fillet segment reads fine
   const bodyIM = new THREE.InstancedMesh(bodyGeo, mat(0xffffff), seats.length), headIM = new THREE.InstancedMesh(headGeo, mat(0xffffff), seats.length), armIM = new THREE.InstancedMesh(armGeo, mat(0xffffff), seats.length * 2);
   const tmp = new THREE.Object3D(); const col = new THREE.Color();
   seats.forEach((s, k) => { bodyIM.setColorAt(k, col.setHex(shirtCols[k % shirtCols.length])); const sk = skinCols[k % skinCols.length]; headIM.setColorAt(k, col.setHex(sk)); armIM.setColorAt(k * 2, col.setHex(sk)); armIM.setColorAt(k * 2 + 1, col.setHex(sk)); });
