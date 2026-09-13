@@ -190,6 +190,7 @@ function confirmDialog(title, text, okLabel = 'DELETE') {          // yes / no o
 }
 $$('[data-close]').forEach(b => b.onclick = () => { closePanels(); });
 $('#menuBtn').onclick = () => uiOpen() ? closePanels() : openPanel('#settingsPanel');
+$('#invBtn').onclick = () => { const open = !$('#invPanel').classList.contains('hidden'); if (open) closePanels(); else if (typeof openInventory === 'function') openInventory(); };
 $('#userBtn').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sAccount').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sKeys').onclick = () => { openPanel('#keysPanel'); renderKeys(); };
