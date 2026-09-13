@@ -1290,10 +1290,6 @@ function buildLobby() {
   const stairRise = F2, stairRun = 10, steps = 18, sx0 = 2.4, sz = -11.2;
   for (let i = 0; i < steps; i++) { const t = (i + 1) / steps; box(stairRun / steps + 0.02, 0.3, 2.4, darkWood, sx0 + (i + 0.5) * stairRun / steps, t * stairRise - 0.15, sz, lobby); }
   const under = box(stairRun, 0.35, 2.4, trimM, sx0 + stairRun / 2, stairRise / 2 - 0.4, sz, lobby); under.rotation.z = Math.atan2(stairRise, stairRun); under.castShadow = false;   // stringer
-  const stairRail = (z) => { const r = box(stairRun + 0.4, 0.1, 0.1, darkWood, sx0 + stairRun / 2, stairRise / 2 + 1.0, z, lobby); r.rotation.z = Math.atan2(stairRise, stairRun); for (let i = 0; i <= 5; i++) { const x = sx0 + i * stairRun / 5; cyl(0.04, 0.04, 1.0, darkWood, x, (x - sx0) / stairRun * stairRise + 0.5, z, lobby, 6); } };
-  stairRail(-10.0);                                                                                           // open side only (the wall is on the other side)
-  box(0.1, 1.0, 3.5, darkWood, HOLE.x1 - 0.05, F2 + 0.5, (HOLE.z1 + HOLE.z2) / 2, lobby); for (const z of [-12.9, -11.5, -10.1]) cyl(0.04, 0.04, 1.0, darkWood, HOLE.x1 - 0.05, F2 + 0.5, z, lobby, 6);   // rail around the stairwell upstairs
-  box(HOLE.x2 - HOLE.x1, 0.1, 0.1, darkWood, (HOLE.x1 + HOLE.x2) / 2, F2 + 1.0, HOLE.z2 + 0.05, lobby); box(0.1, 1.0, 0.1, darkWood, HOLE.x1, F2 + 0.5, HOLE.z2 + 0.05, lobby);
   // upstairs furniture
   couch(0, 4.5, Math.PI, 0x7fb7d6, F2); couch(-5.5, -1, Math.PI / 2, 0xe8b86d, F2); couch(5.5, -1, -Math.PI / 2, 0xe8b86d, F2);
   box(1.8, 0.1, 1.0, darkWood, 0, F2 + 0.45, 0.6, lobby); for (const [lx, lz] of [[-0.8, 0.2], [0.8, 0.2], [-0.8, 1.0], [0.8, 1.0]]) box(0.1, 0.45, 0.1, darkWood, lx, F2 + 0.22, lz, lobby);
