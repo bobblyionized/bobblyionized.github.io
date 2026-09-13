@@ -184,7 +184,7 @@ function tryAct() {
 function doBlock() { P.airUsed = true; P.airActed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
 function blockContact() {
   P.blockHit = true;
-  const s = B.vel.length(); const tz = P.tilt.y, tx = P.tilt.x; const nd = netDir();
+  const s = B.vel.length(); const tz = P.tilt.y * (hasTrait('b1p2') ? -1 : 1), tx = P.tilt.x; const nd = netDir();   // Fake Block: forward / back tilt swapped
   let vel, g = 1;
   if (tz >= 0) {
     if (s >= 13) { const dir = withLateral(nd, tx, 30); const sp = s * 0.5; const ang = 52 * D; vel = new V3(dir.x * Math.cos(ang) * sp, -Math.sin(ang) * sp, dir.z * Math.cos(ang) * sp); g = 0.35; }
@@ -265,7 +265,13 @@ function doTip() {
   const { tz, fwd } = spikeGeom();
   let sp = 7, pitch = 32 * D;
   if (tz > 0) { sp = lerp(7, 5.0, tz); pitch = lerp(32, 62, tz) * D; } else if (tz < 0) { sp = lerp(7, 9.0, -tz); pitch = lerp(32, 22, -tz) * D; }
-  hitBall('tip', new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp), 1); return true;
+  const v = new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp);
+  if (hasTrait('b1a')) {                                          // Lightning Drop: same landing spot, but the ball rockets 5 m up and slams down under heavy gravity
+    const tf = (v.y + Math.sqrt(v.y * v.y + 2 * BALL_G * B.pos.y)) / BALL_G;   // where the normal tip would land
+    const tg = new V3(B.pos.x + v.x * tf, 0, B.pos.z + v.z * tf); const gd = 2.4;
+    hitBall('tip', launchTo(B.pos, tg, B.pos.y + 5, BALL_G * gd), gd); return true;
+  }
+  hitBall('tip', v, 1); return true;
 }
 function doDive() {
   const dir = P.moving ? P.moveDir.clone() : cf();
@@ -333,7 +339,7 @@ function updatePlayer(dt) {
   } else if (P.onGround) {
     if (P.emote && (ix || iz)) stopEmote();
     const mv = steering || P.emote ? new V3() : camF().multiplyScalar(iz).add(camR().multiplyScalar(ix));
-    if (mv.lengthSq() > 0) { mv.normalize(); P.vel.x = mv.x * MOVE_SPEED; P.vel.z = mv.z * MOVE_SPEED; P.moveDir.copy(mv); P.moving = true; }
+    if (mv.lengthSq() > 0) { mv.normalize(); const ms = MOVE_SPEED * (hasTrait('b1p1') ? 1.1 : 1); P.vel.x = mv.x * ms; P.vel.z = mv.z * ms; P.moveDir.copy(mv); P.moving = true; }   // Quick Feet: +10%
     else { P.vel.x = P.vel.z = 0; P.moving = false; }
     if (shiftLock) P.ry = camYaw;
     else if (P.moving) { const tr = Math.atan2(mv.x, mv.z); let d = tr - P.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); P.ry += d * Math.min(1, dt * 14); }
@@ -710,11 +716,11 @@ function equipItem(kind, id) {
 
 /* ---------------- Big Man Dealer: trait boxes ---------------- */
 // Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
-// Traits are placeholders for now - they do nothing in a match yet.
+// Box 1 traits are live (see hasTrait uses); boxes 2 and 3 are still placeholders.
 const TRAITS = {
-  b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: 'Placeholder passive trait.' },
-  b1p2: { name: 'Soft Hands', type: 'passive', sym: 'SH', desc: 'Placeholder passive trait.' },
-  b1a:  { name: 'Rocket Serve', type: 'ability', sym: 'RS', desc: 'Placeholder ability trait.' },
+  b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
+  b1p2: { name: 'Fake Block', type: 'passive', sym: 'FB', desc: 'Your block tilts are reversed: S acts like W and W like S.' },
+  b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 5 m up, then slam straight down under heavy gravity.' },
   b2p1: { name: 'Iron Wall', type: 'passive', sym: 'IW', desc: 'Placeholder passive trait.' },
   b2p2: { name: 'Long Reach', type: 'passive', sym: 'LR', desc: 'Placeholder passive trait.' },
   b2a:  { name: 'Blink', type: 'ability', sym: 'BL', desc: 'Placeholder ability trait.' },
@@ -757,6 +763,7 @@ async function buyBox(tier) {
   toast('Bought ' + bx.name + ' - open it in your Inventory', 'ok');
 }
 
+function hasTrait(id) { const lo = me.loadout || {}, own = me.traits || {}; return ['p1', 'p2', 'a'].some(s => lo[s] && own[lo[s]] && own[lo[s]].id === id); }   // is this trait in an equipped slot?
 /* ---------------- Inventory ---------------- */
 let invTab = 'skins', invSel = null;
 $$('#invNav button').forEach(b => b.onclick = () => { invTab = b.dataset.inv; invSel = null; renderInventory(); });
