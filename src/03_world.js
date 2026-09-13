@@ -10,6 +10,21 @@ renderer.shadowMap.autoUpdate = false;                 // refreshed every third 
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;    // filmic roll-off: highlights bloom out softly instead of clipping flat
 renderer.toneMappingExposure = 0.85;
+/* ---- shader pipeline: FULL (baked env lighting from a shader sky dome, wave shader on the water) or SIMPLE.
+   The full path needs half-float render targets for the env bake; on GPUs / drivers without them (most Chromebooks,
+   many Mali / Adreno / PowerVR parts, software renderers) the bake comes back broken and every lit surface turns
+   white. SIMPLE uses no custom shaders at all: a gradient-textured sky dome, plain lights for ambient, standard
+   water - and it is what those machines get automatically. Menu > Shaders overrides the auto choice. */
+const SIMPLE_SHADERS = (() => {
+  let pref = null; try { pref = localStorage.getItem('vg_shaders'); } catch (e) { }
+  if (pref === 'simple') return true; if (pref === 'full') return false;
+  try {
+    const gl = renderer.getContext(); const dbg = gl.getExtension('WEBGL_debug_renderer_info'); const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+    const half = renderer.capabilities.isWebGL2 ? !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')) : !!(gl.getExtension('OES_texture_half_float') && gl.getExtension('OES_texture_half_float_linear'));
+    const weak = /CrOS|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|VideoCore|Intel\(R\) HD Graphics [2-5]\d\d\b/i.test(gpu + ' ' + navigator.userAgent);
+    return !half || weak;
+  } catch (e) { return true; }
+})();
 const scene = new THREE.Scene();
 const SKY = 0x8fd0f5;
 scene.background = new THREE.Color(SKY);
@@ -61,6 +76,7 @@ const SKY_U = {
   bottom: { value: new THREE.Color(0xdcefff) }, sunCol: { value: new THREE.Color(0xffeec0) },
   sunDir: { value: SUN_DIR }, sunAmt: { value: 1 }
 };
+const AMB_K = SIMPLE_SHADERS ? 4.5 : 1;   // without the baked env map the hemisphere light has to carry the ambient on its own
 const SKY_MAT = new THREE.ShaderMaterial({
   uniforms: SKY_U, side: THREE.BackSide, depthWrite: false, fog: false,
   vertexShader: 'varying vec3 vW; void main(){ vW = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
@@ -76,7 +92,17 @@ const SKY_MAT = new THREE.ShaderMaterial({
     '}'
   ].join('\n')
 });
-const sky = new THREE.Mesh(new THREE.SphereGeometry(260, 32, 20), SKY_MAT);
+let SKY_TEX = null, skyTexCanvas = null;
+function paintSimpleSky() {                      // simple shaders: the dome is a plain gradient texture repainted whenever the palette changes
+  if (!skyTexCanvas) { skyTexCanvas = document.createElement('canvas'); skyTexCanvas.width = 4; skyTexCanvas.height = 256; }
+  const g = skyTexCanvas.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256);
+  const hex = c => '#' + c.getHexString();
+  gr.addColorStop(0, hex(SKY_U.top.value)); gr.addColorStop(0.42, hex(SKY_U.mid.value)); gr.addColorStop(0.52, hex(SKY_U.bottom.value)); gr.addColorStop(1, hex(SKY_U.bottom.value));
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  if (!SKY_TEX) { SKY_TEX = new THREE.CanvasTexture(skyTexCanvas); SKY_TEX.encoding = THREE.sRGBEncoding; } else SKY_TEX.needsUpdate = true;
+  return SKY_TEX;
+}
+const sky = new THREE.Mesh(new THREE.SphereGeometry(260, 32, 20), SIMPLE_SHADERS ? new THREE.MeshBasicMaterial({ map: paintSimpleSky(), side: THREE.BackSide, depthWrite: false, fog: false }) : SKY_MAT);
 sky.frustumCulled = false; sky.renderOrder = -1000; scene.add(sky);
 const SKY_DAY = { top: 0x2f7fd4, mid: 0x8fd0f5, bot: 0xdcefff, sun: 0xffeec0 };
 const SKY_DUSK = { top: 0x24417a, mid: 0xf0a06a, bot: 0xffd6a0, sun: 0xff9a4a };
@@ -106,6 +132,7 @@ const ENV_U = {
 const ENV_MAT = new THREE.ShaderMaterial({ uniforms: ENV_U, side: THREE.BackSide, depthWrite: false, fog: false, vertexShader: SKY_MAT.vertexShader, fragmentShader: SKY_MAT.fragmentShader });
 const ENV_LOW = 0.35;                                     // nothing in the bake may sit darker than this
 function refreshEnv() {
+  if (SIMPLE_SHADERS) { scene.environment = null; return; }
   try {
     if (!pmrem) { pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader(); }
     if (!envDome) { envDome = new THREE.Mesh(new THREE.SphereGeometry(50, 24, 16), ENV_MAT); envDome.frustumCulled = false; }
@@ -155,8 +182,8 @@ function updateDayNight(force) {
   bounce.position.set(-SUN_DIR.x * 30, 14, -SUN_DIR.z * 30);                                  // opposite the sun, slightly above
   sunMesh.visible = day; moonMesh.visible = !day; if (typeof applyGymLights === 'function') applyGymLights();
   if (day) {
-    sun.intensity = (0.24 + 0.42 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.055 + 0.04 * el) * LIGHT_SCALE; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
-    bounce.intensity = (0.06 + 0.05 * el) * LIGHT_SCALE; bounce.color.setHex(0xbcd8ff);   // same total light as before, but ~2.2:1 key-to-fill so the new shadows actually read
+    sun.intensity = (0.24 + 0.42 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.055 + 0.04 * el) * LIGHT_SCALE * AMB_K; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
+    bounce.intensity = (0.06 + 0.05 * el) * LIGHT_SCALE * (SIMPLE_SHADERS ? 1.6 : 1); bounce.color.setHex(0xbcd8ff);   // same total light as before, but ~2.2:1 key-to-fill so the new shadows actually read
     applySkyPalette(SKY_DUSK, SKY_DAY, clamp(el / 0.3, 0, 1)); SKY_U.sunAmt.value = 1;
     const horizon = SKY_U.bottom.value;
     if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = SKY_U.mid.value.clone(); if (scene.fog) scene.fog.color.copy(horizon); }
@@ -165,12 +192,13 @@ function updateDayNight(force) {
        disc sits, so the moon really is casting the shadows you see. It is far dimmer and much
        bluer than daylight, with a strong cool ambient underneath — night, but legible. */
     sun.intensity = 0.15 * LIGHT_SCALE; sun.color.setHex(0x9db8ff);
-    hemi.intensity = 0.05 * LIGHT_SCALE; hemi.color.setHex(0x4a63ad); hemi.groundColor.setHex(0x1c2142);
+    hemi.intensity = 0.05 * LIGHT_SCALE * AMB_K; hemi.color.setHex(0x4a63ad); hemi.groundColor.setHex(0x1c2142);
     bounce.intensity = 0.04 * LIGHT_SCALE; bounce.color.setHex(0x6b85d8);
     applySkyPalette(SKY_NIGHT, SKY_NIGHT, 0); SKY_U.sunAmt.value = 0.9;   // the moon gets its own halo in the dome
     if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = SKY_U.mid.value.clone(); if (scene.fog) scene.fog.color.copy(SKY_U.bottom.value); }
   }
   if (typeof refreshEnv === 'function') { refreshEnv(); applyEnvIntensity(day ? 0.55 : 0.10); }   // the ambient env map is baked from the dome, so it follows the sky
+  if (SIMPLE_SHADERS) paintSimpleSky();
 }
 setInterval(updateDayNight, 15000);
 
@@ -734,6 +762,7 @@ const WAVE_GLSL = [
    growing as you head out to sea. The lobby's sea runs off -Z from z = -44; the beach court's runs off
    +X from x = 50. One material, two coefficients. */
 function makeWaterMaterial(shore) {
+  if (SIMPLE_SHADERS) return new THREE.MeshStandardMaterial({ color: 0x2b93c8, roughness: 0.55, metalness: 0.0 });   // simple shaders: flat water, no wave program
   const m = new THREE.MeshStandardMaterial({ color: 0x1d7cb4, roughness: 0.26, metalness: 0.05, envMapIntensity: 0.75 });
   const uShore = { value: new THREE.Vector3(shore[0], shore[1], shore[2]) };
   m.onBeforeCompile = sh => {
