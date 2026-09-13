@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volleyball Gaem</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:rgba(18,18,22,.92);--bg2:rgba(255,255,255,.08);--line:rgba(255,255,255,.18);--green:#3ecf5a;--red:#e5484d;--yellow:#f5c542;--blue:#3b8ff0;--text:#fff}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#87c7ee;font-family:Montserrat,"Segoe UI",Arial,sans-serif;color:var(--text)}
+canvas#c{position:fixed;inset:0;display:block;outline:none;filter:saturate(1.22) contrast(1.04)}
+#ui{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+#ui>*{pointer-events:auto}
+.hidden{display:none!important}
+button{font-family:inherit;font-weight:800;cursor:pointer;border:none;border-radius:6px;color:#fff;background:#3a3a44;padding:9px 14px;font-size:14px}
+button:hover{filter:brightness(1.15)}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+input{font-family:inherit;font-weight:600;font-size:15px;padding:9px 11px;border-radius:6px;border:2px solid var(--line);background:rgba(0,0,0,.35);color:#fff;outline:none;width:100%;user-select:text;-webkit-user-select:text}
+input:focus{border-color:#fff}
+.btn.green{background:var(--green);color:#0c2412}.btn.red{background:var(--red)}.btn.blue{background:var(--blue)}.btn.grey{background:var(--bg2)}
+.btn.small{padding:6px 10px;font-size:12px}
+
+/* top bar */
+#topbar{position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center}
+#userBtn{background:var(--blue)}
+#menuBtn{background:#222}
+#online{position:absolute;top:12px;left:12px;font-size:12px;font-weight:800;padding:7px 11px;border-radius:6px;background:var(--bg);color:#cfd3dc;display:flex;gap:8px;align-items:center}
+#online b{color:#fff}
+#online .dot{width:8px;height:8px;border-radius:50%;background:#777}
+#online .dot.on{background:var(--green)}
+#ballMsg{position:absolute;transform:translate(-50%,-100%);background:#e5484d;color:#fff;font-weight:900;font-size:13px;padding:4px 8px;pointer-events:none;white-space:nowrap}
+#impactTint{position:absolute;inset:0;background:#2040ff;mix-blend-mode:multiply;pointer-events:none;z-index:40}
+#impactFlash{position:absolute;inset:0;background:#fff;pointer-events:none;z-index:41;opacity:0;transition:opacity .22s ease-out}
+canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard black & white threshold */
+#chat{position:absolute;top:82px;left:12px;width:340px;display:flex;flex-direction:column;gap:4px;pointer-events:auto}
+#chat .ctabs{display:flex;gap:4px}
+#chat .ctabs button{padding:4px 10px;font-size:11px;background:rgba(18,18,22,.75);color:#cfd3dc}
+#chat .ctabs button.on{background:#fff;color:#111}
+#chatLog{max-height:170px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;font-size:12px;font-weight:600;padding:4px 0}
+#chatLog div{background:rgba(18,18,22,.62);padding:3px 8px;color:#e8e8ee;word-break:break-word}
+#chatLog b{color:#fff}
+#chatLog .party b{color:#3ecf5a}
+#chatLog .sys{color:#f5c542;font-style:italic}
+#chatInput{font-size:12px;padding:6px 8px;background:rgba(18,18,22,.8);border:2px solid var(--line)}
+#chatInput:focus{border-color:#fff}
+#inviteBox{position:absolute;top:120px;left:50%;transform:translateX(-50%);background:var(--bg);border:2px solid var(--green);padding:10px 14px;font-weight:800;font-size:13px;display:flex;gap:10px;align-items:center}
+.tag.party{color:#3ecf5a}
+#partyPanel .mem{display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.3);padding:7px 10px;margin-bottom:6px;font-weight:700}
+#partyPanel .mem .lead{font-size:10px;background:var(--yellow);color:#221;padding:2px 6px}
+#emoteWheel{position:absolute;left:50%;top:50%;width:360px;height:360px;transform:translate(-50%,-50%);pointer-events:none}
+#emoteWheel .slot{position:absolute;width:92px;height:92px;margin:-46px 0 0 -46px;background:rgba(18,18,22,.9);border:2px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:900;text-transform:uppercase;text-align:center;color:#cfd3dc}
+#emoteWheel .slot.sel{background:#fff;color:#111;border-color:#fff}
+#emoteWheel .slot small{font-size:9px;opacity:.6;font-weight:700}
+#emoteWheel .center{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;background:rgba(18,18,22,.9);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;text-align:center}
+#wind{position:absolute;right:14px;bottom:14px;background:var(--bg);border:2px solid var(--line);padding:6px 10px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:8px;color:#cfd3dc}
+#wind i{display:inline-block;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:16px solid #fff;transform-origin:50% 60%}
+#npcPrompt{position:absolute;transform:translate(-50%,-100%);background:var(--bg);border:2px solid var(--line);padding:6px 10px;font-weight:800;font-size:13px;pointer-events:none;white-space:nowrap}
+#npcPrompt b{background:#fff;color:#111;padding:1px 6px;margin-right:6px}
+#shopPanel .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#shopPanel .item .rar{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase}
+#shopPanel .item{border:2px solid transparent}
+.r-common{color:#9aa0a6}.r-rare{color:#3b8ff0}.r-epic{color:#a259ff}.r-legendary{color:#f5c542}.r-mythic{color:#e5484d}
+.b-common{border-color:#9aa0a6!important}.b-rare{border-color:#3b8ff0!important}.b-epic{border-color:#a259ff!important}.b-legendary{border-color:#f5c542!important}.b-mythic{border-color:#e5484d!important}
+#shopPanel .item{background:var(--bg2);padding:10px;text-align:center}
+#shopPanel .item img{width:96px;height:96px;display:block;margin:0 auto 6px;background:rgba(0,0,0,.25)}
+#shopPanel .item .nm{font-weight:900;font-size:14px}
+#shopPanel .item .pr{font-size:12px;color:var(--green);font-weight:800;margin:2px 0 8px}
+#shopPanel .item button{width:100%;padding:8px}
+#shopPanel .item.owned button{background:var(--blue)}
+#shopPanel .item.equipped button{background:var(--green);color:#0c2412}
+
+/* hud */
+#stateBox{position:absolute;bottom:14px;left:14px;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800}
+#stateBox .row{background:var(--bg);padding:6px 10px;border-radius:6px;display:flex;gap:8px;align-items:center}
+#stateBox .cd{width:90px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden}
+#stateBox .cd i{display:block;height:100%;background:var(--green);width:100%}
+#toasts{position:absolute;top:64px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.toast{background:var(--bg);border:2px solid var(--line);padding:8px 14px;border-radius:6px;font-weight:700;font-size:14px}
+.toast.err{border-color:var(--red)}.toast.ok{border-color:var(--green)}
+#tags{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;transform:translate(-50%,-100%);font-weight:800;font-size:13px;color:#fff;text-shadow:0 0 3px #000,0 0 5px #000,0 2px 2px #000;white-space:nowrap}
+#chargeBar{position:absolute;width:12px;height:110px;border:2px solid #fff;border-radius:4px;background:rgba(0,0,0,.55);transform:translate(0,-50%);overflow:hidden;pointer-events:none}
+#chargeBar i{position:absolute;left:0;bottom:0;width:100%;background:var(--yellow);height:0}
+#chargeBar em{position:absolute;left:0;right:0;bottom:30%;height:2px;background:rgba(255,255,255,.7)}
+#serveAim{position:absolute;transform:translate(-50%,-50%);pointer-events:none;opacity:.95;width:140px;height:140px}
+#serveAim .ghost{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%!important;background:radial-gradient(circle at 35% 35%,#fff 0 20%,#e5484d 21% 100%);border:2px solid #000;z-index:2}
+#utilCards{position:absolute;bottom:14px;left:14px;display:flex;gap:10px}
+#crosshair{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 3px #000;pointer-events:none}
+
+/* action cards */
+#actions{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.card{width:104px;height:118px;border-radius:10px;background:rgba(20,20,26,.9);border:2px solid rgba(255,255,255,.12);position:relative;overflow:hidden;box-shadow:inset 0 -26px 30px -18px rgba(255,120,30,.75)}
+.card img{position:absolute;left:50%;top:6px;width:78px;height:78px;transform:translateX(-50%);image-rendering:auto}
+.card .key{position:absolute;top:6px;left:6px;min-width:26px;height:24px;padding:0 5px;border-radius:5px;background:#fff;color:#111;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;border:2px solid #cfcfcf}
+.card .lbl{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:15px;font-weight:900;text-shadow:0 2px 0 #000,0 0 6px #000;letter-spacing:.3px}
+.card.hold .lbl:after{content:" (HOLD)";font-size:9px;opacity:.8}
+
+/* panels */
+.panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:480px;max-width:94vw;max-height:90vh;overflow:auto;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:16px 18px 18px}
+.panel h2{margin:0 0 12px;font-size:20px;font-weight:900;letter-spacing:.5px;display:flex;align-items:center;justify-content:space-between;text-transform:uppercase}
+.x{width:34px;height:34px;padding:0;border-radius:6px;background:var(--red);font-size:15px}
+.menu{display:flex;flex-direction:column;gap:8px}
+.menu button{font-size:15px;padding:13px;text-align:left;display:flex;justify-content:space-between;align-items:center;background:var(--bg2)}
+.menu button small{opacity:.6;font-weight:600}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.field label{font-size:11px;font-weight:800;color:#b9bfcc;letter-spacing:.6px;text-transform:uppercase}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;background:var(--bg2);color:#cfd3dc}
+.tabs button.on{background:#fff;color:#111}
+.card2{background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.card2 h3{margin:0 0 8px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--yellow)}
+.row{display:flex;gap:8px;align-items:center}
+.row.between{justify-content:space-between}
+.money{font-size:22px;font-weight:900;color:var(--green)}
+.kb{display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-radius:6px;padding:9px 12px;margin-bottom:6px;font-size:15px;font-weight:800}
+.kb .key{min-width:64px;padding:5px 10px;border:2px solid #fff;border-radius:5px;background:#000;text-align:center;font-size:14px;cursor:pointer}
+.kb .key:hover{background:#333}
+.kb .key.listening{border-color:var(--yellow);color:var(--yellow)}
+.flist{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
+.fr{display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.3);border-radius:6px;padding:7px 10px;font-weight:700}
+.fr .st{width:8px;height:8px;border-radius:50%;background:#666;display:inline-block;margin-right:8px}
+.fr .st.on{background:var(--green)}
+.badge{background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px}
+
+/* queue panel */
+#queuePanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:16px 18px 18px}
+#queuePanel h2{margin:0 0 12px;font-size:22px;font-weight:900;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+#mapPick button.on{background:#fff;color:#111}
+#queuePanel .team{background:var(--bg2);border-radius:8px;padding:12px 14px;min-height:200px}
+#queuePanel .team h3{margin:0 0 10px;font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:#b9bfcc;border-bottom:2px solid var(--line);padding-bottom:6px}
+#queuePanel .mem{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:16px;font-weight:800}
+#queuePanel .mem .av{width:32px;height:32px;border-radius:6px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;font-size:15px}
+#queuePanel .mem .lead{font-size:10px;background:var(--yellow);color:#221;border-radius:4px;padding:2px 6px;margin-left:auto}
+#queuePanel .bottom{display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:10px}
+#queuePanel .lock{font-size:14px;font-weight:800;display:flex;align-items:center;gap:10px;text-transform:uppercase}
+#lockToggle{background:#000;border:2px solid var(--red);color:var(--red);padding:6px 14px}
+#lockToggle.on{border-color:var(--green);color:var(--green)}
+#queueBtn{padding:12px 40px;font-size:20px;background:var(--green);color:#0c2412}
+#queueBtn.cancel{background:var(--red);color:#fff}
+#queueStatus{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--bg);border:2px solid var(--green);border-radius:6px;padding:7px 12px;font-weight:800;display:flex;gap:12px;align-items:center;font-size:13px}
+
+/* match hud */
+#matchHud{position:absolute;inset:0;pointer-events:none}
+#matchHud>*{pointer-events:auto}
+#score{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--bg);border-radius:8px;padding:6px 16px;font-size:26px;font-weight:900;border:2px solid var(--line)}
+#score .a{color:#fff}#score .b{color:#fff}
+#score small{font-size:10px;opacity:.7;display:block;text-align:center;font-weight:800;letter-spacing:.5px}
+#bigMsg{position:absolute;top:22%;left:50%;transform:translateX(-50%);font-size:46px;font-weight:900;text-shadow:0 3px 0 #000,0 0 14px rgba(0,0,0,.6);text-align:center;pointer-events:none;letter-spacing:1px;text-transform:uppercase}
+#touches{position:absolute;top:74px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+#touches i{width:12px;height:12px;border-radius:2px;background:rgba(0,0,0,.4);border:2px solid #fff}
+#touches i.on{background:var(--yellow)}
+#leaveBtn{position:absolute;top:46px;left:12px}
+#serveHint{position:absolute;bottom:150px;left:50%;transform:translateX(-50%);background:var(--yellow);color:#221;padding:7px 14px;border-radius:6px;font-weight:900;font-size:13px}
+#lockHint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);font-size:20px;font-weight:900;cursor:pointer}
+#lockHint div{background:var(--bg);padding:16px 26px;border-radius:8px;border:2px solid var(--line);text-align:center}
+#lockHint small{display:block;font-size:12px;opacity:.75;margin-top:6px;font-weight:600}
+#loading{position:absolute;inset:0;background:#87c7ee;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:36px;font-weight:900;z-index:50;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.25)}
+#loading small{font-size:13px;font-weight:600;opacity:.8;margin-top:8px}
+#ballMsg{position:absolute;transform:translate(-50%,-100%);background:#e5484d;color:#fff;font-weight:900;font-size:13px;padding:4px 8px;pointer-events:none;white-space:nowrap;text-transform:uppercase}
+*,*::before,*::after{border-radius:0!important}
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0"></canvas>
+<div id="ui">
+  <div id="loading">VOLLEYBALL GAEM<small id="loadMsg">Connecting...</small></div>
+  <div id="online"><span class="dot"></span><span><b id="onlineCount">0</b> online</span></div>
+  <div id="topbar">
+    <button id="userBtn">Guest</button>
+    <button id="menuBtn">MENU</button>
+  </div>
+  <div id="queueStatus" class="hidden"><span id="queueStatusText">IN QUEUE</span><button class="btn red small" id="queueCancelBtn">CANCEL</button></div>
+  <div id="toasts"></div>
+  <div id="tags"></div>
+  <div id="chargeBar" class="hidden"><i></i><em></em></div>
+  <div id="serveAim" class="hidden"><div class="ghost"></div><svg viewBox="0 0 100 100" width="140" height="140"><g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"><polygon points="50,4 62,20 54,20 54,46 46,46 46,20 38,20"/><polygon points="50,96 62,80 54,80 54,54 46,54 46,80 38,80"/><polygon points="4,50 20,38 20,46 46,46 46,54 20,54 20,62"/><polygon points="96,50 80,38 80,46 54,46 54,54 80,54 80,62"/></g></svg></div>
+  <div id="utilCards" class="hidden"></div>
+  <div id="ballMsg" class="hidden">TOO LOW</div>
+  <div id="impactTint" class="hidden"></div>
+  <div id="impactFlash"></div>
+  <div id="npcPrompt" class="hidden"><b>E</b>Talk to Lil Man Dealer</div>
+  <div id="chat">
+    <div class="ctabs"><button class="on" data-ct="global">Global</button><button data-ct="party">Party</button><span style="font-size:10px;opacity:.6;align-self:center;margin-left:4px;font-weight:700">/ to chat</span></div>
+    <div id="chatLog"></div>
+    <input id="chatInput" maxlength="120" placeholder="Press / to chat..." autocomplete="off">
+  </div>
+  <div id="wind" class="hidden"><i></i><span id="windTxt">WIND 0.0</span></div>
+  <div id="emoteWheel" class="hidden"><div class="center">EMOTES</div></div>
+  <div id="inviteBox" class="hidden"><span id="inviteText"></span><button class="btn green small" id="inviteAccept">ACCEPT</button><button class="btn red small" id="inviteDecline">DECLINE</button></div>
+  <div id="crosshair" class="hidden"></div>
+  <div id="actions"></div>
+  <div id="lockHint" class="hidden"><div>CLICK TO LOCK CURSOR<small>Shift lock is on. ESC frees the cursor.</small></div></div>
+
+  <div id="matchHud" class="hidden">
+    <button class="btn red small" id="leaveBtn">LEAVE</button>
+    <div id="score"><div><span class="a" id="scoreA">0</span><small>BLACK</small></div><div>-</div><div><span class="b" id="scoreB">0</span><small>WHITE</small></div><div id="modeTxt" style="font-size:12px;opacity:.7"></div></div>
+    <div id="touches"><i></i><i></i><i></i></div>
+    <div id="bigMsg"></div>
+    <div id="serveHint" class="hidden"></div>
+  </div>
+
+  <div id="settingsPanel" class="panel hidden" style="width:380px">
+    <h2>Menu<button class="x" data-close>X</button></h2>
+    <div class="menu">
+      <button id="sAccount"><span id="sAccountName">Guest</span><small>Account</small></button>
+      <button id="sKeys">Keybinds<small>Controls</small></button>
+      <button id="sFriends">Friends<small id="friendBadge"></small></button>
+      <button id="sParty">Party<small id="partyBadge"></small></button>
+      <div class="card2" style="margin:0"><h3>Time of day</h3><select id="todSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="relative">Relative (real EST time)</option><option value="day">Day Time</option><option value="night">Night Time</option></select></div>
+      <button id="sResume">Resume</button>
+    </div>
+  </div>
+
+  <div id="accountPanel" class="panel hidden" style="width:420px">
+    <h2>Account<button class="x" data-close>X</button></h2>
+    <div id="accGuest">
+      <div class="tabs"><button class="on" id="tabLogin">Log In</button><button id="tabSignup">Sign Up</button></div>
+      <div class="field"><label>Username</label><input id="accUser" maxlength="16" placeholder="3-16 letters, numbers, _"></div>
+      <div class="field"><label>Password</label><input id="accPass" type="password" maxlength="64" placeholder="at least 4 characters"></div>
+      <div class="row between"><small style="opacity:.6;font-weight:600">You are <b id="accGuestName">Guest</b></small><button class="btn green" id="accSubmit">LOG IN</button></div>
+    </div>
+    <div id="accUser2" class="hidden">
+      <div class="card2"><div class="row between"><div>Logged in as<br><b style="font-size:20px" id="accName"></b></div><div style="text-align:right"><div style="font-size:10px;opacity:.7;font-weight:800">DOLLARS</div><div class="money" id="accMoney">$0</div></div></div></div>
+      <div class="card2"><h3>Change password</h3>
+        <div class="field"><label>Current password</label><input id="cpOld" type="password"></div>
+        <div class="field"><label>New password</label><input id="cpNew" type="password"></div>
+        <button class="btn small blue" id="cpBtn">Change password</button></div>
+      <div class="card2"><h3>Change username - $5,000</h3>
+        <div class="field"><label>New username</label><input id="cuNew" maxlength="16"></div>
+        <div class="field"><label>Password</label><input id="cuPass" type="password"></div>
+        <button class="btn small blue" id="cuBtn">Change username ($5,000)</button></div>
+      <button class="btn red" id="logoutBtn" style="width:100%">LOG OUT</button>
+    </div>
+  </div>
+
+  <div id="keysPanel" class="panel hidden" style="width:420px">
+    <h2>Keybinds<button class="x" data-close>X</button></h2>
+    <div id="kbList"></div>
+    <div class="row between" style="margin-top:8px"><small style="opacity:.6;font-weight:600">Click a key, then press the new key or mouse button.</small><button class="btn grey small" id="kbReset">Reset</button></div>
+  </div>
+
+  <div id="friendsPanel" class="panel hidden" style="width:420px">
+    <h2>Friends<button class="x" data-close>X</button></h2>
+    <div id="frGuest" class="card2">Sign in to add friends.</div>
+    <div id="frMain" class="hidden">
+      <div class="card2"><h3>Add friend</h3><div class="row"><input id="frAddName" placeholder="username"><button class="btn small green" id="frAddBtn">SEND</button></div></div>
+      <div class="card2"><h3>Requests <span id="frReqCount"></span></h3><div class="flist" id="frReqs"></div></div>
+      <div class="card2"><h3>Friends</h3><div class="flist" id="frList"></div></div>
+    </div>
+  </div>
+
+  <div id="partyPanel" class="panel hidden" style="width:440px">
+    <h2>Party<button class="x" data-close>X</button></h2>
+    <div id="partyNone"><div class="card2">You're not in a party. Create one, invite players, and the party follows you into any queue.</div><button class="btn green" id="partyCreate" style="width:100%">CREATE PARTY</button></div>
+    <div id="partyMain" class="hidden">
+      <div class="card2"><h3>Members</h3><div id="partyMembers"></div></div>
+      <div class="card2"><h3>Invite</h3><div class="row"><input id="partyInviteName" placeholder="player name"><button class="btn small green" id="partyInviteBtn">INVITE</button></div><div id="partyOnline" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div></div>
+      <button class="btn red" id="partyLeave" style="width:100%">LEAVE PARTY</button>
+    </div>
+  </div>
+
+  <div id="shopPanel" class="panel hidden" style="width:560px">
+    <h2><span>Lil Man Dealer</span><span style="font-size:14px;color:var(--green)" id="shopMoney">$0</span><button class="x" data-close>X</button></h2>
+    <div class="tabs"><button class="on" data-tab="skins">Ball Skins</button><button data-tab="models">Characters</button><button data-tab="fx">Score Effects</button><button data-tab="emotes">Emotes</button></div>
+    <div id="shopNote" style="font-size:12px;opacity:.7;font-weight:600;margin-bottom:10px">Ball skins. Same size, same hitbox - looks only.</div>
+    <div class="grid" id="shopGrid"></div>
+  </div>
+
+  <div id="queuePanel" class="hidden">
+    <h2><span id="queueTitle">Queue - 2v2</span><button class="x" id="queueX">X</button></h2>
+    <div id="mapPick" class="hidden" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-weight:800;font-size:13px">MAP <button class="btn small grey" data-map="indoor">INDOORS</button><button class="btn small grey" data-map="beach">BEACH</button></div>
+    <div class="team"><h3>Your Team</h3><div id="teamList"></div></div>
+    <div class="bottom">
+      <div class="lock">Lock to friends only <button id="lockToggle">OFF</button></div>
+      <button id="queueBtn">QUEUE</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
