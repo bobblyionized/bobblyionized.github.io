@@ -613,7 +613,7 @@ class Rig {
 }
 
 /* ---- trait boxes (chests) ---- */
-const CHEST_TIERS = { 1: { body: 0x8b5a2b, band: 0xcd7f32, glow: 0xffd9a0 }, 2: { body: 0x55636f, band: 0xd0d6dd, glow: 0xd8f0ff }, 3: { body: 0x7a4a10, band: 0xf5c542, glow: 0xfff0a0 } };
+const CHEST_TIERS = { 4: { body: 0x7a1218, band: 0xff4a55, glow: 0xffb0b8 }, 1: { body: 0x8b5a2b, band: 0xcd7f32, glow: 0xffd9a0 }, 2: { body: 0x55636f, band: 0xd0d6dd, glow: 0xd8f0ff }, 3: { body: 0x7a4a10, band: 0xf5c542, glow: 0xfff0a0 } };
 function makeChest(tier, open) {
   const c = CHEST_TIERS[tier] || CHEST_TIERS[1]; const g = new THREE.Group();
   const bodyM = mat(c.body), bandM = mat(c.band, { emissive: c.band, emissiveIntensity: tier === 3 ? 0.3 : 0.1 });
@@ -647,7 +647,7 @@ function renderPoseIcons() {
   ICONS.ball = ICONS.skin_default;
   for (const eid of Object.keys(EMOTES)) { const er = new Rig('white'); er.emote = eid; er.emoteT = eid === 'wave' ? 0.4 : 0.25; er.setPose('idle'); er.update(1, 0); er.snap(); er.update(0.5, 0); sc.add(er.root); r2.render(sc, cam); ICONS['emote_' + eid] = r2.domElement.toDataURL('image/png'); sc.remove(er.root); }
   for (const mid of Object.keys(MODELS)) { const mr = new Rig('white', mid); mr.setPose('idle'); mr.snap(); sc.add(mr.root); r2.render(sc, cam); ICONS['model_' + mid] = r2.domElement.toDataURL('image/png'); sc.remove(mr.root); }
-  for (const t of [1, 2, 3]) for (const op of [false, true]) { const ch = makeChest(t, op); ch.position.set(0, 0.42, 0); ch.scale.setScalar(1.2); ch.rotation.y = 0.4; sc.add(ch); r2.render(sc, cam); ICONS[(op ? 'boxopen_' : 'box_') + t] = r2.domElement.toDataURL('image/png'); sc.remove(ch); }
+  for (const t of [1, 2, 3, 4]) for (const op of [false, true]) { const ch = makeChest(t, op); ch.position.set(0, 0.42, 0); ch.scale.setScalar(1.2); ch.rotation.y = 0.4; sc.add(ch); r2.render(sc, cam); ICONS[(op ? 'boxopen_' : 'box_') + t] = r2.domElement.toDataURL('image/png'); sc.remove(ch); }
   for (const fid of Object.keys(FXS)) { const g = fxPreview(fid); if (g) sc.add(g); r2.render(sc, cam); ICONS['fx_' + fid] = r2.domElement.toDataURL('image/png'); if (g) sc.remove(g); }
   r2.dispose();
 }
@@ -2267,7 +2267,7 @@ const court = new THREE.Group();
 const GYM_LIGHTS = []; const GYM_PANEL_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); const COURT_AMBIENT = [];
 function applyGymLights() { const on = isNight; for (const l of GYM_LIGHTS) l.intensity = on ? 0.55 : 0; GYM_PANEL_MAT.color.setHex(on ? 0xffffff : 0xc9ced8); }
 function updateCourtAmbient(t, dt) { for (const a of COURT_AMBIENT) a.update(t, dt); }
-const NET_H = 2.43, COURT_W = 11.25, COURT_L = 22.5, GYM_X = 27, GYM_Z = 34.5, NET_HALF = 6.5;   // beach court is 1.25x regulation; gym is 1.5x
+const NET_H = 2.93, COURT_W = 11.25, COURT_L = 22.5, GYM_X = 27, GYM_Z = 34.5, NET_HALF = 6.5;   // beach court is 1.25x regulation; gym is 1.5x
 const INDOOR_SCALE = 1.1;                                                                         // the indoor court is 1.1x the beach court
 const COURTS_BY_MAP = {
   indoor: { w: COURT_W * INDOOR_SCALE, l: COURT_L * INDOOR_SCALE, half: NET_HALF * INDOOR_SCALE, nets: [{ cx: 0, cz: 0, nx: 0, nz: 1, half: NET_HALF * INDOOR_SCALE }], courts: [{ cx: 0, cz: 0, hx: COURT_W * INDOOR_SCALE / 2, hz: COURT_L * INDOOR_SCALE / 2 }] },

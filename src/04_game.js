@@ -181,10 +181,10 @@ function tryAct() {
     const dir = P.moving ? P.moveDir.clone() : cf().multiplyScalar(0.12);
     if (hasTrait('b2p2')) {                                    // 4th Tempo: floaty, higher set that carries further in the direction you are running
       const tg = P.pos.clone().addScaledVector(dir, P.moving ? 6.5 : 1.2); tg.y = 0; const g4 = 0.55;
-      hitBall('set', launchTo(B.pos, tg, Math.max(7.0, B.pos.y + 3.5), BALL_G * g4), g4);
+      finishSet(launchTo(B.pos, tg, Math.max(7.0, B.pos.y + 3.5), BALL_G * g4), g4);
     } else {
     const tg = P.pos.clone().addScaledVector(dir, 3.7); tg.y = 0;
-    hitBall('set', launchTo(B.pos, tg, Math.max(5.3, B.pos.y + 2.2)), 1);
+    finishSet(launchTo(B.pos, tg, Math.max(5.3, B.pos.y + 2.2)), 1);
     }
   } else if (a.type === 'spike' || a.type === 'tip') {
     if (P.onGround) { P.act = null; return; }
@@ -195,8 +195,35 @@ function tryAct() {
     const tw = tiltWorld(); const mag = Math.min(1, tw.length());
     const dir = mag > 0.05 ? tw.normalize() : cf().multiplyScalar(0.1);
     const tg = P.pos.clone().addScaledVector(dir, 0.5 + mag * 9.5); tg.y = 0;
-    hitBall('set', launchTo(B.pos, tg, Math.max(4.4, B.pos.y + 1.4)), 1);
+    finishSet(launchTo(B.pos, tg, Math.max(4.4, B.pos.y + 1.4)), 1);
   }
+}
+const ANTENNA_TOP = () => NET_H + 0.8;          // antennas reach 80 cm over the tape
+function nearestNetInfo(pos) {                   // nearest net to a point: its normal (pointing from the ball toward the net), the distance along that normal, and where the plane is
+  let best = null;
+  for (const n of netsFor()) { const dn = (pos.x - n.cx) * n.nx + (pos.z - n.cz) * n.nz; const lat = -(pos.x - n.cx) * n.nz + (pos.z - n.cz) * n.nx; if (Math.abs(lat) > n.half + 3) continue; if (!best || Math.abs(dn) < best.dist) best = { n, dist: Math.abs(dn), sign: Math.sign(dn) || 1 }; }
+  return best;
+}
+function finishSet(vel, g) {                     // every set (ground, jump, 4th Tempo) ends here so the setter traits apply to all of them
+  if (hasTrait('b4a')) {
+    const info = nearestNetInfo(B.pos);
+    if (info && info.dist > 0.6) {
+      const toward = new V3(-info.n.nx * info.sign, 0, -info.n.nz * info.sign);   // unit vector from the ball to the net plane
+      const h = new V3(vel.x, 0, vel.z); const hs = h.length();
+      if (hs > 0.1 && h.clone().normalize().dot(toward) > 0.35) {          // aimed at the nearest net: Perfect Set
+        const s0 = hs * 1.5; h.normalize().multiplyScalar(s0);            // 50% faster leaving the hands...
+        const tNet = info.dist / (h.dot(toward) * 0.665);                 // ...but it slows to 33% by the net, so it arrives at the average of the two
+        const apex = Math.max(ANTENNA_TOP() + 0.3, B.pos.y + 0.5);       // and peaks just over the antennas, right at the net
+        const gg = 2 * (apex - B.pos.y) / (tNet * tNet); const vy = gg * tNet;
+        hitBall('set', new V3(h.x, vy, h.z), gg / BALL_G);
+        B.pf = { nx: info.n.nx, nz: info.n.nz, cx: info.n.cx, cz: info.n.cz, side: info.sign, d0: info.dist, s0 };   // the flight rule the ball carries (synced in its record)
+        writeBall(B); return;
+      }
+    }
+  }
+  if (hasTrait('b2p2') && g !== 1) { hitBall('set', vel, g); return; }   // 4th Tempo keeps its own float
+  if (hasTrait('b4p1')) { vel.y *= 0.5; vel.x *= 1.25; vel.z *= 1.25; }  // Speed Set: flat and fast
+  hitBall('set', vel, g);
 }
 function doBlock() { P.airUsed = true; P.airActed = true; P.rig.base = 'block'; P.rig.setPose('block'); P.blockUntil = T + 10; P.blockHit = false; setTimeout(() => actionFx('block', P.rig, cf()), 90); }
 function blockContact() {
@@ -359,7 +386,7 @@ function doToss() {
 }
 function hitBall(type, vel, g, charge = 0) {
   const b = B; if (!b) return;
-  b.vel.copy(vel); b.g = g; b.seq++; b.t = snow(); b.held = null; b.active = true; b.frozen = false;
+  b.vel.copy(vel); b.g = g; b.seq++; b.t = snow(); b.held = null; b.active = true; b.frozen = false; b.pf = null;
   b.prevHitter = b.hitter; b.prevType = b.hitType; b.hitter = SID; b.hitType = type; b.fx = me.fx || 'none'; b.hm = me.model || 'boy'; b.hitterPos = { x: P.pos.x, z: P.pos.z };
   if (type === 'toss' || type === 'block') { b.touches = 0; b.sideTeam = P.team; }
   else { if (b.sideTeam !== P.team) { b.sideTeam = P.team; b.touches = 1; } else b.touches++; }
@@ -419,7 +446,7 @@ function updatePlayer(dt) {
   if (P.onGround && P.moving && !P.dive) { P.stepAcc = (P.stepAcc || 0) + dt; if (P.stepAcc > 0.16) { P.stepAcc = 0; puff(P.pos.x - P.moveDir.x * 0.2, P.pos.z - P.moveDir.z * 0.2, 2, 0.6, 0.8, groundDustColor()); } }
   P.tilt.lerp(P.onGround ? new THREE.Vector2() : P.tiltIn, Math.min(1, dt * 12));
   const tsf = timeStopFactor(P.pos.x, P.pos.z, P.pos.y); dt *= tsf;              // Time Stop: inside the clock you move, jump and fall at 12% speed (P.vel stays normal so animations still read)
-  if (!P.dash) P.vel.y -= G * (hasTrait('b3p2') ? 1.1 : 1) * dt;                // a dash holds you at your height; Power Jump falls 10% harder
+  if (!P.dash) P.vel.y -= G * (hasTrait('b3p2') ? 1.1 : 1) * (P.vel.y < 0 && hasTrait('b4p2') ? 0.7 : 1) * dt;   // Setter Vision: floaty descent                // a dash holds you at your height; Power Jump falls 10% harder
   const prevPos = P.pos.clone();
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
   if (S.scene === 'lobby') {
@@ -501,6 +528,11 @@ function simBall(b, dt) {
   const steps = 1, h = dt;
   for (let i = 0; i < steps; i++) {
     const prev = b.pos.clone();
+    if (b.pf) {                                                            // Perfect Set: slow toward the net, then hand over to plain physics once it is there
+      const f = b.pf; const dn = (b.pos.x - f.cx) * f.nx + (b.pos.z - f.cz) * f.nz;
+      if (Math.sign(dn) !== f.side || Math.abs(dn) < 0.05) { b.pf = null; b.g = 1; }
+      else { const want = f.s0 * (1 - 0.67 * clamp(1 - Math.abs(dn) / f.d0, 0, 1)); const hs = Math.hypot(b.vel.x, b.vel.z); if (hs > 1e-3) { const k = want / hs; b.vel.x *= k; b.vel.z *= k; } }
+    }
     b.vel.y -= BALL_G * b.g * h; b.vel.multiplyScalar(1 - 0.015 * h);
     if (b.scene === 'lobby' && b.pos.y > 0.5) { b.vel.x += WIND.x * 0.35 * h; b.vel.z += WIND.z * 0.35 * h; }   // wind drift outside
     b.pos.addScaledVector(b.vel, h);
@@ -560,7 +592,7 @@ function projectServeAim() {
 }
 
 /* ---------------- Ball sync ---------------- */
-function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, skin: b.skin || 'default', fx: b.fx || 'none', hm: b.hm || 'boy', hitterPos: b.hitterPos || null, ds: !!b.ds, by: SID }; }
+function ballRecord(b) { return { active: b.active, held: b.held || null, frozen: b.frozen, x: b.pos.x, y: b.pos.y, z: b.pos.z, vx: b.vel.x, vy: b.vel.y, vz: b.vel.z, g: b.g, seq: b.seq, t: b.t, hitter: b.hitter || null, hitType: b.hitType || null, prevHitter: b.prevHitter || null, prevType: b.prevType || null, touches: b.touches, sideTeam: b.sideTeam, serve: !!b.serve, tossedBy: b.tossedBy || null, skin: b.skin || 'default', fx: b.fx || 'none', hm: b.hm || 'boy', hitterPos: b.hitterPos || null, ds: !!b.ds, pf: b.pf || null, by: SID }; }
 function writeBall(b) {
   if (!b || !S.online) return;
   if (b.id === 'match') { const r = mref('ball'); if (r) r.set(ballRecord(b)); }
@@ -573,7 +605,7 @@ function receiveBall(b, v) {
   b.hitter = v.hitter || null; b.hitType = v.hitType || null; b.prevHitter = v.prevHitter || null; b.prevType = v.prevType || null; b.touches = v.touches || 0; b.sideTeam = v.sideTeam || 'A';
   b.serve = !!v.serve; b.tossedBy = v.tossedBy || null; b.landed = false;
   if (v.skin && v.skin !== b.skin) { b.skin = v.skin; applySkin(b.mesh, b.skin); }
-  b.fx = v.fx || 'none'; b.hm = v.hm || 'boy'; b.hitterPos = v.hitterPos || null;
+  b.fx = v.fx || 'none'; b.hm = v.hm || 'boy'; b.hitterPos = v.hitterPos || null; b.pf = v.pf || null;
   if (P.holding && B === b && b.held !== SID) { P.holding = false; P.serveMode = false; P.serveAim = null; P.rig.base = P.onGround ? 'idle' : 'air'; P.rig.setPose(P.rig.base); }
   const newHit = v.hitType === 'spike' && v.seq !== b.lastSparkSeq; b.lastSparkSeq = v.seq;
   if (b.active && !b.held) {
@@ -623,7 +655,7 @@ function remoteUpsert(sid, d) {
   r.rig.tiltX = d.tx || 0; r.rig.tiltZ = d.tz || 0; r.rig.pitchTarget = d.pt || 0; r.rig.rollTarget = d.rl || 0;
   r.tag.textContent = d.name || '?'; r.tag.classList.toggle('party', !!(S.party && S.party.members && S.party.members[sid]));
 }
-function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
+function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); if (r.mark) r.mark.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
 const INTERP_DELAY = 0.18;                       // default render delay for other players; each peer then adapts it to how steadily their packets arrive (see updateRemotes)
 // cubic Hermite through the buffer: tangents come from the neighbouring samples, so speed carries across
@@ -680,10 +712,13 @@ function myState() {
 const _v = new V3();
 function projectTags() {
   const W = innerWidth, H = innerHeight;
-  for (const r of remotes.values()) {
+  for (const [sid, r] of remotes) {
     _v.copy(r.rig.root.position); _v.y += 2.05; _v.project(camera);
     const vis = _v.z < 1 && _v.z > -1; r.tag.style.display = vis ? '' : 'none';
     if (vis) { r.tag.style.left = ((_v.x + 1) / 2 * W) + 'px'; r.tag.style.top = ((1 - _v.y) / 2 * H) + 'px'; }
+    const near = vis && hasTrait('b4p2') && r.rig.root.position.distanceTo(P.pos) < 22;   // Setter Vision: a coloured square over everyone around you
+    if (near) { if (!r.mark) { r.mark = document.createElement('div'); r.mark.className = 'vmark'; $('#tags').appendChild(r.mark); } const team = r.data && r.data.team; r.mark.style.background = S.scene === 'match' && team && team !== 'L' ? (team === P.team ? '#3b8ff0' : '#e5484d') : `hsl(${(r.hue = r.hue == null ? ([...r.name || sid].reduce((a, c) => a + c.charCodeAt(0), 0) * 37) % 360 : r.hue)},85%,55%)`; r.mark.style.left = r.tag.style.left; r.mark.style.top = (parseFloat(r.tag.style.top) - 22) + 'px'; r.mark.style.display = ''; }
+    else if (r.mark) r.mark.style.display = 'none';
   }
   projectBubbles(W, H);
   const cb = $('#chargeBar');
@@ -856,12 +891,16 @@ const TRAITS = {
   b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get one more swing - a spike only: instantly full charge, 1.2x power, lightning on contact.' },
   b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
   b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
+  b4p1: { name: 'Speed Set', type: 'passive', sym: 'SP', desc: 'Your sets leave with half the height and 25% more horizontal speed: flat, fast balls.' },
+  b4p2: { name: 'Setter Vision', type: 'passive', sym: 'SV', desc: 'You fall at 0.7x gravity, and every player near you gets a coloured marker over their head.' },
+  b4a:  { name: 'Perfect Set', type: 'ability', sym: 'PS', desc: 'Sets aimed at the nearest net leave 50% faster, climb to just above the antennas and slow to a third of their speed as they reach the net.' },
   b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It kills all your momentum and refreshes your action the moment you dash, your next spike starts half charged, and in the air you then glide the way you were tilting.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
   2: { name: 'Trait Box 2', price: 2000, traits: ['b2p1', 'b2p2', 'b2a'] },
   3: { name: 'Trait Box 3', price: 5000, traits: ['b3p1', 'b3p2', 'b3a'] },
+  4: { name: 'Setter Crate', price: 7500, traits: ['b4p1', 'b4p2', 'b4a'] },
 };
 const BOX_ODDS = [0.45, 0.45, 0.1];
 function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
@@ -873,9 +912,9 @@ function openTraitShop() { openPanel('#traitPanel'); renderTraitShop(); }
 function renderTraitShop() {
   $('#traitMoney').textContent = me.guest ? 'Sign in to buy' : '$' + (me.dollars || 0).toLocaleString();
   const grid = $('#traitGrid'); grid.innerHTML = '';
-  for (const tier of [1, 2, 3]) {
+  for (const tier of [1, 2, 3, 4]) {
     const bx = TRAIT_BOXES[tier]; const d = document.createElement('div'); d.className = 'item tier' + tier;
-    d.innerHTML = `<img src="${ICONS['box_' + tier] || ''}" alt=""><div class="nm">${bx.name}</div><div class="rar">${['', 'bronze', 'silver', 'gold'][tier]} box</div><div class="pr">$${bx.price.toLocaleString()}</div><button>BUY</button>`;
+    d.innerHTML = `<img src="${ICONS['box_' + tier] || ''}" alt=""><div class="nm">${bx.name}</div><div class="rar">${['', 'bronze box', 'silver box', 'gold box', 'setter crate'][tier]}</div><div class="pr">$${bx.price.toLocaleString()}</div><button>BUY</button>`;
     d.querySelector('button').onclick = () => buyBox(tier);
     d.onmouseenter = () => peekBox(tier);
     grid.appendChild(d);
