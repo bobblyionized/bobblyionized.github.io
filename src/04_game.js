@@ -406,6 +406,7 @@ function updatePlayer(dt) {
   }
   if (P.onGround && P.moving && !P.dive) { P.stepAcc = (P.stepAcc || 0) + dt; if (P.stepAcc > 0.16) { P.stepAcc = 0; puff(P.pos.x - P.moveDir.x * 0.2, P.pos.z - P.moveDir.z * 0.2, 2, 0.6, 0.8, groundDustColor()); } }
   P.tilt.lerp(P.onGround ? new THREE.Vector2() : P.tiltIn, Math.min(1, dt * 12));
+  const tsf = timeStopFactor(P.pos.x, P.pos.z, P.pos.y); dt *= tsf;              // Time Stop: inside the clock you move, jump and fall at 12% speed (P.vel stays normal so animations still read)
   if (!P.dash) P.vel.y -= G * (hasTrait('b3p2') ? 1.1 : 1) * dt;                // a dash holds you at your height; Power Jump falls 10% harder
   const prevPos = P.pos.clone();
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
@@ -470,9 +471,10 @@ function ballNets(b, prev) {
   }
   return false;
 }
+function timeStopFactor(x, z, y = 0) { if (y >= 4) return 1; for (const f of FX_LIST) if (f.type === 'timestop' && Math.hypot(x - f.x, z - f.z) < f.r) return TIMESTOP_SLOW; return 1; }
 function simBall(b, dt) {
   const M = S.match;
-  for (const f of FX_LIST) if (f.type === 'timestop' && Math.hypot(b.pos.x - f.x, b.pos.z - f.z) < f.r && b.pos.y < 4) { dt *= TIMESTOP_SLOW; break; }   // Time Stop: a ball inside the clock crawls
+  dt *= timeStopFactor(b.pos.x, b.pos.z, b.pos.y);                          // Time Stop: a ball inside the clock crawls
   const steps = 2, h = dt / steps;
   for (let i = 0; i < steps; i++) {
     const prev = b.pos.clone();
