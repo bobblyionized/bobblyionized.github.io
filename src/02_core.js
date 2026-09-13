@@ -60,7 +60,7 @@ const snow = () => Date.now() + serverOffset;
 
 const S = { online: false, scene: 'lobby', padId: null, queue: null, match: null, booted: false };
 const SID = 's' + rnd() + Date.now().toString(36);   // unique per tab
-const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {} };
+const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {}, boxes: {}, traits: {}, loadout: {} };
 
 /* ---------------- Keybinds ---------------- */
 /* Every control the game reads goes through KEYS — movement, shift lock, chat and the menu included,
@@ -145,15 +145,16 @@ $('#kbLefty').onclick = () => usePreset(KEY_LEFTY, 'Left-handed layout');
 applyKeys();
 
 /* ---------------- Panels ---------------- */
-const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel'];
+const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel', '#traitPanel', '#invPanel'];
 function openPanel(sel) { PANELS.forEach(p => $(p).classList.add('hidden')); if (sel) { $(sel).classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); } }
-function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); rebinding = null; }
-function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')); }
+function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); rebinding = null; }
+function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden'); }
 $$('[data-close]').forEach(b => b.onclick = () => { closePanels(); });
 $('#menuBtn').onclick = () => uiOpen() ? closePanels() : openPanel('#settingsPanel');
 $('#userBtn').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sAccount').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sKeys').onclick = () => { openPanel('#keysPanel'); renderKeys(); };
+$('#sInventory').onclick = () => { if (typeof openInventory === 'function') openInventory(); };
 $('#sFriends').onclick = () => { openPanel('#friendsPanel'); renderFriends(); };
 $('#sResume').onclick = () => closePanels();
 $('#sParty').onclick = () => { openPanel('#partyPanel'); if (typeof renderParty === 'function') renderParty(); };
@@ -180,7 +181,7 @@ function writePresence() {
   presenceRef.onDisconnect().remove();
 }
 async function becomeGuest() {
-  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {}; me.skins = {}; me.skin = 'default'; me.fxs = {}; me.fx = 'none'; me.model = 'boy'; me.models = {}; me.emotes = {}; me.wheel = {};
+  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {}; me.skins = {}; me.skin = 'default'; me.fxs = {}; me.fx = 'none'; me.model = 'boy'; me.models = {}; me.emotes = {}; me.wheel = {}; me.boxes = {}; me.traits = {}; me.loadout = {};
   me.name = await pickGuestName();
   localStorage.removeItem('vg_session');
   applyIdentityUI(); writePresence(); onIdentityChanged();
@@ -283,7 +284,7 @@ function onIdentityChanged() {
   if (profileUnsub) profileUnsub(); if (friendsUnsub) friendsUnsub(); if (reqUnsub) reqUnsub();
   profileUnsub = friendsUnsub = reqUnsub = null;
   if (!me.guest) {
-    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; me.skins = v.skins || {}; me.skin = v.skin || 'default'; me.fxs = v.fxs || {}; me.fx = v.fx || 'none'; me.model = v.model || 'boy'; me.models = v.models || {}; me.emotes = v.emotes || {}; me.wheel = v.wheel || {}; if (typeof onCosmeticsChanged === 'function') onCosmeticsChanged(); applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); if (typeof renderShop === 'function' && !$('#shopPanel').classList.contains('hidden')) renderShop(); } });
+    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; me.skins = v.skins || {}; me.skin = v.skin || 'default'; me.fxs = v.fxs || {}; me.fx = v.fx || 'none'; me.model = v.model || 'boy'; me.models = v.models || {}; me.emotes = v.emotes || {}; me.wheel = v.wheel || {}; me.boxes = v.boxes || {}; me.traits = v.traits || {}; me.loadout = v.loadout || {}; if (typeof onCosmeticsChanged === 'function') onCosmeticsChanged(); applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); if (typeof renderShop === 'function' && !$('#shopPanel').classList.contains('hidden')) renderShop(); if (typeof renderTraitShop === 'function' && !$('#traitPanel').classList.contains('hidden')) renderTraitShop(); if (typeof renderInventory === 'function' && !$('#invPanel').classList.contains('hidden')) renderInventory(); } });
     profileUnsub = () => pr.off('value', cb);
     const fr = db.ref('friends/' + me.id); const cb2 = fr.on('value', s => { me.friends = s.val() || {}; renderFriends(); });
     friendsUnsub = () => fr.off('value', cb2);

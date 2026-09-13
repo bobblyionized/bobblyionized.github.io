@@ -58,18 +58,87 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 #wind i{display:inline-block;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:16px solid #fff;transform-origin:50% 60%}
 #npcPrompt{position:absolute;transform:translate(-50%,-100%);background:var(--bg);border:2px solid var(--line);padding:6px 10px;font-weight:800;font-size:13px;pointer-events:none;white-space:nowrap}
 #npcPrompt b{background:#fff;color:#111;padding:1px 6px;margin-right:6px}
-#shopPanel .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-#shopPanel .item .rar{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase}
-#shopPanel .item{border:2px solid transparent}
+.shopish .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.shopish .item .rar{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase}
+.shopish .item{border:2px solid transparent}
+/* inventory */
+#invPanel{width:840px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:88vh}
+#invPanel h2{padding:14px 18px 0}
+#invBody{display:flex;min-height:0;flex:1}
+#invNav{width:150px;flex:none;display:flex;flex-direction:column;gap:6px;padding:0 12px 14px 16px}
+#invNav button{text-align:left;background:var(--bg2);color:#cfd3dc;padding:11px 12px;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
+#invNav button.on{background:#fff;color:#111}
+#invMain{flex:1;min-width:0;display:flex;gap:12px;padding:0 16px 16px 4px;min-height:0}
+#invGrid{flex:1;display:grid;grid-template-columns:repeat(auto-fill,88px);gap:12px 10px;align-content:start;overflow:auto;max-height:66vh;padding:12px 4px 4px}
+.tile{width:88px;height:88px;border-radius:8px;border:3px solid #9aa0a6;background:rgba(0,0,0,.35);position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.tile:hover{background:rgba(255,255,255,.12)}
+.tile img{width:72px;height:72px}
+.tile.sel{outline:3px solid #fff;outline-offset:2px}
+.tile .eqp{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--green);color:#0c2412;font-size:9px;font-weight:900;padding:1px 6px;border-radius:4px;letter-spacing:.4px;white-space:nowrap}
+#invDetail{width:220px;flex:none;background:rgba(0,0,0,.3);border-radius:8px;padding:14px;text-align:center;display:flex;flex-direction:column;gap:8px;align-self:flex-start}
+#invDetail img{width:140px;height:140px;margin:0 auto;background:rgba(0,0,0,.25);border-radius:8px}
+#invDetail .nm{font-size:20px;font-weight:900;line-height:1.1}
+#invDetail .rar{font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase}
+#invDetail .desc{font-size:12px;opacity:.75;font-weight:600;font-style:italic;min-height:32px}
+#invDetail button{width:100%}
+#invDetail.none{opacity:.5;font-weight:700;font-size:13px;justify-content:center;min-height:200px}
+#invEmpty{opacity:.6;font-weight:700;padding:24px;text-align:center;width:100%}
+/* traits tab */
+#invTraits{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;padding:0 16px 16px 4px;min-height:0}
+#loadout{display:flex;gap:14px;justify-content:center;flex:none}
+.tcard{border-radius:10px;border:3px solid;padding:10px;display:flex;flex-direction:column;justify-content:space-between;text-align:center;position:relative;cursor:pointer;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+.tcard.pas{border-color:#6fb4ff;background:linear-gradient(160deg,#2a63b8,#0d2a5c)}
+.tcard.abl{border-color:#ff7a7a;background:linear-gradient(160deg,#c42a31,#4a0d10)}
+.tcard .ty{font-size:10px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;opacity:.85}
+.tcard .tn{font-size:15px;font-weight:900;line-height:1.1}
+.tcard .td{font-size:10px;opacity:.75;font-weight:600}
+.tcard .sym{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.35);margin:6px auto;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900}
+.tcard.slot{width:150px;height:200px}
+.tcard.slot:hover{filter:brightness(1.15)}
+.tcard.slot.empty{border-style:dashed;opacity:.85;justify-content:center;cursor:default}
+.tcard.slot.empty .tn{font-size:22px;opacity:.7}
+.tcard.slot.empty .td{margin-top:6px}
+.tcard.mini{width:120px;height:170px}
+.tcard.mini .tn{font-size:13px}
+.tcard.mini .sym{width:44px;height:44px;font-size:17px;margin:4px auto}
+.tcard.mini .td{display:none}
+.tcard.mini button{padding:5px;font-size:11px;margin-top:4px;background:var(--blue)}
+.tcard.mini .odds{position:absolute;top:-10px;right:-8px;background:var(--yellow);color:#111;font-size:11px;font-weight:900;padding:2px 7px;border-radius:5px}
+#invBag{display:grid;grid-template-columns:repeat(auto-fill,120px);gap:14px 10px;overflow:auto;flex:1;min-height:120px;padding:12px 4px 4px;max-height:40vh;align-content:start}
+#bagTitle{font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--yellow)}
+.bag-box{width:120px;height:170px;border-radius:10px;border:3px solid #cd7f32;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+.bag-box img{width:80px;height:80px}
+.bag-box .tn{font-size:12px;font-weight:900}
+.bag-box button{width:100%;padding:6px;font-size:11px;background:var(--green);color:#0c2412}
+.tier1{border-color:#cd7f32!important}.tier2{border-color:#d0d6dd!important}.tier3{border-color:#f5c542!important}
+/* trait shop */
+#traitPeekCards{display:flex;gap:12px;justify-content:center;padding-top:8px}
+/* box opening */
+#openFx{position:absolute;inset:0;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center}
+#openStage{position:relative;width:420px;height:540px}
+#openChest{width:240px;height:240px;position:absolute;left:90px;top:210px}
+#openChest.shake{animation:chestShake .95s ease-in-out}
+@keyframes chestShake{0%,100%{transform:translate(0,0) rotate(0)}10%{transform:translate(-5px,2px) rotate(-3deg)}20%{transform:translate(5px,-2px) rotate(3deg)}30%{transform:translate(-7px,0) rotate(-5deg)}40%{transform:translate(7px,2px) rotate(5deg)}50%{transform:translate(-8px,-3px) rotate(-7deg)}60%{transform:translate(8px,3px) rotate(7deg)}70%{transform:translate(-7px,0) rotate(-6deg)}80%{transform:translate(7px,-2px) rotate(6deg)}90%{transform:translate(-4px,1px) rotate(-3deg)}}
+#openBurst{position:absolute;left:210px;top:310px;width:12px;height:12px;border-radius:50%;background:#fff;opacity:0;pointer-events:none}
+#openBurst.go{animation:burst .55s ease-out forwards}
+@keyframes burst{0%{transform:translate(-50%,-50%) scale(0);opacity:1}100%{transform:translate(-50%,-50%) scale(70);opacity:0}}
+.spark{position:absolute;left:210px;top:310px;width:8px;height:8px;border-radius:2px;background:var(--yellow);opacity:0;pointer-events:none;animation:spark .9s ease-out forwards}
+@keyframes spark{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+#openCard{width:170px;height:230px;position:absolute;left:125px;top:250px;opacity:0;transform:scale(.2);cursor:default}
+#openCard.fly{animation:cardFly 1.1s cubic-bezier(.2,.9,.3,1.15) forwards}
+@keyframes cardFly{0%{opacity:0;transform:translateY(40px) scale(.2) rotateY(0)}35%{opacity:1;transform:translateY(-110px) scale(.7) rotateY(180deg)}100%{opacity:1;transform:translateY(-255px) scale(1) rotateY(360deg)}}
+#openMsg{position:absolute;top:454px;width:100%;text-align:center;font-size:20px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;opacity:0;transition:opacity .3s}
+#openMsg small{display:block;font-size:12px;opacity:.7;text-transform:none;letter-spacing:0}
+#openDone{position:absolute;top:500px;left:50%;transform:translateX(-50%);opacity:0;transition:opacity .3s}
 .r-common{color:#9aa0a6}.r-rare{color:#3b8ff0}.r-epic{color:#a259ff}.r-legendary{color:#f5c542}.r-mythic{color:#e5484d}
 .b-common{border-color:#9aa0a6!important}.b-rare{border-color:#3b8ff0!important}.b-epic{border-color:#a259ff!important}.b-legendary{border-color:#f5c542!important}.b-mythic{border-color:#e5484d!important}
-#shopPanel .item{background:var(--bg2);padding:10px;text-align:center}
-#shopPanel .item img{width:96px;height:96px;display:block;margin:0 auto 6px;background:rgba(0,0,0,.25)}
-#shopPanel .item .nm{font-weight:900;font-size:14px}
-#shopPanel .item .pr{font-size:12px;color:var(--green);font-weight:800;margin:2px 0 8px}
-#shopPanel .item button{width:100%;padding:8px}
-#shopPanel .item.owned button{background:var(--blue)}
-#shopPanel .item.equipped button{background:var(--green);color:#0c2412}
+.shopish .item{background:var(--bg2);padding:10px;text-align:center}
+.shopish .item img{width:96px;height:96px;display:block;margin:0 auto 6px;background:rgba(0,0,0,.25)}
+.shopish .item .nm{font-weight:900;font-size:14px}
+.shopish .item .pr{font-size:12px;color:var(--green);font-weight:800;margin:2px 0 8px}
+.shopish .item button{width:100%;padding:8px}
+.shopish .item.owned button{background:var(--blue)}
+.shopish .item.equipped button{background:var(--green);color:#0c2412}
 
 /* hud */
 #stateBox{position:absolute;bottom:14px;left:14px;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800}
@@ -207,6 +276,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
     <h2>Menu<button class="x" data-close>X</button></h2>
     <div class="menu">
       <button id="sAccount"><span id="sAccountName">Guest</span><small>Account</small></button>
+      <button id="sInventory">Inventory<small>Cosmetics &amp; traits</small></button>
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
@@ -263,11 +333,41 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
     </div>
   </div>
 
-  <div id="shopPanel" class="panel hidden" style="width:560px">
+  <div id="shopPanel" class="panel shopish hidden" style="width:560px">
     <h2><span>Lil Man Dealer</span><span style="font-size:14px;color:var(--green)" id="shopMoney">$0</span><button class="x" data-close>X</button></h2>
     <div class="tabs"><button class="on" data-tab="skins">Ball Skins</button><button data-tab="models">Characters</button><button data-tab="fx">Score Effects</button><button data-tab="emotes">Emotes</button></div>
     <div id="shopNote" style="font-size:12px;opacity:.7;font-weight:600;margin-bottom:10px">Ball skins. Same size, same hitbox - looks only.</div>
     <div class="grid" id="shopGrid"></div>
+  </div>
+
+  <div id="traitPanel" class="panel shopish hidden" style="width:560px">
+    <h2><span>Big Man Dealer</span><span style="font-size:14px;color:var(--green)" id="traitMoney">$0</span><button class="x" data-close>X</button></h2>
+    <div style="font-size:12px;opacity:.7;font-weight:600;margin-bottom:10px">Trait boxes. Every box holds 3 trait cards - 2 passives and 1 ability. Buy one, then open it from the Traits tab of your Inventory.</div>
+    <div class="grid" id="traitGrid"></div>
+    <div id="traitPeek" class="card2" style="margin:12px 0 0"><h3 id="traitPeekTitle">Hover a box to see what's inside</h3><div id="traitPeekCards"></div></div>
+  </div>
+
+  <div id="invPanel" class="panel hidden">
+    <h2><span>Inventory</span><span style="font-size:14px;color:var(--green)" id="invMoney">$0</span><button class="x" data-close>X</button></h2>
+    <div id="invBody">
+      <div id="invNav"><button class="on" data-inv="skins">Balls</button><button data-inv="models">Characters</button><button data-inv="fx">Score FX</button><button data-inv="emotes">Emotes</button><button data-inv="traits">Traits</button></div>
+      <div id="invMain"><div id="invGrid"></div><div id="invDetail"></div></div>
+      <div id="invTraits" class="hidden">
+        <div id="loadout"></div>
+        <div id="bagTitle">Your traits &amp; boxes</div>
+        <div id="invBag"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="openFx" class="hidden">
+    <div id="openStage">
+      <img id="openChest" src="" alt="">
+      <div id="openBurst"></div>
+      <div id="openCard" class="tcard pas"><div class="ty"></div><div class="sym"></div><div class="tn"></div><div class="td"></div></div>
+      <div id="openMsg"></div>
+      <button class="btn green" id="openDone">CONTINUE</button>
+    </div>
   </div>
 
   <div id="queuePanel" class="hidden">
@@ -347,7 +447,7 @@ const snow = () => Date.now() + serverOffset;
 
 const S = { online: false, scene: 'lobby', padId: null, queue: null, match: null, booted: false };
 const SID = 's' + rnd() + Date.now().toString(36);   // unique per tab
-const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {} };
+const me = { sid: SID, id: SID, name: 'Guest', guest: true, dollars: 0, friends: {}, requests: {}, lower: null, skins: {}, skin: 'default', fxs: {}, fx: 'none', model: 'boy', models: {}, emotes: {}, wheel: {}, boxes: {}, traits: {}, loadout: {} };
 
 /* ---------------- Keybinds ---------------- */
 /* Every control the game reads goes through KEYS — movement, shift lock, chat and the menu included,
@@ -432,15 +532,16 @@ $('#kbLefty').onclick = () => usePreset(KEY_LEFTY, 'Left-handed layout');
 applyKeys();
 
 /* ---------------- Panels ---------------- */
-const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel'];
+const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel', '#traitPanel', '#invPanel'];
 function openPanel(sel) { PANELS.forEach(p => $(p).classList.add('hidden')); if (sel) { $(sel).classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); } }
-function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); rebinding = null; }
-function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')); }
+function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); rebinding = null; }
+function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden'); }
 $$('[data-close]').forEach(b => b.onclick = () => { closePanels(); });
 $('#menuBtn').onclick = () => uiOpen() ? closePanels() : openPanel('#settingsPanel');
 $('#userBtn').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sAccount').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
 $('#sKeys').onclick = () => { openPanel('#keysPanel'); renderKeys(); };
+$('#sInventory').onclick = () => { if (typeof openInventory === 'function') openInventory(); };
 $('#sFriends').onclick = () => { openPanel('#friendsPanel'); renderFriends(); };
 $('#sResume').onclick = () => closePanels();
 $('#sParty').onclick = () => { openPanel('#partyPanel'); if (typeof renderParty === 'function') renderParty(); };
@@ -467,7 +568,7 @@ function writePresence() {
   presenceRef.onDisconnect().remove();
 }
 async function becomeGuest() {
-  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {}; me.skins = {}; me.skin = 'default'; me.fxs = {}; me.fx = 'none'; me.model = 'boy'; me.models = {}; me.emotes = {}; me.wheel = {};
+  me.guest = true; me.id = SID; me.lower = null; me.dollars = 0; me.friends = {}; me.requests = {}; me.skins = {}; me.skin = 'default'; me.fxs = {}; me.fx = 'none'; me.model = 'boy'; me.models = {}; me.emotes = {}; me.wheel = {}; me.boxes = {}; me.traits = {}; me.loadout = {};
   me.name = await pickGuestName();
   localStorage.removeItem('vg_session');
   applyIdentityUI(); writePresence(); onIdentityChanged();
@@ -570,7 +671,7 @@ function onIdentityChanged() {
   if (profileUnsub) profileUnsub(); if (friendsUnsub) friendsUnsub(); if (reqUnsub) reqUnsub();
   profileUnsub = friendsUnsub = reqUnsub = null;
   if (!me.guest) {
-    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; me.skins = v.skins || {}; me.skin = v.skin || 'default'; me.fxs = v.fxs || {}; me.fx = v.fx || 'none'; me.model = v.model || 'boy'; me.models = v.models || {}; me.emotes = v.emotes || {}; me.wheel = v.wheel || {}; if (typeof onCosmeticsChanged === 'function') onCosmeticsChanged(); applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); if (typeof renderShop === 'function' && !$('#shopPanel').classList.contains('hidden')) renderShop(); } });
+    const pr = db.ref('profiles/' + me.id); const cb = pr.on('value', s => { const v = s.val(); if (v) { me.dollars = v.dollars || 0; if (v.name) me.name = v.name; me.skins = v.skins || {}; me.skin = v.skin || 'default'; me.fxs = v.fxs || {}; me.fx = v.fx || 'none'; me.model = v.model || 'boy'; me.models = v.models || {}; me.emotes = v.emotes || {}; me.wheel = v.wheel || {}; me.boxes = v.boxes || {}; me.traits = v.traits || {}; me.loadout = v.loadout || {}; if (typeof onCosmeticsChanged === 'function') onCosmeticsChanged(); applyIdentityUI(); if (!$('#accountPanel').classList.contains('hidden')) renderAccount(); if (typeof renderShop === 'function' && !$('#shopPanel').classList.contains('hidden')) renderShop(); if (typeof renderTraitShop === 'function' && !$('#traitPanel').classList.contains('hidden')) renderTraitShop(); if (typeof renderInventory === 'function' && !$('#invPanel').classList.contains('hidden')) renderInventory(); } });
     profileUnsub = () => pr.off('value', cb);
     const fr = db.ref('friends/' + me.id); const cb2 = fr.on('value', s => { me.friends = s.val() || {}; renderFriends(); });
     friendsUnsub = () => fr.off('value', cb2);
@@ -815,6 +916,7 @@ const POSES = {
   diveR:       { shL: [-30, 0, -35], shR: [-20, 0, -95], elL: [-20, 0, 0], elR: [0, 0, 0], hipL: [-25, 0, -5], hipR: [-10, 0, -20], knL: [45, 0, 0], knR: [20, 0, 0], spine: [0, 0, -12], neck: [0, 0, -20] },
   diveB:       { shL: [-150, 0, 20], shR: [-150, 0, -20], elL: [-10, 0, 0], elR: [-10, 0, 0], hipL: [-35, 0, 0], hipR: [-35, 0, 0], knL: [55, 0, 0], knR: [55, 0, 0], spine: [-10, 0, 0], neck: [-20, 0, 0] },
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
+  sit:         { shL: [-28, 0, 12], shR: [-28, 0, -12], elL: [-58, 0, 0], elR: [-58, 0, 0], hipL: [-76, 0, 6], hipR: [-76, 0, -6], knL: [76, 0, 0], knR: [76, 0, 0], spine: [-6, 0, 0], neck: [4, 0, 0] },   // couch sit: thighs forward, shins hanging, hands in the lap
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
 const POSE_SNAP = { jumpUp: 22, land: 20, spikeCharge: 26, spikeHit: 32 };   // how hard each pose snaps in; everything else uses the default blend
@@ -848,8 +950,8 @@ class Rig {
     this.tilt = new THREE.Group(); this.tilt.position.y = HIP_Y; this.root.add(this.tilt);
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
-    const dealer = variant === 'dealer' || model === 'dealer'; const tux = model === 'tux';
-    const jm = dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
+    const big = variant === 'bigdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
+    const jm = big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
@@ -863,8 +965,9 @@ class Rig {
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
       box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck);
-      box(0.28, 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine);
-      box(0.56, 0.14, 0.32, mat(0x111111), 0, 0.56, -0.02, spine);
+      box(big ? 0.34 : 0.28, big ? 0.07 : 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine); if (big) box(0.1, 0.1, 0.03, mat(0xf5c542), 0, 0.43, 0.17, spine);   // chain (+ a medallion on the big man)
+      box(0.56, 0.14, 0.32, big ? mat(0xb3242a) : mat(0x111111), 0, 0.56, -0.02, spine);          // hood
+      if (big) { box(0.3, 0.1, 0.06, mat(0x2a1a10), 0, 0.08, 0.17, neck); box(0.34, 0.06, 0.1, mat(0x2a1a10), 0, 0.12, 0.14, neck); }   // beard
       this.torso.material = jm.torso;
     } else {
     // hair: simple blond cap + bangs, blue tips on the sides (head stays visible)
@@ -933,6 +1036,21 @@ class Rig {
   handPos(side, out) { return this['hand' + side].getWorldPosition(out || new THREE.Vector3()); }
 }
 
+/* ---- trait boxes (chests) ---- */
+const CHEST_TIERS = { 1: { body: 0x8b5a2b, band: 0xcd7f32, glow: 0xffd9a0 }, 2: { body: 0x55636f, band: 0xd0d6dd, glow: 0xd8f0ff }, 3: { body: 0x7a4a10, band: 0xf5c542, glow: 0xfff0a0 } };
+function makeChest(tier, open) {
+  const c = CHEST_TIERS[tier] || CHEST_TIERS[1]; const g = new THREE.Group();
+  const bodyM = mat(c.body), bandM = mat(c.band, { emissive: c.band, emissiveIntensity: tier === 3 ? 0.3 : 0.1 });
+  box(1.0, 0.5, 0.64, bodyM, 0, 0.25, 0, g);
+  for (const x of [-0.3, 0.3]) box(0.12, 0.52, 0.66, bandM, x, 0.25, 0, g);
+  const lid = new THREE.Group(); lid.position.set(0, 0.5, -0.32); g.add(lid);
+  box(1.04, 0.22, 0.66, bodyM, 0, 0.11, 0.32, lid);
+  for (const x of [-0.3, 0.3]) box(0.12, 0.24, 0.68, bandM, x, 0.11, 0.32, lid);
+  box(0.16, 0.14, 0.05, bandM, 0, 0.06, 0.66, lid);                                              // latch
+  if (open) { lid.rotation.x = -1.9; const gl = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.55), new THREE.MeshBasicMaterial({ color: c.glow })); gl.position.set(0, 0.49, 0); g.add(gl); }
+  g.userData.lid = lid; return g;
+}
+
 /* ---- pose icons for the action cards (rendered once) ---- */
 const ICONS = {};
 function renderPoseIcons() {
@@ -953,6 +1071,7 @@ function renderPoseIcons() {
   ICONS.ball = ICONS.skin_default;
   for (const eid of Object.keys(EMOTES)) { const er = new Rig('white'); er.emote = eid; er.emoteT = eid === 'wave' ? 0.4 : 0.25; er.setPose('idle'); er.update(1, 0); er.snap(); er.update(0.5, 0); sc.add(er.root); r2.render(sc, cam); ICONS['emote_' + eid] = r2.domElement.toDataURL('image/png'); sc.remove(er.root); }
   for (const mid of Object.keys(MODELS)) { const mr = new Rig('white', mid); mr.setPose('idle'); mr.snap(); sc.add(mr.root); r2.render(sc, cam); ICONS['model_' + mid] = r2.domElement.toDataURL('image/png'); sc.remove(mr.root); }
+  for (const t of [1, 2, 3]) for (const op of [false, true]) { const ch = makeChest(t, op); ch.position.set(0, 0.42, 0); ch.scale.setScalar(1.2); ch.rotation.y = 0.4; sc.add(ch); r2.render(sc, cam); ICONS[(op ? 'boxopen_' : 'box_') + t] = r2.domElement.toDataURL('image/png'); sc.remove(ch); }
   for (const fid of Object.keys(FXS)) { const g = fxPreview(fid); if (g) sc.add(g); r2.render(sc, cam); ICONS['fx_' + fid] = r2.domElement.toDataURL('image/png'); if (g) sc.remove(g); }
   r2.dispose();
 }
@@ -1002,6 +1121,7 @@ function updateWind() {
   WIND.set(Math.cos(ang) * str, 0, Math.sin(ang) * str);
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
+let NPC2 = null; const NPC2_POS = new THREE.Vector3(-4.3, 0, 0);   // Big Man Dealer, sitting on the yellow couch
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -1110,6 +1230,9 @@ function buildLobby() {
   const counterBlock = box(4.8, 4, 2.6, wallM, 0, 2, 11.8, lobby); counterBlock.visible = false; COLLIDERS.push(counterBlock);   // invisible camera blocker: the camera never goes behind the counter
   box(1.2, 0.5, 0.8, darkWood, 0, 0.25, 12.2, lobby);                                                        // step behind the counter
   NPC = new Rig('dealer'); NPC.root.position.set(0, 0.5, 12.2); NPC.root.rotation.y = Math.PI; lobby.add(NPC.root);
+  NPC2 = new Rig('bigdealer'); NPC2.root.scale.set(RIG_SCALE * 1.2 * 1.12, RIG_SCALE * 1.2, RIG_SCALE * 1.2 * 1.12);   // a big man: taller and broader
+  NPC2.root.position.set(NPC2_POS.x, -0.22, NPC2_POS.z); NPC2.root.rotation.y = Math.PI / 2; NPC2.setPose('sit'); NPC2.base = 'sit'; NPC2.snap(); lobby.add(NPC2.root);
+  AMBIENT.push({ update(t) { NPC2.j.neck.rotation.y = Math.sin(t * 0.6) * 0.3; NPC2.j.spine.rotation.x = (-6 + Math.sin(t * 1.4) * 1.2) * D; } });   // looks around, breathes
   const plant = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
   plant(-11.5, 11.5); plant(11.5, 11.5); plant(-11.5, -4.5); plant(11.5, 4.5); plant(-39.5, 9.5); plant(-17, 9.5); plant(17, 7.5); plant(31.5, 7.5);
   const board = box(0.12, 2.4, 0.6, mat(0xf07a5a), 12.4, 1.25, 9.5, lobby); board.rotation.z = -0.15;                 // surfboard
@@ -1662,6 +1785,7 @@ function onPress(code) {
   if (code === KEYS.emote) { toggleWheel(); return; }
   if (P.emote) stopEmote();
   if (code === KEYS.interact && P.onGround && nearNPC()) { openShop(); return; }
+  if (code === KEYS.interact && P.onGround && nearNPC2()) { openTraitShop(); return; }
   if (code === KEYS.jump) tryJump();
   if (code === KEYS.serve) trySpawnBall(true);
   else if (code === KEYS.spawnBall) trySpawnBall(false);
@@ -2208,17 +2332,22 @@ function updateCards() {
 
 /* ---------------- Lil Man Dealer (NPC) + shop ---------------- */
 function nearNPC() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC_POS.x, P.pos.z - NPC_POS.z) < 4.2; }
-let npcTag = null;
+function nearNPC2() { return S.scene === 'lobby' && !nearNPC() && Math.hypot(P.pos.x - NPC2_POS.x, P.pos.z - NPC2_POS.z) < 3.4; }
+const NPCS = [{ name: 'Lil Man Dealer', pos: NPC_POS, tagY: 1.75, promptY: 2.15, near: nearNPC, tag: null }, { name: 'Big Man Dealer', pos: NPC2_POS, tagY: 1.75, promptY: 2.1, near: nearNPC2, tag: null }];
 function projectNpc() {
-  if (!npcTag) { npcTag = document.createElement('div'); npcTag.className = 'tag'; npcTag.textContent = 'Lil Man Dealer'; $('#tags').appendChild(npcTag); }
-  const showTag = S.scene === 'lobby' && P.pos.distanceTo(NPC_POS) < 30;
-  npcTag.style.display = showTag ? '' : 'none';
-  if (showTag) { _v.copy(NPC_POS); _v.y += 1.75; _v.project(camera); const vis = _v.z < 1; npcTag.style.display = vis ? '' : 'none'; npcTag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; npcTag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
-  const el = $('#npcPrompt'); const on = nearNPC() && !uiOpen();
-  el.classList.toggle('hidden', !on); if (!on) return;
-  el.querySelector('b').textContent = keyName(KEYS.interact);
-  _v.copy(NPC_POS); _v.y += 2.15; _v.project(camera);
-  el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+  const el = $('#npcPrompt'); let prompted = false;
+  for (const n of NPCS) {
+    if (!n.tag) { n.tag = document.createElement('div'); n.tag.className = 'tag'; n.tag.textContent = n.name; $('#tags').appendChild(n.tag); }
+    const showTag = S.scene === 'lobby' && P.pos.distanceTo(n.pos) < 30;
+    n.tag.style.display = showTag ? '' : 'none';
+    if (showTag) { _v.copy(n.pos); _v.y += n.tagY; _v.project(camera); const vis = _v.z < 1; n.tag.style.display = vis ? '' : 'none'; n.tag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; n.tag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
+    if (!prompted && n.near() && !uiOpen()) {
+      prompted = true; el.classList.remove('hidden'); el.querySelector('b').textContent = keyName(KEYS.interact);
+      _v.copy(n.pos); _v.y += n.promptY; _v.project(camera);
+      el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+    }
+  }
+  if (!prompted) el.classList.add('hidden');
 }
 let shopTab = 'skins';
 const SHOP_KINDS = {
@@ -2257,6 +2386,150 @@ function equipItem(kind, id) {
   if (me.guest) { if (K.items[id].price > 0) { toast('Sign in to buy', 'err'); return; } if (kind === 'skins') me.skin = id; else if (kind === 'models') me.model = id; else me.fx = id; onCosmeticsChanged(); renderShop(); return; }
   db.ref('profiles/' + me.id + '/' + K.curKey).set(id);
 }
+
+/* ---------------- Big Man Dealer: trait boxes ---------------- */
+// Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
+// Traits are placeholders for now - they do nothing in a match yet.
+const TRAITS = {
+  b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: 'Placeholder passive trait.' },
+  b1p2: { name: 'Soft Hands', type: 'passive', sym: 'SH', desc: 'Placeholder passive trait.' },
+  b1a:  { name: 'Rocket Serve', type: 'ability', sym: 'RS', desc: 'Placeholder ability trait.' },
+  b2p1: { name: 'Iron Wall', type: 'passive', sym: 'IW', desc: 'Placeholder passive trait.' },
+  b2p2: { name: 'Long Reach', type: 'passive', sym: 'LR', desc: 'Placeholder passive trait.' },
+  b2a:  { name: 'Blink', type: 'ability', sym: 'BL', desc: 'Placeholder ability trait.' },
+  b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
+  b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
+  b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },
+};
+const TRAIT_BOXES = {
+  1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
+  2: { name: 'Trait Box 2', price: 5000, traits: ['b2p1', 'b2p2', 'b2a'] },
+  3: { name: 'Trait Box 3', price: 10000, traits: ['b3p1', 'b3p2', 'b3a'] },
+};
+const BOX_ODDS = [0.4, 0.4, 0.2];
+function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
+function traitCardHtml(tid, cls = '', extra = '') {
+  const t = TRAITS[tid]; if (!t) return '';
+  return `<div class="tcard ${t.type === 'ability' ? 'abl' : 'pas'} ${cls}"><div class="ty">${t.type}</div><div class="sym">${t.sym}</div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${extra}</div>`;
+}
+function openTraitShop() { openPanel('#traitPanel'); renderTraitShop(); }
+function renderTraitShop() {
+  $('#traitMoney').textContent = me.guest ? 'Sign in to buy' : '$' + (me.dollars || 0).toLocaleString();
+  const grid = $('#traitGrid'); grid.innerHTML = '';
+  for (const tier of [1, 2, 3]) {
+    const bx = TRAIT_BOXES[tier]; const d = document.createElement('div'); d.className = 'item tier' + tier;
+    d.innerHTML = `<img src="${ICONS['box_' + tier] || ''}" alt=""><div class="nm">${bx.name}</div><div class="rar">${['', 'bronze', 'silver', 'gold'][tier]} box</div><div class="pr">$${bx.price.toLocaleString()}</div><button>BUY</button>`;
+    d.querySelector('button').onclick = () => buyBox(tier);
+    d.onmouseenter = () => peekBox(tier);
+    grid.appendChild(d);
+  }
+}
+function peekBox(tier) {
+  const bx = TRAIT_BOXES[tier]; $('#traitPeekTitle').textContent = 'Inside ' + bx.name;
+  $('#traitPeekCards').innerHTML = bx.traits.map((tid, i) => traitCardHtml(tid, 'mini', `<div class="odds">${Math.round(BOX_ODDS[i] * 100)}%</div>`)).join('');
+}
+async function buyBox(tier) {
+  if (me.guest) { toast('Sign in to buy', 'err'); return; }
+  const bx = TRAIT_BOXES[tier]; const key = 'b' + Date.now().toString(36) + rnd();          // every box is its own item - they never stack
+  const res = await db.ref('profiles/' + me.id).transaction(pr => { if (!pr) return pr; if ((pr.dollars || 0) < bx.price) return; pr.dollars = (pr.dollars || 0) - bx.price; pr.boxes = pr.boxes || {}; pr.boxes[key] = { tier, t: Date.now() }; return pr; });
+  if (!res.committed) { toast(`Not enough dollars ($${bx.price.toLocaleString()} needed)`, 'err'); return; }
+  toast('Bought ' + bx.name + ' - open it in your Inventory', 'ok');
+}
+
+/* ---------------- Inventory ---------------- */
+let invTab = 'skins', invSel = null;
+$$('#invNav button').forEach(b => b.onclick = () => { invTab = b.dataset.inv; invSel = null; renderInventory(); });
+function openInventory(tab) { if (tab) { invTab = tab; invSel = null; } openPanel('#invPanel'); renderInventory(); }
+function renderInventory() {
+  $('#invMoney').textContent = me.guest ? 'Guest' : '$' + (me.dollars || 0).toLocaleString();
+  $$('#invNav button').forEach(b => b.classList.toggle('on', b.dataset.inv === invTab));
+  const traits = invTab === 'traits';
+  $('#invMain').classList.toggle('hidden', traits); $('#invTraits').classList.toggle('hidden', !traits);
+  if (traits) { renderTraitsTab(); return; }
+  const K = SHOP_KINDS[invTab]; const ownedMap = K.owned() || {}; const cur = K.cur(); const onWheel = K.multi ? wheelSlots() : [];
+  const ids = Object.keys(K.items).filter(id => !K.items[id].price || ownedMap[id]).sort((a, b) => (RARITY_ORDER[K.items[a].rarity] - RARITY_ORDER[K.items[b].rarity]) || (K.items[a].price - K.items[b].price));
+  const grid = $('#invGrid'); grid.innerHTML = '';
+  if (!ids.length) grid.innerHTML = '<div id="invEmpty">Nothing here yet - visit Lil Man Dealer.</div>';
+  if (invSel && !ids.includes(invSel)) invSel = null;
+  if (!invSel) invSel = ids.find(id => K.multi ? onWheel.includes(id) : cur === id) || ids[0] || null;
+  for (const id of ids) {
+    const it = K.items[id]; const eq = K.multi ? onWheel.includes(id) : cur === id;
+    const d = document.createElement('div'); d.className = 'tile b-' + it.rarity + (id === invSel ? ' sel' : '');
+    d.innerHTML = `<img src="${ICONS[K.icon + id] || ''}" alt="">${eq ? '<div class="eqp">EQUIPPED</div>' : ''}`;
+    d.title = it.name; d.onclick = () => { invSel = id; renderInventory(); };
+    grid.appendChild(d);
+  }
+  const det = $('#invDetail'); det.classList.toggle('none', !invSel);
+  if (!invSel) { det.innerHTML = 'Select an item'; return; }
+  const it = K.items[invSel]; const eq = K.multi ? onWheel.includes(invSel) : cur === invSel;
+  const src = it.price ? `Bought from Lil Man Dealer for $${it.price.toLocaleString()}` : 'Free for everyone';
+  det.innerHTML = `<div class="nm">${it.name}</div><img src="${ICONS[K.icon + invSel] || ''}" alt=""><div class="rar r-${it.rarity}">${it.rarity}</div><div class="desc">${src}</div><button class="btn ${eq ? 'red' : 'green'}">${K.multi ? (eq ? 'REMOVE FROM WHEEL' : 'ADD TO WHEEL') : (eq ? (invSel === K.def ? 'EQUIPPED' : 'UNEQUIP') : 'EQUIP')}</button>`;
+  const btn = det.querySelector('button'); if (!K.multi && eq && invSel === K.def) btn.disabled = true;
+  btn.onclick = () => K.multi ? equipEmote(invSel) : equipItem(invTab, eq ? K.def : invSel);
+}
+function onInventoryChanged() { if (!$('#invPanel').classList.contains('hidden')) renderInventory(); }
+function renderTraitsTab() {
+  const lo = me.loadout || {}; const own = me.traits || {}; const boxes = me.boxes || {};
+  const slot = (key, type, label) => {
+    const tr = key && own[key] && TRAITS[own[key].id] ? own[key] : null;
+    if (tr) { const t = TRAITS[tr.id]; return `<div class="tcard slot ${type === 'ability' ? 'abl' : 'pas'}" data-slot="${label}" title="Click to unequip"><div class="ty">${t.type}</div><div class="sym">${t.sym}</div><div class="tn">${t.name}</div><div class="td">${t.desc}</div></div>`; }
+    return `<div class="tcard slot empty ${type === 'ability' ? 'abl' : 'pas'}"><div class="tn">${type === 'ability' ? 'Ability' : 'Passive'}</div><div class="td">empty slot</div></div>`;
+  };
+  $('#loadout').innerHTML = slot(lo.p1, 'passive', 'p1') + slot(lo.p2, 'passive', 'p2') + slot(lo.a, 'ability', 'a');
+  $$('#loadout .slot[data-slot]').forEach(el => el.onclick = () => unequipTrait(el.dataset.slot));
+  const bag = $('#invBag'); bag.innerHTML = '';
+  if (me.guest) { bag.innerHTML = '<div id="invEmpty">Sign in to collect traits.</div>'; return; }
+  const equipped = new Set([lo.p1, lo.p2, lo.a].filter(Boolean));
+  const boxKeys = Object.keys(boxes).sort((a, b) => (boxes[a].t || 0) - (boxes[b].t || 0));
+  for (const k of boxKeys) {
+    const bx = TRAIT_BOXES[boxes[k].tier]; if (!bx) continue;
+    const d = document.createElement('div'); d.className = 'bag-box tier' + boxes[k].tier;
+    d.innerHTML = `<img src="${ICONS['box_' + boxes[k].tier] || ''}" alt=""><div class="tn">${bx.name}</div><button>OPEN</button>`;
+    d.querySelector('button').onclick = () => openBox(k); bag.appendChild(d);
+  }
+  const trKeys = Object.keys(own).filter(k => !equipped.has(k) && TRAITS[own[k].id]).sort((a, b) => (own[a].t || 0) - (own[b].t || 0));
+  for (const k of trKeys) {
+    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button>');
+    const d = w.firstChild; d.querySelector('button').onclick = (e) => { e.stopPropagation(); equipTrait(k); }; bag.appendChild(d);
+  }
+  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes on the yellow couch.</div>';
+}
+function equipTrait(key) {
+  const tr = (me.traits || {})[key]; if (!tr || !TRAITS[tr.id]) return;
+  const T = TRAITS[tr.id]; const lo = Object.assign({}, me.loadout || {}); const own = me.traits;
+  if (T.type === 'ability') lo.a = key;
+  else if (!lo.p1 || !own[lo.p1]) lo.p1 = key;
+  else if (!lo.p2 || !own[lo.p2]) lo.p2 = key;
+  else { toast('Both passive slots are full - unequip one first', 'err'); return; }
+  db.ref('profiles/' + me.id + '/loadout').set(lo);
+}
+function unequipTrait(slot) { if (me.guest) return; db.ref('profiles/' + me.id + '/loadout/' + slot).remove(); }
+let opening = false;
+async function openBox(key) {
+  const bx = (me.boxes || {})[key]; if (!bx || me.guest) return; if (opening && !$('#openFx').classList.contains('hidden')) return;
+  opening = true;
+  const tid = rollBox(bx.tier); const newKey = 't' + Date.now().toString(36) + rnd();
+  const res = await db.ref('profiles/' + me.id).transaction(pr => { if (!pr) return pr; if (!pr.boxes || !pr.boxes[key]) return; pr.boxes[key] = null; pr.traits = pr.traits || {}; pr.traits[newKey] = { id: tid, t: Date.now() }; return pr; });
+  if (!res.committed) { opening = false; toast('That box is already gone', 'err'); return; }
+  playOpen(bx.tier, tid);
+}
+function playOpen(tier, tid) {                      // inventory steps aside, the chest rattles, pops open and throws the card out
+  const t = TRAITS[tid]; $('#invPanel').classList.add('hidden');
+  const fx = $('#openFx'), chest = $('#openChest'), burst = $('#openBurst'), card = $('#openCard'), msg = $('#openMsg'), done = $('#openDone');
+  fx.classList.remove('hidden'); fx.querySelectorAll('.spark').forEach(s => s.remove());
+  chest.src = ICONS['box_' + tier] || ''; chest.classList.remove('shake'); void chest.offsetWidth; chest.classList.add('shake');
+  burst.classList.remove('go'); card.classList.remove('fly'); card.style.opacity = 0; msg.style.opacity = 0; done.style.opacity = 0; done.disabled = true;
+  card.className = 'tcard ' + (t.type === 'ability' ? 'abl' : 'pas'); card.querySelector('.ty').textContent = t.type; card.querySelector('.sym').textContent = t.sym; card.querySelector('.tn').textContent = t.name; card.querySelector('.td').textContent = t.desc;
+  const stage = $('#openStage');
+  setTimeout(() => {
+    if (fx.classList.contains('hidden')) return;
+    chest.src = ICONS['boxopen_' + tier] || chest.src; chest.classList.remove('shake');
+    burst.classList.add('go'); card.classList.add('fly'); card.style.opacity = '';
+    for (let i = 0; i < 18; i++) { const s = document.createElement('div'); s.className = 'spark'; const a = Math.random() * Math.PI * 2, r = 90 + Math.random() * 130; s.style.setProperty('--dx', Math.cos(a) * r + 'px'); s.style.setProperty('--dy', (Math.sin(a) * r - 60) + 'px'); s.style.background = i % 3 ? 'var(--yellow)' : '#fff'; stage.appendChild(s); }
+    setTimeout(() => { msg.innerHTML = `${t.name}<small>${t.type === 'ability' ? 'Ability trait' : 'Passive trait'} - added to your inventory</small>`; msg.style.opacity = 1; done.style.opacity = 1; done.disabled = false; }, 900);
+  }, 950);
+}
+$('#openDone').onclick = () => { $('#openFx').classList.add('hidden'); opening = false; openInventory('traits'); };
 
 function groundDustColor() { return S.scene === 'match' ? 0xd9c7a8 : (indoors(P.pos.x, P.pos.z) ? 0xd8c4a0 : 0xf3e4bb); }
 /* ---------------- Wind HUD ---------------- */
@@ -2300,7 +2573,7 @@ document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
   if (idx >= 0) delete wheel[idx]; else { let free = slots.indexOf(null); if (free < 0) { toast('Wheel is full - remove an emote first', 'err'); return; } wheel[free] = id; }
-  if (me.guest) { me.wheel = wheel; renderShop(); return; }
+  if (me.guest) { me.wheel = wheel; renderShop(); onInventoryChanged(); return; }
   db.ref('profiles/' + me.id + '/wheel').set(wheel);
 }
 
@@ -2615,7 +2888,7 @@ function setMyRig(variant) {
   const base = P.rig ? P.rig.base : 'idle'; if (P.rig) scene.remove(P.rig.root);
   P.rig = new Rig(variant, model); P.rig.base = base; P.rig.setPose(base); scene.add(P.rig.root);
 }
-function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#shopPanel').classList.contains('hidden')) renderShop(); }
+function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#shopPanel').classList.contains('hidden')) renderShop(); if (!$('#invPanel').classList.contains('hidden')) renderInventory(); }
 function beginMatch(M) {
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
   if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }

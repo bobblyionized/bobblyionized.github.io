@@ -106,6 +106,7 @@ function onPress(code) {
   if (code === KEYS.emote) { toggleWheel(); return; }
   if (P.emote) stopEmote();
   if (code === KEYS.interact && P.onGround && nearNPC()) { openShop(); return; }
+  if (code === KEYS.interact && P.onGround && nearNPC2()) { openTraitShop(); return; }
   if (code === KEYS.jump) tryJump();
   if (code === KEYS.serve) trySpawnBall(true);
   else if (code === KEYS.spawnBall) trySpawnBall(false);
@@ -652,17 +653,22 @@ function updateCards() {
 
 /* ---------------- Lil Man Dealer (NPC) + shop ---------------- */
 function nearNPC() { return S.scene === 'lobby' && Math.hypot(P.pos.x - NPC_POS.x, P.pos.z - NPC_POS.z) < 4.2; }
-let npcTag = null;
+function nearNPC2() { return S.scene === 'lobby' && !nearNPC() && Math.hypot(P.pos.x - NPC2_POS.x, P.pos.z - NPC2_POS.z) < 3.4; }
+const NPCS = [{ name: 'Lil Man Dealer', pos: NPC_POS, tagY: 1.75, promptY: 2.15, near: nearNPC, tag: null }, { name: 'Big Man Dealer', pos: NPC2_POS, tagY: 1.75, promptY: 2.1, near: nearNPC2, tag: null }];
 function projectNpc() {
-  if (!npcTag) { npcTag = document.createElement('div'); npcTag.className = 'tag'; npcTag.textContent = 'Lil Man Dealer'; $('#tags').appendChild(npcTag); }
-  const showTag = S.scene === 'lobby' && P.pos.distanceTo(NPC_POS) < 30;
-  npcTag.style.display = showTag ? '' : 'none';
-  if (showTag) { _v.copy(NPC_POS); _v.y += 1.75; _v.project(camera); const vis = _v.z < 1; npcTag.style.display = vis ? '' : 'none'; npcTag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; npcTag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
-  const el = $('#npcPrompt'); const on = nearNPC() && !uiOpen();
-  el.classList.toggle('hidden', !on); if (!on) return;
-  el.querySelector('b').textContent = keyName(KEYS.interact);
-  _v.copy(NPC_POS); _v.y += 2.15; _v.project(camera);
-  el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+  const el = $('#npcPrompt'); let prompted = false;
+  for (const n of NPCS) {
+    if (!n.tag) { n.tag = document.createElement('div'); n.tag.className = 'tag'; n.tag.textContent = n.name; $('#tags').appendChild(n.tag); }
+    const showTag = S.scene === 'lobby' && P.pos.distanceTo(n.pos) < 30;
+    n.tag.style.display = showTag ? '' : 'none';
+    if (showTag) { _v.copy(n.pos); _v.y += n.tagY; _v.project(camera); const vis = _v.z < 1; n.tag.style.display = vis ? '' : 'none'; n.tag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; n.tag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; }
+    if (!prompted && n.near() && !uiOpen()) {
+      prompted = true; el.classList.remove('hidden'); el.querySelector('b').textContent = keyName(KEYS.interact);
+      _v.copy(n.pos); _v.y += n.promptY; _v.project(camera);
+      el.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px';
+    }
+  }
+  if (!prompted) el.classList.add('hidden');
 }
 let shopTab = 'skins';
 const SHOP_KINDS = {
@@ -701,6 +707,150 @@ function equipItem(kind, id) {
   if (me.guest) { if (K.items[id].price > 0) { toast('Sign in to buy', 'err'); return; } if (kind === 'skins') me.skin = id; else if (kind === 'models') me.model = id; else me.fx = id; onCosmeticsChanged(); renderShop(); return; }
   db.ref('profiles/' + me.id + '/' + K.curKey).set(id);
 }
+
+/* ---------------- Big Man Dealer: trait boxes ---------------- */
+// Every box holds 3 cards: 2 passives (blue) + 1 ability (red). Pull odds are the same for every box: 40 / 40 / 20.
+// Traits are placeholders for now - they do nothing in a match yet.
+const TRAITS = {
+  b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: 'Placeholder passive trait.' },
+  b1p2: { name: 'Soft Hands', type: 'passive', sym: 'SH', desc: 'Placeholder passive trait.' },
+  b1a:  { name: 'Rocket Serve', type: 'ability', sym: 'RS', desc: 'Placeholder ability trait.' },
+  b2p1: { name: 'Iron Wall', type: 'passive', sym: 'IW', desc: 'Placeholder passive trait.' },
+  b2p2: { name: 'Long Reach', type: 'passive', sym: 'LR', desc: 'Placeholder passive trait.' },
+  b2a:  { name: 'Blink', type: 'ability', sym: 'BL', desc: 'Placeholder ability trait.' },
+  b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
+  b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
+  b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },
+};
+const TRAIT_BOXES = {
+  1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
+  2: { name: 'Trait Box 2', price: 5000, traits: ['b2p1', 'b2p2', 'b2a'] },
+  3: { name: 'Trait Box 3', price: 10000, traits: ['b3p1', 'b3p2', 'b3a'] },
+};
+const BOX_ODDS = [0.4, 0.4, 0.2];
+function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
+function traitCardHtml(tid, cls = '', extra = '') {
+  const t = TRAITS[tid]; if (!t) return '';
+  return `<div class="tcard ${t.type === 'ability' ? 'abl' : 'pas'} ${cls}"><div class="ty">${t.type}</div><div class="sym">${t.sym}</div><div class="tn">${t.name}</div><div class="td">${t.desc}</div>${extra}</div>`;
+}
+function openTraitShop() { openPanel('#traitPanel'); renderTraitShop(); }
+function renderTraitShop() {
+  $('#traitMoney').textContent = me.guest ? 'Sign in to buy' : '$' + (me.dollars || 0).toLocaleString();
+  const grid = $('#traitGrid'); grid.innerHTML = '';
+  for (const tier of [1, 2, 3]) {
+    const bx = TRAIT_BOXES[tier]; const d = document.createElement('div'); d.className = 'item tier' + tier;
+    d.innerHTML = `<img src="${ICONS['box_' + tier] || ''}" alt=""><div class="nm">${bx.name}</div><div class="rar">${['', 'bronze', 'silver', 'gold'][tier]} box</div><div class="pr">$${bx.price.toLocaleString()}</div><button>BUY</button>`;
+    d.querySelector('button').onclick = () => buyBox(tier);
+    d.onmouseenter = () => peekBox(tier);
+    grid.appendChild(d);
+  }
+}
+function peekBox(tier) {
+  const bx = TRAIT_BOXES[tier]; $('#traitPeekTitle').textContent = 'Inside ' + bx.name;
+  $('#traitPeekCards').innerHTML = bx.traits.map((tid, i) => traitCardHtml(tid, 'mini', `<div class="odds">${Math.round(BOX_ODDS[i] * 100)}%</div>`)).join('');
+}
+async function buyBox(tier) {
+  if (me.guest) { toast('Sign in to buy', 'err'); return; }
+  const bx = TRAIT_BOXES[tier]; const key = 'b' + Date.now().toString(36) + rnd();          // every box is its own item - they never stack
+  const res = await db.ref('profiles/' + me.id).transaction(pr => { if (!pr) return pr; if ((pr.dollars || 0) < bx.price) return; pr.dollars = (pr.dollars || 0) - bx.price; pr.boxes = pr.boxes || {}; pr.boxes[key] = { tier, t: Date.now() }; return pr; });
+  if (!res.committed) { toast(`Not enough dollars ($${bx.price.toLocaleString()} needed)`, 'err'); return; }
+  toast('Bought ' + bx.name + ' - open it in your Inventory', 'ok');
+}
+
+/* ---------------- Inventory ---------------- */
+let invTab = 'skins', invSel = null;
+$$('#invNav button').forEach(b => b.onclick = () => { invTab = b.dataset.inv; invSel = null; renderInventory(); });
+function openInventory(tab) { if (tab) { invTab = tab; invSel = null; } openPanel('#invPanel'); renderInventory(); }
+function renderInventory() {
+  $('#invMoney').textContent = me.guest ? 'Guest' : '$' + (me.dollars || 0).toLocaleString();
+  $$('#invNav button').forEach(b => b.classList.toggle('on', b.dataset.inv === invTab));
+  const traits = invTab === 'traits';
+  $('#invMain').classList.toggle('hidden', traits); $('#invTraits').classList.toggle('hidden', !traits);
+  if (traits) { renderTraitsTab(); return; }
+  const K = SHOP_KINDS[invTab]; const ownedMap = K.owned() || {}; const cur = K.cur(); const onWheel = K.multi ? wheelSlots() : [];
+  const ids = Object.keys(K.items).filter(id => !K.items[id].price || ownedMap[id]).sort((a, b) => (RARITY_ORDER[K.items[a].rarity] - RARITY_ORDER[K.items[b].rarity]) || (K.items[a].price - K.items[b].price));
+  const grid = $('#invGrid'); grid.innerHTML = '';
+  if (!ids.length) grid.innerHTML = '<div id="invEmpty">Nothing here yet - visit Lil Man Dealer.</div>';
+  if (invSel && !ids.includes(invSel)) invSel = null;
+  if (!invSel) invSel = ids.find(id => K.multi ? onWheel.includes(id) : cur === id) || ids[0] || null;
+  for (const id of ids) {
+    const it = K.items[id]; const eq = K.multi ? onWheel.includes(id) : cur === id;
+    const d = document.createElement('div'); d.className = 'tile b-' + it.rarity + (id === invSel ? ' sel' : '');
+    d.innerHTML = `<img src="${ICONS[K.icon + id] || ''}" alt="">${eq ? '<div class="eqp">EQUIPPED</div>' : ''}`;
+    d.title = it.name; d.onclick = () => { invSel = id; renderInventory(); };
+    grid.appendChild(d);
+  }
+  const det = $('#invDetail'); det.classList.toggle('none', !invSel);
+  if (!invSel) { det.innerHTML = 'Select an item'; return; }
+  const it = K.items[invSel]; const eq = K.multi ? onWheel.includes(invSel) : cur === invSel;
+  const src = it.price ? `Bought from Lil Man Dealer for $${it.price.toLocaleString()}` : 'Free for everyone';
+  det.innerHTML = `<div class="nm">${it.name}</div><img src="${ICONS[K.icon + invSel] || ''}" alt=""><div class="rar r-${it.rarity}">${it.rarity}</div><div class="desc">${src}</div><button class="btn ${eq ? 'red' : 'green'}">${K.multi ? (eq ? 'REMOVE FROM WHEEL' : 'ADD TO WHEEL') : (eq ? (invSel === K.def ? 'EQUIPPED' : 'UNEQUIP') : 'EQUIP')}</button>`;
+  const btn = det.querySelector('button'); if (!K.multi && eq && invSel === K.def) btn.disabled = true;
+  btn.onclick = () => K.multi ? equipEmote(invSel) : equipItem(invTab, eq ? K.def : invSel);
+}
+function onInventoryChanged() { if (!$('#invPanel').classList.contains('hidden')) renderInventory(); }
+function renderTraitsTab() {
+  const lo = me.loadout || {}; const own = me.traits || {}; const boxes = me.boxes || {};
+  const slot = (key, type, label) => {
+    const tr = key && own[key] && TRAITS[own[key].id] ? own[key] : null;
+    if (tr) { const t = TRAITS[tr.id]; return `<div class="tcard slot ${type === 'ability' ? 'abl' : 'pas'}" data-slot="${label}" title="Click to unequip"><div class="ty">${t.type}</div><div class="sym">${t.sym}</div><div class="tn">${t.name}</div><div class="td">${t.desc}</div></div>`; }
+    return `<div class="tcard slot empty ${type === 'ability' ? 'abl' : 'pas'}"><div class="tn">${type === 'ability' ? 'Ability' : 'Passive'}</div><div class="td">empty slot</div></div>`;
+  };
+  $('#loadout').innerHTML = slot(lo.p1, 'passive', 'p1') + slot(lo.p2, 'passive', 'p2') + slot(lo.a, 'ability', 'a');
+  $$('#loadout .slot[data-slot]').forEach(el => el.onclick = () => unequipTrait(el.dataset.slot));
+  const bag = $('#invBag'); bag.innerHTML = '';
+  if (me.guest) { bag.innerHTML = '<div id="invEmpty">Sign in to collect traits.</div>'; return; }
+  const equipped = new Set([lo.p1, lo.p2, lo.a].filter(Boolean));
+  const boxKeys = Object.keys(boxes).sort((a, b) => (boxes[a].t || 0) - (boxes[b].t || 0));
+  for (const k of boxKeys) {
+    const bx = TRAIT_BOXES[boxes[k].tier]; if (!bx) continue;
+    const d = document.createElement('div'); d.className = 'bag-box tier' + boxes[k].tier;
+    d.innerHTML = `<img src="${ICONS['box_' + boxes[k].tier] || ''}" alt=""><div class="tn">${bx.name}</div><button>OPEN</button>`;
+    d.querySelector('button').onclick = () => openBox(k); bag.appendChild(d);
+  }
+  const trKeys = Object.keys(own).filter(k => !equipped.has(k) && TRAITS[own[k].id]).sort((a, b) => (own[a].t || 0) - (own[b].t || 0));
+  for (const k of trKeys) {
+    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button>');
+    const d = w.firstChild; d.querySelector('button').onclick = (e) => { e.stopPropagation(); equipTrait(k); }; bag.appendChild(d);
+  }
+  if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes on the yellow couch.</div>';
+}
+function equipTrait(key) {
+  const tr = (me.traits || {})[key]; if (!tr || !TRAITS[tr.id]) return;
+  const T = TRAITS[tr.id]; const lo = Object.assign({}, me.loadout || {}); const own = me.traits;
+  if (T.type === 'ability') lo.a = key;
+  else if (!lo.p1 || !own[lo.p1]) lo.p1 = key;
+  else if (!lo.p2 || !own[lo.p2]) lo.p2 = key;
+  else { toast('Both passive slots are full - unequip one first', 'err'); return; }
+  db.ref('profiles/' + me.id + '/loadout').set(lo);
+}
+function unequipTrait(slot) { if (me.guest) return; db.ref('profiles/' + me.id + '/loadout/' + slot).remove(); }
+let opening = false;
+async function openBox(key) {
+  const bx = (me.boxes || {})[key]; if (!bx || me.guest) return; if (opening && !$('#openFx').classList.contains('hidden')) return;
+  opening = true;
+  const tid = rollBox(bx.tier); const newKey = 't' + Date.now().toString(36) + rnd();
+  const res = await db.ref('profiles/' + me.id).transaction(pr => { if (!pr) return pr; if (!pr.boxes || !pr.boxes[key]) return; pr.boxes[key] = null; pr.traits = pr.traits || {}; pr.traits[newKey] = { id: tid, t: Date.now() }; return pr; });
+  if (!res.committed) { opening = false; toast('That box is already gone', 'err'); return; }
+  playOpen(bx.tier, tid);
+}
+function playOpen(tier, tid) {                      // inventory steps aside, the chest rattles, pops open and throws the card out
+  const t = TRAITS[tid]; $('#invPanel').classList.add('hidden');
+  const fx = $('#openFx'), chest = $('#openChest'), burst = $('#openBurst'), card = $('#openCard'), msg = $('#openMsg'), done = $('#openDone');
+  fx.classList.remove('hidden'); fx.querySelectorAll('.spark').forEach(s => s.remove());
+  chest.src = ICONS['box_' + tier] || ''; chest.classList.remove('shake'); void chest.offsetWidth; chest.classList.add('shake');
+  burst.classList.remove('go'); card.classList.remove('fly'); card.style.opacity = 0; msg.style.opacity = 0; done.style.opacity = 0; done.disabled = true;
+  card.className = 'tcard ' + (t.type === 'ability' ? 'abl' : 'pas'); card.querySelector('.ty').textContent = t.type; card.querySelector('.sym').textContent = t.sym; card.querySelector('.tn').textContent = t.name; card.querySelector('.td').textContent = t.desc;
+  const stage = $('#openStage');
+  setTimeout(() => {
+    if (fx.classList.contains('hidden')) return;
+    chest.src = ICONS['boxopen_' + tier] || chest.src; chest.classList.remove('shake');
+    burst.classList.add('go'); card.classList.add('fly'); card.style.opacity = '';
+    for (let i = 0; i < 18; i++) { const s = document.createElement('div'); s.className = 'spark'; const a = Math.random() * Math.PI * 2, r = 90 + Math.random() * 130; s.style.setProperty('--dx', Math.cos(a) * r + 'px'); s.style.setProperty('--dy', (Math.sin(a) * r - 60) + 'px'); s.style.background = i % 3 ? 'var(--yellow)' : '#fff'; stage.appendChild(s); }
+    setTimeout(() => { msg.innerHTML = `${t.name}<small>${t.type === 'ability' ? 'Ability trait' : 'Passive trait'} - added to your inventory</small>`; msg.style.opacity = 1; done.style.opacity = 1; done.disabled = false; }, 900);
+  }, 950);
+}
+$('#openDone').onclick = () => { $('#openFx').classList.add('hidden'); opening = false; openInventory('traits'); };
 
 function groundDustColor() { return S.scene === 'match' ? 0xd9c7a8 : (indoors(P.pos.x, P.pos.z) ? 0xd8c4a0 : 0xf3e4bb); }
 /* ---------------- Wind HUD ---------------- */
@@ -744,7 +894,7 @@ document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
   if (idx >= 0) delete wheel[idx]; else { let free = slots.indexOf(null); if (free < 0) { toast('Wheel is full - remove an emote first', 'err'); return; } wheel[free] = id; }
-  if (me.guest) { me.wheel = wheel; renderShop(); return; }
+  if (me.guest) { me.wheel = wheel; renderShop(); onInventoryChanged(); return; }
   db.ref('profiles/' + me.id + '/wheel').set(wheel);
 }
 
@@ -1059,7 +1209,7 @@ function setMyRig(variant) {
   const base = P.rig ? P.rig.base : 'idle'; if (P.rig) scene.remove(P.rig.root);
   P.rig = new Rig(variant, model); P.rig.base = base; P.rig.setPose(base); scene.add(P.rig.root);
 }
-function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#shopPanel').classList.contains('hidden')) renderShop(); }
+function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#shopPanel').classList.contains('hidden')) renderShop(); if (!$('#invPanel').classList.contains('hidden')) renderInventory(); }
 function beginMatch(M) {
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
   if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }

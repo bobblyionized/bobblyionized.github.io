@@ -185,6 +185,7 @@ const POSES = {
   diveR:       { shL: [-30, 0, -35], shR: [-20, 0, -95], elL: [-20, 0, 0], elR: [0, 0, 0], hipL: [-25, 0, -5], hipR: [-10, 0, -20], knL: [45, 0, 0], knR: [20, 0, 0], spine: [0, 0, -12], neck: [0, 0, -20] },
   diveB:       { shL: [-150, 0, 20], shR: [-150, 0, -20], elL: [-10, 0, 0], elR: [-10, 0, 0], hipL: [-35, 0, 0], hipR: [-35, 0, 0], knL: [55, 0, 0], knR: [55, 0, 0], spine: [-10, 0, 0], neck: [-20, 0, 0] },
   hold:        { shL: [-75, 0, 5], shR: [0, 0, -3], elL: [-12, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
+  sit:         { shL: [-28, 0, 12], shR: [-28, 0, -12], elL: [-58, 0, 0], elR: [-58, 0, 0], hipL: [-76, 0, 6], hipR: [-76, 0, -6], knL: [76, 0, 0], knR: [76, 0, 0], spine: [-6, 0, 0], neck: [4, 0, 0] },   // couch sit: thighs forward, shins hanging, hands in the lap
   toss:        { shL: [-160, 0, 8], shR: [-15, 0, -5], elL: [0, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [-4, 0, 0], neck: [-16, 0, 0] },
 };
 const POSE_SNAP = { jumpUp: 22, land: 20, spikeCharge: 26, spikeHit: 32 };   // how hard each pose snaps in; everything else uses the default blend
@@ -218,8 +219,8 @@ class Rig {
     this.tilt = new THREE.Group(); this.tilt.position.y = HIP_Y; this.root.add(this.tilt);
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
-    const dealer = variant === 'dealer' || model === 'dealer'; const tux = model === 'tux';
-    const jm = dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
+    const big = variant === 'bigdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
+    const jm = big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
@@ -233,8 +234,9 @@ class Rig {
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
       box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck);
-      box(0.28, 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine);
-      box(0.56, 0.14, 0.32, mat(0x111111), 0, 0.56, -0.02, spine);
+      box(big ? 0.34 : 0.28, big ? 0.07 : 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine); if (big) box(0.1, 0.1, 0.03, mat(0xf5c542), 0, 0.43, 0.17, spine);   // chain (+ a medallion on the big man)
+      box(0.56, 0.14, 0.32, big ? mat(0xb3242a) : mat(0x111111), 0, 0.56, -0.02, spine);          // hood
+      if (big) { box(0.3, 0.1, 0.06, mat(0x2a1a10), 0, 0.08, 0.17, neck); box(0.34, 0.06, 0.1, mat(0x2a1a10), 0, 0.12, 0.14, neck); }   // beard
       this.torso.material = jm.torso;
     } else {
     // hair: simple blond cap + bangs, blue tips on the sides (head stays visible)
@@ -303,6 +305,21 @@ class Rig {
   handPos(side, out) { return this['hand' + side].getWorldPosition(out || new THREE.Vector3()); }
 }
 
+/* ---- trait boxes (chests) ---- */
+const CHEST_TIERS = { 1: { body: 0x8b5a2b, band: 0xcd7f32, glow: 0xffd9a0 }, 2: { body: 0x55636f, band: 0xd0d6dd, glow: 0xd8f0ff }, 3: { body: 0x7a4a10, band: 0xf5c542, glow: 0xfff0a0 } };
+function makeChest(tier, open) {
+  const c = CHEST_TIERS[tier] || CHEST_TIERS[1]; const g = new THREE.Group();
+  const bodyM = mat(c.body), bandM = mat(c.band, { emissive: c.band, emissiveIntensity: tier === 3 ? 0.3 : 0.1 });
+  box(1.0, 0.5, 0.64, bodyM, 0, 0.25, 0, g);
+  for (const x of [-0.3, 0.3]) box(0.12, 0.52, 0.66, bandM, x, 0.25, 0, g);
+  const lid = new THREE.Group(); lid.position.set(0, 0.5, -0.32); g.add(lid);
+  box(1.04, 0.22, 0.66, bodyM, 0, 0.11, 0.32, lid);
+  for (const x of [-0.3, 0.3]) box(0.12, 0.24, 0.68, bandM, x, 0.11, 0.32, lid);
+  box(0.16, 0.14, 0.05, bandM, 0, 0.06, 0.66, lid);                                              // latch
+  if (open) { lid.rotation.x = -1.9; const gl = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.55), new THREE.MeshBasicMaterial({ color: c.glow })); gl.position.set(0, 0.49, 0); g.add(gl); }
+  g.userData.lid = lid; return g;
+}
+
 /* ---- pose icons for the action cards (rendered once) ---- */
 const ICONS = {};
 function renderPoseIcons() {
@@ -323,6 +340,7 @@ function renderPoseIcons() {
   ICONS.ball = ICONS.skin_default;
   for (const eid of Object.keys(EMOTES)) { const er = new Rig('white'); er.emote = eid; er.emoteT = eid === 'wave' ? 0.4 : 0.25; er.setPose('idle'); er.update(1, 0); er.snap(); er.update(0.5, 0); sc.add(er.root); r2.render(sc, cam); ICONS['emote_' + eid] = r2.domElement.toDataURL('image/png'); sc.remove(er.root); }
   for (const mid of Object.keys(MODELS)) { const mr = new Rig('white', mid); mr.setPose('idle'); mr.snap(); sc.add(mr.root); r2.render(sc, cam); ICONS['model_' + mid] = r2.domElement.toDataURL('image/png'); sc.remove(mr.root); }
+  for (const t of [1, 2, 3]) for (const op of [false, true]) { const ch = makeChest(t, op); ch.position.set(0, 0.42, 0); ch.scale.setScalar(1.2); ch.rotation.y = 0.4; sc.add(ch); r2.render(sc, cam); ICONS[(op ? 'boxopen_' : 'box_') + t] = r2.domElement.toDataURL('image/png'); sc.remove(ch); }
   for (const fid of Object.keys(FXS)) { const g = fxPreview(fid); if (g) sc.add(g); r2.render(sc, cam); ICONS['fx_' + fid] = r2.domElement.toDataURL('image/png'); if (g) sc.remove(g); }
   r2.dispose();
 }
@@ -372,6 +390,7 @@ function updateWind() {
   WIND.set(Math.cos(ang) * str, 0, Math.sin(ang) * str);
 }
 let NPC = null; const NPC_POS = new THREE.Vector3(0, 0.5, 12.2);
+let NPC2 = null; const NPC2_POS = new THREE.Vector3(-4.3, 0, 0);   // Big Man Dealer, sitting on the yellow couch
 const COLLIDERS = [];   // walls the camera must not pass through
 function buildLobby() {
   const wallM = mat(0xf7f1e3), trimM = mat(0xe9dcc3), ceilM = mat(0xfaf6ee);
@@ -480,6 +499,9 @@ function buildLobby() {
   const counterBlock = box(4.8, 4, 2.6, wallM, 0, 2, 11.8, lobby); counterBlock.visible = false; COLLIDERS.push(counterBlock);   // invisible camera blocker: the camera never goes behind the counter
   box(1.2, 0.5, 0.8, darkWood, 0, 0.25, 12.2, lobby);                                                        // step behind the counter
   NPC = new Rig('dealer'); NPC.root.position.set(0, 0.5, 12.2); NPC.root.rotation.y = Math.PI; lobby.add(NPC.root);
+  NPC2 = new Rig('bigdealer'); NPC2.root.scale.set(RIG_SCALE * 1.2 * 1.12, RIG_SCALE * 1.2, RIG_SCALE * 1.2 * 1.12);   // a big man: taller and broader
+  NPC2.root.position.set(NPC2_POS.x, -0.22, NPC2_POS.z); NPC2.root.rotation.y = Math.PI / 2; NPC2.setPose('sit'); NPC2.base = 'sit'; NPC2.snap(); lobby.add(NPC2.root);
+  AMBIENT.push({ update(t) { NPC2.j.neck.rotation.y = Math.sin(t * 0.6) * 0.3; NPC2.j.spine.rotation.x = (-6 + Math.sin(t * 1.4) * 1.2) * D; } });   // looks around, breathes
   const plant = (x, z) => { cyl(0.32, 0.26, 0.5, mat(0xc98a5b), x, 0.25, z, lobby, 8); for (let i = 0; i < 3; i++) { const l = box(0.12, 1.1, 0.5, leafM, x + (i - 1) * 0.12, 1.0, z, lobby); l.rotation.z = (i - 1) * 0.35; } };
   plant(-11.5, 11.5); plant(11.5, 11.5); plant(-11.5, -4.5); plant(11.5, 4.5); plant(-39.5, 9.5); plant(-17, 9.5); plant(17, 7.5); plant(31.5, 7.5);
   const board = box(0.12, 2.4, 0.6, mat(0xf07a5a), 12.4, 1.25, 9.5, lobby); board.rotation.z = -0.15;                 // surfboard
