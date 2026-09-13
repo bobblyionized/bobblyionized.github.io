@@ -3531,7 +3531,7 @@ function chargeAt(dt) { return dt <= 0.1875 ? dt / 0.1875 * 0.5 : clamp(0.5 + (d
 function startSpike() {
   P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0; const dc = P.dashCharge; P.dashCharge = false;
   if (P.doubleSpike) { P.chargeStart = T - 1; P.charge = 1; }                            // Double Spike: the second swing is always a full charge
-  else if (dc) { P.chargeStart = T - 0.1875; P.charge = 0.5; }                    // fresh off a dash: the bar begins at 50%
+  else if (dc) { P.chargeStart = T - 0.375; P.charge = 0.75; }                     // fresh off a dash: the bar begins at 75%
   else if (hasTrait('b2p1')) { P.chargeStart = T - 0.09375; P.charge = 0.25; }             // Spike Startup: the bar begins at 25%
   $('#chargeBar').classList.remove('hidden'); $('#chargeBar').classList.toggle('storm', !!P.doubleSpike);
 }   // stays in the jump pose while charging; the swing plays on release
@@ -3627,7 +3627,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
   const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
   const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
-  P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 5; P.vel.set(0, 0, 0); P.glide = null; P.dashCharge = true;   // the next spike after a dash starts half charged
+  P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 4; P.vel.set(0, 0, 0); P.glide = null; P.dashCharge = true;   // the next spike after a dash starts half charged
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
     P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
     if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
@@ -4095,7 +4095,7 @@ const CARD_SETS = {
   hold: [['toss', 'TOSS', 'toss']],
 };
 let cardSig = '', utilSig = '';
-function cardHtml(act, label, pose, hold, cd = 0) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div>${cd > 0 ? `<div class="cdov" style="height:${Math.min(100, cd / 5 * 100).toFixed(0)}%"></div><div class="cdt">${cd.toFixed(1)}</div>` : ''}<div class="lbl">${label}</div></div>`; }
+function cardHtml(act, label, pose, hold, cd = 0) { return `<div class="card${hold ? ' hold' : ''}"><img src="${ICONS[pose] || ''}" alt=""><div class="key">${keyName(KEYS[act])}</div>${cd > 0 ? `<div class="cdov" style="height:${Math.min(100, cd / 4 * 100).toFixed(0)}%"></div><div class="cdt">${cd.toFixed(1)}</div>` : ''}<div class="lbl">${label}</div></div>`; }
 function updateCards() {
   const set = P.holding ? 'hold' : P.onGround ? 'ground' : 'air';
   const dash = set !== 'hold' && hasTrait('b3a'); const dcd = dash ? Math.max(0, (P.dashReady || 0) - T) : 0;
@@ -4181,7 +4181,7 @@ const TRAITS = {
   b4p1: { name: 'Speed Set', type: 'passive', sym: 'SP', desc: 'Your sets leave with 2x the horizontal speed and 1.2x the height.' },
   b4p2: { name: 'Setter Vision', type: 'passive', sym: 'SV', desc: 'You fall at 0.7x gravity, and every player near you gets a coloured marker over their head.' },
   b4a:  { name: 'Perfect Set', type: 'ability', sym: 'PS', desc: 'Sets aimed at the nearest net leave 3x faster, climb to just above the antennas and decay to a third of their speed as they reach the net.' },
-  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It kills all your momentum and refreshes your action the moment you dash, your next spike starts half charged, and in the air you then glide the way you were tilting.' },
+  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (4 s cooldown). It kills all your momentum and refreshes your action the moment you dash, your next spike starts three-quarters charged, and in the air you then glide the way you were tilting.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
