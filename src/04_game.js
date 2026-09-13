@@ -3,7 +3,7 @@
    ===================================================================== */
 const V3 = THREE.Vector3;
 const G = 14;
-const MOVE_SPEED = 6.5, JUMP_V = 9.03, GROUND_CD = 0.7, DIVE_CD = 0.3;   // dive recovery halved
+const MOVE_SPEED = 6.5, JUMP_V = 9.03, GROUND_CD = 0.7, DIVE_CD = 0.3, GLIDE_SPEED = 4.5;   // dive recovery halved
 const REACH_G = 1.9, REACH_A = 1.8;
 const TEAM_VARIANT = { A: 'black', B: 'white', L: 'white' };
 
@@ -113,7 +113,7 @@ function onPress(code) {
   if (code === KEYS.serve) trySpawnBall(true);
   else if (code === KEYS.spawnBall) trySpawnBall(false);
   if (P.holding) { if (code === KEYS.toss) doToss(); return; }
-  if (P.dive || P.dash) return;
+  if (P.dive) return;
   if (P.onGround) {
     if (P.cd > 0 || T < (P.landLock || 0)) return;
     if (code === KEYS.bump) doBump();
@@ -121,6 +121,7 @@ function onPress(code) {
     else if (code === KEYS.dive) doDive();
   } else {
     if (P.airUsed) return;
+    if (P.doubleSpike) { if (code === KEYS.spike && T >= (P.dsReady || 0)) startSpike(); return; }   // Double Spike: the second action is a spike, nothing else, after a short breather
     if (code === KEYS.block) doBlock();
     else if (code === KEYS.jumpSet) doJumpSet();
     else if (code === KEYS.spike) startSpike();
@@ -130,7 +131,7 @@ function onRelease(code) { if (P.charging && code === KEYS.spike) releaseSpike()
 
 function tryJump() {
   if (!P.onGround || P.dive || T < (P.landLock || 0)) return;
-  P.vel.y = JUMP_V * (hasTrait('b3p2') ? Math.sqrt(1.32) : 1); P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.tilt.set(0, 0); P.tiltIn.set(0, 0);   // Power Jump: 20% more height under 10% more gravity
+  P.vel.y = JUMP_V * (hasTrait('b3p2') ? Math.sqrt(1.32) : 1); P.onGround = false; P.airUsed = false; P.doubleSpike = false; P.dsUsed = false; P.glide = null; P.tilt.set(0, 0); P.tiltIn.set(0, 0);   // Power Jump: 20% more height under 10% more gravity
   jumpFx(P.pos.x, P.pos.z, groundDustColor());
   P.jumpFwd = cf(); P.rig.base = P.holding ? 'hold' : 'air';
   P.rig.setPose(P.holding ? 'hold' : 'jumpUp', P.holding ? 0 : T + 0.18);   // take-off extension, then settle into the spike-ready air pose
@@ -162,7 +163,7 @@ function tryAct() {
   if (T > a.until) {
     P.act = null;
     if ((a.type === 'spike' || a.type === 'tip') && !P.onGround && !P.doubleSpike && !P.dsUsed && hasTrait('b2a')) {   // Double Spike: a whiffed swing arms one more, full-power lightning spike this jump
-      P.doubleSpike = true; P.dsUsed = true; P.airUsed = false; P.rig.base = 'air'; P.rig.setPose('air');                       // no popup: the blue charge bar is the only tell
+      P.doubleSpike = true; P.dsUsed = true; P.airUsed = false; P.dsReady = T + 0.3; P.rig.base = 'air'; P.rig.setPose('air');                       // no popup: the blue charge bar is the only tell
     }
     return;
   }
@@ -213,7 +214,7 @@ function chargeAt(dt) { return dt <= 0.1875 ? dt / 0.1875 * 0.5 : clamp(0.5 + (d
 function startSpike() {
   P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0;
   if (P.doubleSpike) { P.chargeStart = T - 1; P.charge = 1; }                            // Double Spike: the second swing is always a full charge
-  else if (hasTrait('b2p1')) { P.chargeStart = T - 0.1875; P.charge = 0.5; }              // Spike Startup: the bar begins at 50%
+  else if (hasTrait('b2p1')) { P.chargeStart = T - 0.09375; P.charge = 0.25; }             // Spike Startup: the bar begins at 25%
   $('#chargeBar').classList.remove('hidden'); $('#chargeBar').classList.toggle('storm', !!P.doubleSpike);
 }   // stays in the jump pose while charging; the swing plays on release
 function releaseSpike() {
@@ -307,7 +308,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
   const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
   const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
   const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
-  P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 5; P.vel.y = 0;
+  P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 5; P.vel.set(0, 0, 0); P.glide = null;
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
     P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
     if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
@@ -378,7 +379,11 @@ function updatePlayer(dt) {
   if (P.swingAt && T >= P.swingAt) { P.swingAt = 0; if (!P.onGround) { P.rig.base = 'airDown'; P.rig.setPose('spikeHit', T + 0.4); actionFx('spike', P.rig, P.jumpFwd); } }   // the arm stays down through the fall instead of re-cocking
   if (P.dash) {
     const e = (T - P.dash.t0) / P.dash.dur;
-    if (e >= 1) { P.dash = null; if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); } else { P.rig.base = 'air'; P.rig.setPose('air'); } }
+    if (e >= 1) {
+      P.dash = null; P.vel.x = P.vel.z = 0;                                                  // the dash leaves you with no momentum...
+      if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); }
+      else { P.rig.base = 'air'; P.rig.setPose('air'); const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); P.glide = w.lengthSq() > 0 ? w.normalize() : null; }   // ...then you glide the way you were tilting (locked in until you land)
+    }
     else { const sp = 38.5 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
   } else if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
@@ -392,6 +397,7 @@ function updatePlayer(dt) {
     if (shiftLock) P.ry = camYaw;
     else if (P.moving) { const tr = Math.atan2(mv.x, mv.z); let d = tr - P.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); P.ry += d * Math.min(1, dt * 14); }
   } else {
+    if (P.glide) { P.vel.x = P.glide.x * GLIDE_SPEED; P.vel.z = P.glide.z * GLIDE_SPEED; }   // post-dash glide: fixed direction
     const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz));   // tilt: camera-relative, mapped onto the character
     P.tiltIn.set(w.dot(cr()), w.dot(cf())); if (P.tiltIn.length() > 1) P.tiltIn.normalize();
   }
@@ -428,7 +434,7 @@ function updatePlayer(dt) {
   if (P.pos.y <= gh || (P.onGround && P.vel.y <= 0 && P.pos.y - gh <= 0.7)) {
     P.pos.y = gh; P.vel.y = 0;
     if (!P.onGround) {
-      P.onGround = true; P.airUsed = false; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; $('#chargeBar').classList.remove('storm');
+      P.onGround = true; P.airUsed = false; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.glide = null; $('#chargeBar').classList.remove('storm');
       if (P.airActed) { P.landLock = T + 0.5; P.airActed = false; }           // used block / jump set on that jump: on landing, 0.5s of no jump / set / bump / dive
       if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); } P.swingAt = 0;
       P.rig.base = P.holding ? 'hold' : 'idle';
@@ -805,12 +811,12 @@ const TRAITS = {
   b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
   b1p2: { name: 'Fake Block', type: 'passive', sym: 'FB', desc: 'Your block tilts are reversed: S acts like W and W like S.' },
   b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 3 m up, then slam straight down under heavy gravity.' },
-  b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 50%.' },
+  b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 25%.' },
   b2p2: { name: '4th Tempo', type: 'passive', sym: '4T', desc: 'Ground sets float higher with less gravity and carry further in the direction you run.' },
-  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.3x power, lightning on contact.' },
+  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get one more swing - a spike only, after a short breather: instantly full charge, 1.3x power, lightning on contact.' },
   b3p1: { name: 'King Serve', type: 'passive', sym: 'KS', desc: '10% more serve power.' },
   b3p2: { name: 'Power Jump', type: 'passive', sym: 'PJ', desc: '20% more jump height, with 10% more gravity on the way down.' },
-  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It refreshes your action - set, dash, set again - and in the air it also cancels your fall.' },
+  b3a:  { name: 'Dash', type: 'ability', sym: 'DA', desc: 'Press your Ability key to dash (5 s cooldown). It kills all your momentum and refreshes your action the moment you dash; in the air you then glide the way you were tilting.' },
 };
 const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
