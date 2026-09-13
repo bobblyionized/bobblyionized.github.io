@@ -826,7 +826,7 @@ addEventListener('resize', resize); resize();
 
 const hemi = new THREE.HemisphereLight(0xdff2ff, 0xc9b08a, 0.5); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff4e0, 0.7); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -18; sun.shadow.camera.right = 18; sun.shadow.camera.top = 18; sun.shadow.camera.bottom = -18;   // 36 m box around the player: cheaper pass, sharper shadows sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -18; sun.shadow.camera.right = 18; sun.shadow.camera.top = 18; sun.shadow.camera.bottom = -18; sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;   // 36 m box around the player: cheaper pass, sharper shadows
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.05; sun.shadow.radius = 2;   // normalBias keeps the filleted edges free of acne
 sun.position.set(14, 26, 10); scene.add(sun); scene.add(sun.target);
 const bounce = new THREE.DirectionalLight(0xbcd8ff, 0.2); bounce.castShadow = false; scene.add(bounce);   // cool fill from the shadow side, so shadowed faces stay readable
@@ -3290,7 +3290,7 @@ function skinMaterial(id) {
 }
 const BALL_GEO = new THREE.SphereGeometry(BALL_R, 20, 16), BALL_GEO_LP = new THREE.IcosahedronGeometry(BALL_R, 1);
 function applySkin(mesh, id) {
-  id = SKINS[id] ? id : 'default'; if (ULTRA) id = 'default';   // ultra low: every ball is drawn as the classic one (the owner's skin is still sent to others) mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
+  id = SKINS[id] ? id : 'default'; if (ULTRA) id = 'default'; /* ultra low: every ball is drawn as the classic one (the owner's skin is still sent to others) */ mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
   // chromatic: glowing rainbow aura around the ball (visual only - hitbox is unchanged)
   const old = mesh.getObjectByName('aura'); if (old) { mesh.remove(old); const i = AURAS.indexOf(old.material); if (i >= 0) AURAS.splice(i, 1); const j = NEUTRONS.indexOf(old); if (j >= 0) NEUTRONS.splice(j, 1); }
   if (id === 'chromatic') {
