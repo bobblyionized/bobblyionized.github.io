@@ -3154,12 +3154,15 @@ const SKINS = {
   fire:       { name: 'Fire', price: 2500, rarity: 'epic' },
   gold:       { name: 'Gold', price: 5000, rarity: 'epic' },
   chromatic:  { name: 'Chromatic', price: 10000, rarity: 'legendary' },
+  soccer:     { name: 'Soccer Ball', price: 800, rarity: 'common' },
+  neutron:    { name: 'Neutron Star', price: 25000, rarity: 'mythic' },
 };
 const MODELS = { boy: { name: 'Boy', price: 0, rarity: 'common' }, girl: { name: 'Girl', price: 0, rarity: 'common' }, dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' } };
 const EMOTES = { wave: { name: 'Wave', price: 500, rarity: 'common' }, clap: { name: 'Clap', price: 500, rarity: 'common' }, worm: { name: 'Worm', price: 7500, rarity: 'epic' } };
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 };
 const FXS = { none: { name: 'None', price: 0, rarity: 'common' }, confetti: { name: 'Confetti', price: 3000, rarity: 'rare' }, heart: { name: 'Heart', price: 5000, rarity: 'rare' }, smite: { name: 'Smite', price: 10000, rarity: 'legendary' }, timestop: { name: 'Time Stop', price: 12500, rarity: 'legendary' }, hammock: { name: 'Hammock', price: 10000, rarity: 'epic' }, blackhole: { name: 'Black Hole', price: 20000, rarity: 'mythic' } };
 const AURAS = [];   // chromatic auras (colour cycles every frame)
+const NEUTRONS = [];   // neutron star balls (beams sweep, glow pulses)
 const SKIN_CACHE = {}; const BALL_GLOW = 0.32;   // keeps balls at their old brightness under the darker lighting
 function skinMaterial(id) {
   if (SKIN_CACHE[id]) return SKIN_CACHE[id];
@@ -3173,7 +3176,18 @@ function skinMaterial(id) {
       for (let i = 0; i < 4; i++) { const x = i * 128 + 64; g.beginPath(); g.moveTo(x - 40, 0); g.quadraticCurveTo(x + 30, h / 2, x - 40, h); g.stroke(); }
     });
     m = mat(0xffffff, { map: tex, roughness: .8, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
-  } else if (id === 'chromatic') m = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: .35 + BALL_GLOW, roughness: .3 });
+  } else if (id === 'soccer') {                                          // white ball, black pentagons on a staggered lattice, stitched seams between them
+    const tex = canvasTex(512, 256, (g, w, h) => {
+      g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, w, h);
+      const pent = (cx, cy, r, rot) => { g.beginPath(); for (let i = 0; i < 5; i++) { const a = rot + i / 5 * Math.PI * 2; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); };
+      g.strokeStyle = '#b8b8b8'; g.lineWidth = 2;
+      for (let row = 0; row < 3; row++) for (let i = 0; i < 4; i++) { const cx = i * 128 + (row % 2 ? 64 : 0) + 32, cy = 44 + row * 84; pent(cx, cy, 44, -Math.PI / 2 + row * 0.6); g.stroke(); }   // hexagon seams (drawn as the light outlines between patches)
+      g.fillStyle = '#151515';
+      for (let row = 0; row < 3; row++) for (let i = 0; i < 4; i++) { const cx = i * 128 + (row % 2 ? 64 : 0) + 32, cy = 44 + row * 84; pent(cx, cy, 26, -Math.PI / 2 + row * 0.6); g.fill(); }
+    });
+    m = mat(0xffffff, { map: tex, roughness: .75, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: BALL_GLOW });
+  } else if (id === 'neutron') m = mat(0xcfe4ff, { emissive: 0x9fcaff, emissiveIntensity: 2.2, roughness: .15, metalness: .1 });   // a blue-white surface so hot it lights itself; the halo and beams are added in applySkin
+  else if (id === 'chromatic') m = mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: .35 + BALL_GLOW, roughness: .3 });
   else if (id === 'black') m = mat(0x151515, { roughness: .6, emissive: 0x151515, emissiveIntensity: BALL_GLOW });
   else if (id === 'lowpoly') m = new THREE.MeshStandardMaterial({ color: 0xc4e3ea, roughness: .55, flatShading: true, emissive: 0xc4e3ea, emissiveIntensity: BALL_GLOW });
   else if (id === 'fire') {
@@ -3193,7 +3207,7 @@ const BALL_GEO = new THREE.SphereGeometry(BALL_R, 20, 16), BALL_GEO_LP = new THR
 function applySkin(mesh, id) {
   id = SKINS[id] ? id : 'default'; mesh.geometry = id === 'lowpoly' ? BALL_GEO_LP : BALL_GEO; mesh.material = skinMaterial(id); mesh.userData.skin = id;
   // chromatic: glowing rainbow aura around the ball (visual only - hitbox is unchanged)
-  const old = mesh.getObjectByName('aura'); if (old) { mesh.remove(old); const i = AURAS.indexOf(old.material); if (i >= 0) AURAS.splice(i, 1); }
+  const old = mesh.getObjectByName('aura'); if (old) { mesh.remove(old); const i = AURAS.indexOf(old.material); if (i >= 0) AURAS.splice(i, 1); const j = NEUTRONS.indexOf(old); if (j >= 0) NEUTRONS.splice(j, 1); }
   if (id === 'chromatic') {
     const am = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending });
     const aura = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * 1.45, 20, 16), am); aura.name = 'aura'; mesh.add(aura);
@@ -3201,8 +3215,27 @@ function applySkin(mesh, id) {
     const aura2 = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * 1.9, 20, 16), am2); aura2.name = 'aura'; aura.add(aura2);
     AURAS.push(am, am2);
   }
+  if (id === 'neutron') {                                                 // neutron star: layered blue-white glow, an equatorial light ring, two pulsar beams sweeping round the magnetic axis
+    const halo = (r, op, col, back) => { const mm = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: back ? THREE.BackSide : THREE.FrontSide }); const h = new THREE.Mesh(new THREE.SphereGeometry(BALL_R * r, 20, 16), mm); return h; };
+    const g = new THREE.Group(); g.name = 'aura'; mesh.add(g);
+    g.add(halo(1.25, 0.4, 0xd6e9ff, true)); g.add(halo(1.7, 0.2, 0x8fc2ff, true)); g.add(halo(2.6, 0.07, 0x5a9cff, false));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(BALL_R * 1.55, BALL_R * 0.06, 8, 48), new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending })); ring.rotation.x = Math.PI / 2; g.add(ring);
+    const beamTex = canvasTex(8, 128, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.35, 'rgba(180,220,255,0.45)'); gr.addColorStop(1, 'rgba(120,180,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
+    const beamM = new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, color: 0xbfdcff });
+    const axis = new THREE.Group(); axis.rotation.z = 0.55; g.add(axis);                                   // the magnetic axis is tilted off the spin axis, as on a real pulsar
+    for (const sgn of [1, -1]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(BALL_R * 0.03, BALL_R * 0.32, BALL_R * 4.5, 12, 1, true), beamM); b.position.y = sgn * BALL_R * 2.4; if (sgn < 0) b.rotation.x = Math.PI; axis.add(b); }
+    g.userData.axis = axis; g.userData.halos = g.children.slice(0, 3).map(h => h.material); g.userData.ring = ring;
+    NEUTRONS.push(g);
+  }
 }
-function updateAuras(t) { if (!AURAS.length) return; for (let i = 0; i < AURAS.length; i++) AURAS[i].color.setHSL((t * 0.35 + i * 0.08) % 1, 1, 0.55); }
+function updateAuras(t) {
+  for (let i = 0; i < AURAS.length; i++) AURAS[i].color.setHSL((t * 0.35 + i * 0.08) % 1, 1, 0.55);
+  for (const g of NEUTRONS) {                                             // pulsar: beams spin ~4 turns a second about the star's own axis, the glow throbs with them
+    g.rotation.y = t * 25; const p = 0.5 + 0.5 * Math.sin(t * 25);
+    const h = g.userData.halos; h[0].opacity = 0.4 + p * 0.15; h[1].opacity = 0.18 + p * 0.1; h[2].opacity = 0.06 + p * 0.05;
+    g.userData.ring.rotation.z = t * 3; g.userData.ring.material.opacity = 0.55 + p * 0.25;
+  }
+}
 function makeBallMesh(skin = 'default') {
   const m = new THREE.Mesh(BALL_GEO, skinMaterial('default')); applySkin(m, skin); m.castShadow = true;
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.2, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .35 })); shadow.rotation.x = -Math.PI / 2;
