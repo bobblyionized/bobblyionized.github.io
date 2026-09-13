@@ -247,7 +247,7 @@ function doSpike(c) {
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
   const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.3 : 1);   // W tilt trades power for steepness; Double Spike hits 30% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
-    const pitch = lerp(20, 5, c) * D, ss = (13 + 22 * c) * (P.doubleSpike ? 1.3 : 1) * (hasTrait('b3p1') ? 1.1 : 1) * 0.57;   // serve speed is spike power x 0.57 (20 m/s at full charge), so every spike modifier carries over; King Serve +10%
+    const pitch = lerp(20, 5, c) * D, ss = (13 + 22 * c) * (P.doubleSpike ? 1.3 : 1) * (hasTrait('b3p1') ? 1.1 : 1);   // serve speed IS your spike power, uncapped (35 m/s at full charge); every spike modifier carries over; King Serve +10%
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
     return true;
   }
@@ -302,7 +302,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
     P.airUsed = false; P.airActed = false; P.act = null; P.swingAt = 0; P.blockUntil = 0; P.doubleSpike = false; P.dsUsed = false; P.jumpFwd = cf();
     if (P.charging) { P.charging = false; $('#chargeBar').classList.add('hidden'); }
   } else { P.moveDir.copy(dir); P.moving = true; }
-  P.rig.setPose('dash', T + 0.24); sparkle(P.pos.clone().add(new V3(0, 0.9, 0)), 12, 0xffffff, 1.0, 0.3, 0.3, 0.06, dir.clone().negate());
+  P.rig.setPose('dash', T + 0.24); lightningFx(P.pos.clone().add(new V3(0, 0.9, 0)), dir.clone().negate(), 0xfff1a0, 0xffe066, 6);   // yellow lightning crackles off you
 }
 function doDive() {
   const dir = P.moving ? P.moveDir.clone() : cf();
@@ -336,7 +336,7 @@ function doToss() {
   if (P.serveMode) {                                                                  // second press: toss where the arrows point
     const a = P.serveAim || new THREE.Vector2(); const m = Math.min(1, a.length());
     const w = camR().multiplyScalar(a.x).add(camF().multiplyScalar(a.y)); if (m > 0.01) w.normalize();
-    b.serve = true; hitBall('toss', w.multiplyScalar(0.8 + 2.4 * m).add(new V3(0, 9.4, 0)), 1);
+    b.serve = true; hitBall('toss', w.multiplyScalar(0.8 + 2.4 * m).add(new V3(0, 9.8, 0)), 0.7);   // floaty toss: ~5.5 m up under 70% gravity
   } else { b.serve = false; hitBall('toss', cf().multiplyScalar(0.4).add(new V3(0, Math.sqrt(2 * BALL_G * (P.pos.y + 1.7 + 5 - b.pos.y)), 0)), 1); }   // apex 5 m over the head
   P.serveMode = false; P.serveAim = null;
   const M = S.match; if (M && !M.practice && M.state === 'serve') mwrite('state', 'rally');
@@ -369,7 +369,7 @@ function updatePlayer(dt) {
   if (P.dash) {
     const e = (T - P.dash.t0) / P.dash.dur;
     if (e >= 1) { P.dash = null; if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); } else { P.rig.base = 'air'; P.rig.setPose('air'); } }
-    else { const sp = 24 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.6) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 2, 0xffffff, 0.3, 0.2, 0.25, 0.05); }
+    else { const sp = 24 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
   } else if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
