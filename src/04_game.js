@@ -160,8 +160,7 @@ function tryAct() {
   if (T > a.until) {
     P.act = null;
     if ((a.type === 'spike' || a.type === 'tip') && !P.onGround && !P.doubleSpike && !P.dsUsed && hasTrait('b2a')) {   // Double Spike: a whiffed swing arms one more, full-power lightning spike this jump
-      P.doubleSpike = true; P.dsUsed = true; P.airUsed = false; P.rig.base = 'air'; P.rig.setPose('air'); showBallMsg('DOUBLE SPIKE', P.pos.clone().add(new V3(0, 2.2, 0)));
-      sparkle(P.rig.handPos('R'), 10, 0x9fd4ff, 0.8, 1.2, 0.4, 0.06);
+      P.doubleSpike = true; P.dsUsed = true; P.airUsed = false; P.rig.base = 'air'; P.rig.setPose('air');                       // no popup: the blue charge bar is the only tell
     }
     return;
   }
@@ -245,7 +244,7 @@ function spikeGeom() {
 function doSpike(c) {
   if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
-  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.25 : 1);   // W tilt trades power for steepness; Double Spike hits 25% harder
+  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.5 : 1);   // W tilt trades power for steepness; Double Spike hits 50% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
     const pitch = lerp(20, 5, c) * D, ss = 12 + 8 * c;         // softer serves arc higher; full charge is flat and lands near the far back line
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
@@ -743,7 +742,7 @@ const TRAITS = {
   b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 3 m up, then slam straight down under heavy gravity.' },
   b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 50%.' },
   b2p2: { name: '4th Tempo', type: 'passive', sym: '4T', desc: 'Ground sets float higher with less gravity and carry further in the direction you run.' },
-  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.25x power, lightning on contact.' },
+  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.5x power, lightning on contact.' },
   b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
   b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
   b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },

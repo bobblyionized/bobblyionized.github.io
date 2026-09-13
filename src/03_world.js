@@ -158,8 +158,15 @@ function tuxMats() {
     g.fillStyle = '#222'; for (const y of [90, 130, 170, 210]) { g.beginPath(); g.arc(W / 2, y, 4, 0, Math.PI * 2); g.fill(); }
     g.fillStyle = '#c9a43a'; g.fillRect(W / 2 - 60, 150, 6, 6);
   });
-  const black = mat(0x111111), frontM = mat(0xffffff, { map: front });
-  return TUX_MATS = { torso: [black, black, black, black, frontM, black], sleeve: black, shorts: mat(0x151515), legs: mat(0x151515), hands: mat(0xf3d1b0) };
+  const waist = canvasTex(256, 256, (g, W, H) => {                    // the shirt keeps going down the waist, ending in a cummerbund
+    g.fillStyle = '#111'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#f7f7f7'; g.beginPath(); g.moveTo(W / 2 - 22, 0); g.lineTo(W / 2 + 22, 0); g.lineTo(W / 2 + 18, H); g.lineTo(W / 2 - 18, H); g.fill();
+    g.fillStyle = '#1a1a1a'; g.beginPath(); g.moveTo(0, 0); g.lineTo(W / 2 - 22, 0); g.lineTo(W / 2 - 18, H); g.lineTo(0, H); g.fill(); g.beginPath(); g.moveTo(W, 0); g.lineTo(W / 2 + 22, 0); g.lineTo(W / 2 + 18, H); g.lineTo(W, H); g.fill();   // jacket fronts
+    g.fillStyle = '#222'; for (const y of [30, 80, 130]) { g.beginPath(); g.arc(W / 2, y, 4, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#0c0c0c'; g.fillRect(0, 170, W, 60); g.fillStyle = '#1e1e1e'; for (const y of [180, 196, 212]) g.fillRect(0, y, W, 4);   // cummerbund
+  });
+  const black = mat(0x111111), frontM = mat(0xffffff, { map: front }), waistM = mat(0xffffff, { map: waist });
+  return TUX_MATS = { torso: [black, black, black, black, frontM, black], waist: [black, black, black, black, waistM, black], sleeve: black, shorts: mat(0x151515), legs: mat(0x151515), hands: mat(0xf3d1b0) };
 }
 function jerseyMats(variant) {
   if (JERSEY[variant]) return JERSEY[variant];
@@ -224,7 +231,7 @@ class Rig {
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
-    box(girl ? 0.4 : 0.46, 0.3, 0.26, sideM, 0, 0.14, 0, spine);                                   // waist / lower torso
+    box(girl ? 0.4 : 0.46, 0.3, 0.26, jm.waist || sideM, 0, 0.14, 0, spine);                       // waist / lower torso (the tux shirt continues down it)
     this.torso = box(girl ? 0.52 : 0.6, 0.34, girl ? 0.27 : 0.3, jm.torso, 0, TORSO_H - 0.17, 0, spine);   // chest (jersey front/back)
     const skinM = dealer ? mat(0x6b4a30) : SKIN;
     cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
