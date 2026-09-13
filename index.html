@@ -3703,7 +3703,7 @@ function updatePlayer(dt) {
       if (P.onGround) { P.rig.base = 'idle'; P.rig.setPose('idle'); }
       else { P.rig.base = 'air'; P.rig.setPose('air'); const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); P.glide = w.lengthSq() > 0 ? w.normalize() : null; }   // ...then you glide the way you were tilting (locked in until you land)
     }
-    else { const sp = 46.2 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
+    else { const sp = 55.4 * (1 - e * 0.55); P.vel.x = P.dash.dir.x * sp; P.vel.z = P.dash.dir.z * sp; if (!P.onGround) P.vel.y = 0; if (e > 0.1 && Math.random() < 0.7) sparkle(P.pos.clone().add(new V3(0, 0.8, 0)), 3, 0xffe066, 0.35, 0.3, 0.25, 0.05); }   // yellow trail
   } else if (P.dive) {
     const e = (T - P.dive.t0) / P.dive.dur;
     if (e >= 1) { P.dive = null; P.cd = DIVE_CD; P.rig.pitchTarget = 0; P.rig.rollTarget = 0; P.diveAnim = null; P.rig.setPose('idle'); P.rig.base = 'idle'; }
