@@ -451,9 +451,9 @@ function buildLobby() {
   wall(24, -9, 18, 0.4, 1.0); wall(24, -9, 18, 0.4, 0.8, 4.2); for (const x of [15, 21, 27, 33]) box(0.4, 5, 0.4, wallM, x, 2.5, -9, lobby);
   for (const x of [18, 24, 30]) { const gl = box(5.6, 3.2, 0.06, glassM, x, 2.6, -9, lobby); gl.castShadow = false; }
   wall(15, -5.75, 0.4, 6.5); wall(15, 5.75, 0.4, 6.5); wall(15, 0, 0.4, 5, 1.6, 3.4);
-  WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5 }, { x1: -16, x2: -11, z1: -2.1, z2: 2.1 }, { x1: -40.5, x2: -15.5, z1: -10.5, z2: 10.5 }, { x1: 11, x2: 16, z1: -2.1, z2: 2.1 }, { x1: 15.5, x2: 32.5, z1: -8.5, z2: 8.5 });
+  WALK.push({ x1: -12.5, x2: 12.5, z1: -12.5, z2: 12.5, open: true }, { x1: -16, x2: -11, z1: -2.1, z2: 2.1 }, { x1: -40.5, x2: -15.5, z1: -10.5, z2: 10.5 }, { x1: 11, x2: 16, z1: -2.1, z2: 2.1 }, { x1: 15.5, x2: 32.5, z1: -8.5, z2: 8.5 });
   WALK.push({ x1: -12.5, x2: 12.5, z1: -10.6, z2: 12.5, y: F2 }, { x1: -12.5, x2: 7.4, z1: -12.5, z2: -10.6, y: F2 }, { x1: 12.3, x2: 12.5, z1: -12.75, z2: -10.4, y: F2 });   // second floor (minus the stairwell; overlaps the top of the stairs) + the top landing strip (same wall margin as the room)
-  WALK.push({ x1: 2.4, x2: 12.4, z1: -12.75, z2: -10.4, ramp: 'x', h0: 0, h1: F2 });                           // the staircase
+  WALK.push({ x1: 2.4, x2: 12.4, z1: -12.75, z2: -10.4, ramp: 'x', h0: 0, h1: F2, open: true });               // the staircase (open: you can step off its side or drop onto it)
   BLOCKED.push({ x1: 2.4, x2: 12.4, z1: -12.75, z2: -10.4, under: WALK[WALK.length - 1] });                      // nobody walks underneath the treads
   INDOOR_COUNT = WALK.length;
   // outside: the door, the beach in front, and around the house (water starts at z = -40); the south strip leaves room for the staircase
@@ -590,9 +590,9 @@ function updateAmbient(t, dt) { updateWind(); for (const a of AMBIENT) a.update(
 const BLOCKED = [];   // footprints players cannot enter (huts)
 const inRect = (r, x, z) => x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2;
 function regionH(r, x, z) { if (!r.ramp) return r.y || 0; const t = clamp(r.ramp === 'x' ? (x - r.x1) / (r.x2 - r.x1) : (z - r.z1) / (r.z2 - r.z1), 0, 1); return r.h0 + (r.h1 - r.h0) * t; }   // floor height of a region at a point (ramps slope)
-function walkable(x, z, y = 0, air = false) {   // on the ground: a floor within a step of your height (so you cannot walk off an edge); in the air: any floor at or below you to land on
+function walkable(x, z, y = 0, air = false) {   // a floor within a step of you; in the air anything below; on the ground you may also step down into an 'open' region (the room under the stairs / the stairs), never through a wall
   if (BLOCKED.some(b => inRect(b, x, z) && (!b.under || y < regionH(b.under, x, z) - 0.8))) return false;   // (under a staircase: blocked unless you are on it)
-  return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return air ? h <= y + 0.8 : Math.abs(h - y) <= 0.8; });
+  return WALK.some(r => { if (!inRect(r, x, z)) return false; const h = regionH(r, x, z); return air ? h <= y + 0.8 : (Math.abs(h - y) <= 0.8 || (h < y && r.open)); });
 }
 function ceilingY(x, z, y) {   // lobby: the ceiling over you - rooms are 5 m, the lounge and the stairwell are open up to the lounge ceiling
   if (!indoors(x, z)) return Infinity;
