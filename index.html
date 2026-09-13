@@ -1927,6 +1927,8 @@ function ballReach(center, r, vScale = 1, allowAcross = false) {   // nearest re
   let best = null, bd = r;
   for (const b of balls.values()) {
     if (b.scene !== S.scene || !b.active || b.held || b.frozen) continue;
+    if (S.match && !S.match.practice && b.hitter === SID && b.hitType !== 'block' && b.hitType !== 'toss') continue;   // one touch each: wait for someone else to play it (a block does not count as your touch)
+    if (b.serve && b.tossedBy && b.tossedBy !== SID) continue;                                              // a serve toss can only be hit by the player who tossed it
     const dx = b.pos.x - center.x, dy = (b.pos.y - center.y) / vScale, dz = b.pos.z - center.z; const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (d > bd) continue;
     if (!allowAcross && acrossNet(P.pos, b.pos)) continue;                   // can't play a ball that's on the other side of the net
@@ -3160,6 +3162,8 @@ function hostBallLanded() {
   if (inCourt) { const side = b.pos.z < 0 ? 'A' : 'B'; endPoint(opp(side), TEAM_NAME[opp(side)] + ' SCORES'); }
   else { const lastTeam = b.hitter ? teamOf(b.hitter) : (M.serve ? M.serve.team : 'A'); endPoint(opp(lastTeam), 'OUT'); }
 }
+const WIN_SCORE = 25;
+function matchWon(sc) { const hi = Math.max(sc.A, sc.B), lo = Math.min(sc.A, sc.B); return hi >= WIN_SCORE && hi - lo >= 2; }   // one set to 25, win by 2 (24-24 goes on until someone leads by 2)
 function endPoint(winner, msg) {
   const M = S.match, b = matchBall(); if (!M || !b || M.state !== 'rally') return;
   const score = Object.assign({ A: 0, B: 0 }, M.score); score[winner]++;
@@ -3167,10 +3171,12 @@ function endPoint(winner, msg) {
   b.frozen = true; writeBall(b);
   setTimeout(() => {
     if (!S.match || S.match.id !== M.id) return;
-    if (score[winner] >= 15) { mwrite('msg', TEAM_NAME[winner] + ' TEAM WINS'); mwrite('state', 'over'); return; }
+    if (matchWon(score)) { mwrite('msg', TEAM_NAME[winner] + ' TEAM WINS'); mwrite('state', 'over'); return; }
     const team = winner; const members = Object.keys(M.teams[team] || {}).filter(s => M.players[s] || s === SID);
-    const idx = members.length ? ((M.serveIdx && M.serveIdx[team] != null ? M.serveIdx[team] : -1) + 1) % members.length : 0;
-    const si = Object.assign({ A: -1, B: -1 }, M.serveIdx); si[team] = idx; mwrite('serveIdx', si);
+    const si = Object.assign({ A: -1, B: -1 }, M.serveIdx);
+    let idx = si[team];
+    if (!M.serve || M.serve.team !== team || idx < 0 || !members.includes(M.serve.sid)) idx = members.length ? (idx + 1) % members.length : 0;   // side-out: the serve changes hands, so the next player in that team's order serves; otherwise the same server keeps serving
+    si[team] = idx; mwrite('serveIdx', si);
     mwrite('serve', { team, sid: members[idx] || null }); mwrite('msg', ''); mwrite('state', 'serve');
     b.active = false; b.held = null; b.hitter = b.prevHitter = null; b.hitType = b.prevType = null; b.touches = 0; b.seq++; writeBall(b);
   }, 3000);
@@ -3180,7 +3186,7 @@ function onStateChange(st) {
   if (st === 'point' && b) { b.frozen = true; }
   if (st === 'serve') { if (b) { b.active = false; b.held = null; b.frozen = false; } P.holding = false; P.serveMode = false; P.serveAim = null; if (P.rig.base === 'hold') { P.rig.base = 'idle'; P.rig.setPose('idle'); } }
   if (st === 'over' && prev !== 'over') {
-    const winner = (M.score.A >= 15) ? 'A' : 'B'; const won = teamOf(SID) === winner;
+    const winner = (M.score.A > M.score.B) ? 'A' : 'B'; const won = teamOf(SID) === winner;
     if (!M.practice) { addDollars(won ? 150 : 50); toast(won ? 'Victory! +$150' : 'Defeat. +$50', won ? 'ok' : 'err', 5000); }
     setTimeout(() => { if (S.match && S.match.id === M.id) leaveMatch(); }, 6000);
   }
@@ -3207,6 +3213,7 @@ function setMyRig(variant) {
 }
 function onCosmeticsChanged() { if (P.rig) setMyRig(P.rig.variant); if (!$('#shopPanel').classList.contains('hidden')) renderShop(); if (!$('#invPanel').classList.contains('hidden')) renderInventory(); }
 function beginMatch(M) {
+  M.enteredAt = T; M.absentSince = 0;
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
   if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }
   removeBall(SID);
@@ -3240,11 +3247,15 @@ function beginMatch(M) {
 }
 function hostCheckServer() {
   const M = S.match; if (!M || M.practice || !isHost() || M.state !== 'serve' || !M.serve) return;
+  if (T - (M.enteredAt || 0) < 15) return;                                                   // everyone is still loading in
   const present = Object.keys(M.players).concat([SID]);
-  if (present.includes(M.serve.sid)) return;
+  if (present.includes(M.serve.sid)) { M.absentSince = 0; return; }
   const team = M.serve.team; const members = Object.keys(M.teams[team] || {}).filter(s => present.includes(s));
-  if (!members.length) { mwrite('msg', TEAM_NAME[opp(team)] + ' TEAM WINS (forfeit)'); const sc = Object.assign({}, M.score); sc[opp(team)] = 15; mwrite('score', sc); mwrite('state', 'over'); return; }
-  mwrite('serve', { team, sid: members[0] });
+  if (!members.length) {                                                                     // whole team gone: forfeit after 10 s
+    if (!M.absentSince) { M.absentSince = T; return; } if (T - M.absentSince < 10) return;
+    mwrite('msg', TEAM_NAME[opp(team)] + ' TEAM WINS (forfeit)'); const sc = Object.assign({}, M.score); sc[opp(team)] = Math.max(WIN_SCORE, sc[team] + 2); mwrite('score', sc); mwrite('state', 'over'); return;
+  }
+  M.absentSince = 0; mwrite('serve', { team, sid: members[0] });                             // server left: a teammate serves instead
 }
 function leaveMatch() {
   const M = S.match; if (!M) return;
