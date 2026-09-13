@@ -1704,9 +1704,10 @@ function buildNet(parent, x, z, yaw, half, antX) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; parent.add(g);
   const postM = mat(0xd0d0d0);
   box(0.14, 2.6, 0.14, postM, -half, 1.3, 0, g); box(0.14, 2.6, 0.14, postM, half, 1.3, 0, g);
-  const net = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 1.0), new THREE.MeshBasicMaterial({ map: NET_TEX, transparent: true, side: THREE.DoubleSide })); net.position.set(0, NET_H - 0.5, 0); g.add(net);
-  box(half * 2, 0.08, 0.02, mat(0xffffff), 0, NET_H, 0, g); box(half * 2, 0.05, 0.02, mat(0xffffff), 0, NET_H - 1, 0, g);
+  const net = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 1.5), new THREE.MeshBasicMaterial({ map: NET_TEX, transparent: true, side: THREE.DoubleSide })); NET_TEX.wrapS = NET_TEX.wrapT = THREE.RepeatWrapping; NET_TEX.repeat.set(1, 1.5); net.position.set(0, NET_H - 0.75, 0); g.add(net);
+  box(half * 2, 0.08, 0.02, mat(0xffffff), 0, NET_H, 0, g); box(half * 2, 0.05, 0.02, mat(0xffffff), 0, NET_H - 1.5, 0, g);   // the net hangs 1.5 m below the tape
   for (const ax of [-(half - 0.3), half - 0.3]) for (let i = 0; i < 5; i++) box(0.06, 0.36, 0.06, mat(i % 2 ? 0xffffff : 0xe23b3b), ax, NET_H - 0.6 + i * 0.36 + 0.18, 0, g);
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, Math.max(0.05, NET_H - 1.5)), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })); under.position.set(0, (NET_H - 1.5) / 2, 0); g.add(under);   // (nothing passes under a net: the ball collides with the whole plane below the tape, see ballNets)
   return g;
 }
 /* ---- score effects (play where a ball you hit lands in on the other side) ---- */

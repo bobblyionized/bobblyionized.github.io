@@ -507,7 +507,7 @@ function ballNets(b, prev) {
     const dp = (prev.x - n.cx) * n.nx + (prev.z - n.cz) * n.nz, dc = (b.pos.x - n.cx) * n.nx + (b.pos.z - n.cz) * n.nz;
     if (Math.sign(dp) === Math.sign(dc) || dp === 0) continue;
     const lat = -(b.pos.x - n.cx) * n.nz + (b.pos.z - n.cz) * n.nx;
-    if (b.pos.y < NET_H + BALL_R * 0.5 && Math.abs(lat) < n.half + 0.3) {
+    if (b.pos.y < NET_H + BALL_R * 0.5 && Math.abs(lat) < n.half + 0.3) {                 // anything below the tape, all the way to the ground: a ball can never pass under a net
       const side = Math.sign(dp) * (0.15 + BALL_R);
       b.pos.x += (side - dc) * n.nx; b.pos.z += (side - dc) * n.nz;
       const vn = b.vel.x * n.nx + b.vel.z * n.nz;
@@ -900,7 +900,7 @@ const TRAIT_BOXES = {
   1: { name: 'Trait Box 1', price: 1000, traits: ['b1p1', 'b1p2', 'b1a'] },
   2: { name: 'Trait Box 2', price: 2000, traits: ['b2p1', 'b2p2', 'b2a'] },
   3: { name: 'Trait Box 3', price: 5000, traits: ['b3p1', 'b3p2', 'b3a'] },
-  4: { name: 'Setter Crate', price: 7500, traits: ['b4p1', 'b4p2', 'b4a'] },
+  4: { name: 'Setter Crate', price: 3000, traits: ['b4p1', 'b4p2', 'b4a'] },
 };
 const BOX_ODDS = [0.45, 0.45, 0.1];
 function rollBox(tier) { const r = Math.random(); let acc = 0; for (let i = 0; i < BOX_ODDS.length; i++) { acc += BOX_ODDS[i]; if (r < acc) return TRAIT_BOXES[tier].traits[i]; } return TRAIT_BOXES[tier].traits[2]; }
