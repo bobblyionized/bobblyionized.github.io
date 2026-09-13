@@ -302,7 +302,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
-      <div class="card2" style="margin:0"><h3>Shaders</h3><select id="shSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="auto">Auto (detect)</option><option value="full">Full (env lighting, wave water)</option><option value="simple">Simple (Chromebook / weak GPU)</option></select><small id="shNote" style="display:block;opacity:.6;font-weight:600;margin-top:6px"></small></div>
+      <div class="card2" style="margin:0"><h3>Shaders</h3><select id="shSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="simple">Simple (default)</option><option value="full">Advanced (env lighting, wave water - needs a good GPU)</option></select><small id="shNote" style="display:block;opacity:.6;font-weight:600;margin-top:6px"></small></div>
       <div class="card2" style="margin:0"><h3>Graphics</h3><select id="gfxSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="high">High (shadows, full detail)</option><option value="medium">Medium (softer shadows, 1x pixels)</option><option value="low">Low (no shadows, fewer pixels)</option></select></div>
       <div class="card2" style="margin:0"><h3>Field of view <span id="fovVal" style="color:#fff">70</span></h3><input type="range" id="fovSel" min="55" max="110" step="1" value="70" style="width:100%;padding:0;border:0;background:transparent"></div>
       <div class="card2" style="margin:0"><h3>Time of day</h3><select id="todSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="relative">Relative (real EST time)</option><option value="day">Day Time</option><option value="night">Night Time</option></select></div>
@@ -815,13 +815,7 @@ renderer.toneMappingExposure = 0.85;
    water - and it is what those machines get automatically. Menu > Shaders overrides the auto choice. */
 const SIMPLE_SHADERS = (() => {
   let pref = null; try { pref = localStorage.getItem('vg_shaders'); } catch (e) { }
-  if (pref === 'simple') return true; if (pref === 'full') return false;
-  try {
-    const gl = renderer.getContext(); const dbg = gl.getExtension('WEBGL_debug_renderer_info'); const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-    const half = renderer.capabilities.isWebGL2 ? !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')) : !!(gl.getExtension('OES_texture_half_float') && gl.getExtension('OES_texture_half_float_linear'));
-    const weak = /CrOS|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|VideoCore|Intel\(R\) HD Graphics [2-5]\d\d\b/i.test(gpu + ' ' + navigator.userAgent);
-    return !half || weak;
-  } catch (e) { return true; }
+  return pref !== 'full';                                                 // simple is the default for everyone; Menu > Shaders switches to the advanced pipeline on purpose
 })();
 const scene = new THREE.Scene();
 const SKY = 0x8fd0f5;
@@ -4941,7 +4935,7 @@ async function boot(online) {
   await setLoad(25, 'Building the courts...'); buildCourt(); buildBeachCourt();
   await setLoad(40, 'Rendering icons...'); renderPoseIcons(); updateDayNight(true);
   { let fov = 70; try { fov = clamp(parseInt(localStorage.getItem('vg_fov') || '70', 10) || 70, 55, 110); } catch (e) { } const apply = v => { FOV_BASE = v; camFovCur = v; camera.fov = v; camera.updateProjectionMatrix(); $('#fovVal').textContent = v; }; apply(fov); $('#fovSel').value = fov; $('#fovSel').oninput = () => { const v = parseInt($('#fovSel').value, 10); apply(v); try { localStorage.setItem('vg_fov', v); } catch (e) { } }; }
-  { let sp = 'auto'; try { sp = localStorage.getItem('vg_shaders') || 'auto'; } catch (e) { } $('#shSel').value = sp; $('#shNote').textContent = 'Running: ' + (SIMPLE_SHADERS ? 'simple' : 'full') + ' shaders. Changing this reloads the game.'; $('#shSel').onchange = () => { const v = $('#shSel').value; try { if (v === 'auto') localStorage.removeItem('vg_shaders'); else localStorage.setItem('vg_shaders', v); } catch (e) { } location.reload(); }; }
+  { let sp = 'simple'; try { sp = localStorage.getItem('vg_shaders') === 'full' ? 'full' : 'simple'; } catch (e) { } $('#shSel').value = sp; $('#shNote').textContent = 'Running: ' + (SIMPLE_SHADERS ? 'simple' : 'advanced') + ' shaders. Changing this reloads the game.'; $('#shSel').onchange = () => { const v = $('#shSel').value; try { if (v === 'full') localStorage.setItem('vg_shaders', 'full'); else localStorage.removeItem('vg_shaders'); } catch (e) { } location.reload(); }; }
   { let q = 'high'; try { q = localStorage.getItem('vg_gfx') || 'high'; } catch (e) { } applyQuality(q); $('#gfxSel').value = q; $('#gfxSel').onchange = () => { applyQuality($('#gfxSel').value); try { localStorage.setItem('vg_gfx', $('#gfxSel').value); } catch (e) { } }; }
   $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => { let p = c; while (p && p !== lobby) p = p.parent; return p === lobby; }); COURT_COLL = COLLIDERS.filter(c => c.parent === court);   // (lobby list includes the hut, a child of its group)

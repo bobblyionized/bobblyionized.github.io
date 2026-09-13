@@ -17,13 +17,7 @@ renderer.toneMappingExposure = 0.85;
    water - and it is what those machines get automatically. Menu > Shaders overrides the auto choice. */
 const SIMPLE_SHADERS = (() => {
   let pref = null; try { pref = localStorage.getItem('vg_shaders'); } catch (e) { }
-  if (pref === 'simple') return true; if (pref === 'full') return false;
-  try {
-    const gl = renderer.getContext(); const dbg = gl.getExtension('WEBGL_debug_renderer_info'); const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
-    const half = renderer.capabilities.isWebGL2 ? !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')) : !!(gl.getExtension('OES_texture_half_float') && gl.getExtension('OES_texture_half_float_linear'));
-    const weak = /CrOS|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|VideoCore|Intel\(R\) HD Graphics [2-5]\d\d\b/i.test(gpu + ' ' + navigator.userAgent);
-    return !half || weak;
-  } catch (e) { return true; }
+  return pref !== 'full';                                                 // simple is the default for everyone; Menu > Shaders switches to the advanced pipeline on purpose
 })();
 const scene = new THREE.Scene();
 const SKY = 0x8fd0f5;
