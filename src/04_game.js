@@ -201,7 +201,7 @@ function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; 
 function releaseSpike() {
   P.charging = false; $('#chargeBar').classList.add('hidden');
   const c = P.charge;                                            // decide from the charge that is on screen, so a frame hitch between press and release can never turn a tap into a spike
-  if (c <= 0.3) { P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
+  if (c <= 0.25) {                                               // a tap up to a quarter charge is a tip; past that it swings P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
   else { P.rig.setPose('spikeCharge', T + 0.07); P.swingAt = T + 0.07; if (!doSpike(c)) P.act = { type: 'spike', c, until: T + 0.16 }; }   // the hit stays armed briefly after the swing
 }
 function netAhead(from, fwd) {                 // distance to the nearest net in front of the ball (Infinity if none)
@@ -268,7 +268,7 @@ function doTip() {
   const v = new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp);
   if (hasTrait('b1a')) {                                          // Lightning Drop: same landing spot, but the ball rockets 3 m up and slams down under heavy gravity
     const tf = (v.y + Math.sqrt(v.y * v.y + 2 * BALL_G * B.pos.y)) / BALL_G;   // where the normal tip would land
-    const tg = new V3(B.pos.x + v.x * tf, 0, B.pos.z + v.z * tf); const gd = 2.4;
+    const tg = new V3(B.pos.x + v.x * tf, 0, B.pos.z + v.z * tf); const gd = 3.2;
     hitBall('tip', launchTo(B.pos, tg, B.pos.y + 3, BALL_G * gd), gd); return true;
   }
   hitBall('tip', v, 1); return true;
