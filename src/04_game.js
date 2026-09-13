@@ -200,7 +200,7 @@ function chargeAt(dt) { return dt <= 0.1875 ? dt / 0.1875 * 0.5 : clamp(0.5 + (d
 function startSpike() { P.airUsed = true; P.charging = true; P.chargeStart = T; P.charge = 0; $('#chargeBar').classList.remove('hidden'); }   // stays in the jump pose while charging; the swing plays on release
 function releaseSpike() {
   P.charging = false; $('#chargeBar').classList.add('hidden');
-  const c = chargeAt(T - P.chargeStart);
+  const c = P.charge;                                            // decide from the charge that is on screen, so a frame hitch between press and release can never turn a tap into a spike
   if (c <= 0.3) { P.rig.base = 'airDown'; P.rig.setPose('tip', T + 0.4); if (!doTip()) P.act = { type: 'tip', until: T + 0.16 }; }
   else { P.rig.setPose('spikeCharge', T + 0.07); P.swingAt = T + 0.07; if (!doSpike(c)) P.act = { type: 'spike', c, until: T + 0.16 }; }   // the hit stays armed briefly after the swing
 }
@@ -266,10 +266,10 @@ function doTip() {
   let sp = 7, pitch = 32 * D;
   if (tz > 0) { sp = lerp(7, 5.0, tz); pitch = lerp(32, 62, tz) * D; } else if (tz < 0) { sp = lerp(7, 9.0, -tz); pitch = lerp(32, 22, -tz) * D; }
   const v = new V3(fwd.x * Math.cos(pitch) * sp, Math.sin(pitch) * sp, fwd.z * Math.cos(pitch) * sp);
-  if (hasTrait('b1a')) {                                          // Lightning Drop: same landing spot, but the ball rockets 5 m up and slams down under heavy gravity
+  if (hasTrait('b1a')) {                                          // Lightning Drop: same landing spot, but the ball rockets 3 m up and slams down under heavy gravity
     const tf = (v.y + Math.sqrt(v.y * v.y + 2 * BALL_G * B.pos.y)) / BALL_G;   // where the normal tip would land
     const tg = new V3(B.pos.x + v.x * tf, 0, B.pos.z + v.z * tf); const gd = 2.4;
-    hitBall('tip', launchTo(B.pos, tg, B.pos.y + 5, BALL_G * gd), gd); return true;
+    hitBall('tip', launchTo(B.pos, tg, B.pos.y + 3, BALL_G * gd), gd); return true;
   }
   hitBall('tip', v, 1); return true;
 }
@@ -720,7 +720,7 @@ function equipItem(kind, id) {
 const TRAITS = {
   b1p1: { name: 'Quick Feet', type: 'passive', sym: 'QF', desc: '10% faster movement.' },
   b1p2: { name: 'Fake Block', type: 'passive', sym: 'FB', desc: 'Your block tilts are reversed: S acts like W and W like S.' },
-  b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 5 m up, then slam straight down under heavy gravity.' },
+  b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 3 m up, then slam straight down under heavy gravity.' },
   b2p1: { name: 'Iron Wall', type: 'passive', sym: 'IW', desc: 'Placeholder passive trait.' },
   b2p2: { name: 'Long Reach', type: 'passive', sym: 'LR', desc: 'Placeholder passive trait.' },
   b2a:  { name: 'Blink', type: 'ability', sym: 'BL', desc: 'Placeholder ability trait.' },
@@ -831,12 +831,19 @@ function equipTrait(key) {
   else { toast('Both passive slots are full - unequip one first', 'err'); return; }
   db.ref('profiles/' + me.id + '/loadout').set(lo);
 }
+function traitRefund(tid) { for (const t in TRAIT_BOXES) if (TRAIT_BOXES[t].traits.includes(tid)) return Math.floor(TRAIT_BOXES[t].price / 2); return 0; }   // deleting a trait pays back half of its box
 async function deleteTrait(key) {
   const tr = (me.traits || {})[key]; if (!tr || me.guest) return; const T = TRAITS[tr.id]; if (!T) return;
-  if (!await confirmDialog('Delete ' + T.name + '?', 'This ' + T.type + ' trait will be gone for good. Boxes do not give refunds.')) return;
-  const lo = me.loadout || {}; const up = { ['traits/' + key]: null };
-  for (const s of ['p1', 'p2', 'a']) if (lo[s] === key) up['loadout/' + s] = null;   // pull it out of the loadout too, just in case
-  await db.ref('profiles/' + me.id).update(up); toast('Deleted ' + T.name, 'ok');
+  const refund = traitRefund(tr.id);
+  if (!await confirmDialog('Delete ' + T.name + '?', 'This ' + T.type + ' trait will be gone for good. You get $' + refund.toLocaleString() + ' back (half the box price).')) return;
+  const res = await db.ref('profiles/' + me.id).transaction(pr => {
+    if (!pr) return pr; if (!pr.traits || !pr.traits[key]) return;                 // already gone (double click / other tab)
+    pr.traits[key] = null; pr.dollars = (pr.dollars || 0) + refund;
+    if (pr.loadout) for (const s of ['p1', 'p2', 'a']) if (pr.loadout[s] === key) pr.loadout[s] = null;   // pull it out of the loadout too, just in case
+    return pr;
+  });
+  if (!res.committed) { toast('That trait is already gone', 'err'); return; }
+  toast('Deleted ' + T.name + ' - +$' + refund.toLocaleString(), 'ok');
 }
 function unequipTrait(slot) { if (me.guest) return; db.ref('profiles/' + me.id + '/loadout/' + slot).remove(); }
 let opening = false;
