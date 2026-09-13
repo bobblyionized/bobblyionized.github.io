@@ -1250,7 +1250,7 @@ class Rig {
     if (typeof mergeStatic !== 'function') return;
     this.handL.userData.noMerge = true; this.handR.userData.noMerge = true; this.torso.userData.noMerge = true;
     const names = Object.keys(POSES); let k = 0; const rig = this;
-    const saveAnim = this.anim, saveUntil = this.animUntil;
+    const saveAnim = this.anim, saveUntil = this.animUntil; this.snap();
     try { mergeStatic(this.root, [{ update() { rig.setPose(names[k++ % names.length]); rig.snap(); } }], 'rig', true); } catch (e) { console.warn('rig fold', e); }
     this.anim = saveAnim; this.animUntil = saveUntil; this.setPose(saveAnim); this.snap();
   }
@@ -2389,15 +2389,20 @@ function mergeStatic(root, animators, label, quiet = false) {
   const cand = all.filter(o => o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !skip.has(o) && !Array.isArray(o.material) && o.visible && o.geometry.attributes.position && o.geometry.attributes.normal);
   const s0 = new Map(cand.map(o => [o, matState(o.material)]));
   const t0 = performance.now() / 1000 + 1000;                              // fake time, well away from anything the animators have seen
-  for (let i = 1; i <= 8; i++) for (const a of animators) { try { a.update(t0 + i * 0.41, 0.41); } catch (e) { } }
-  root.updateMatrixWorld(true);
+  m0.set(root, root.matrixWorld.clone());
   const rel = (anc, o, map) => new THREE.Matrix4().copy(map.get(anc)).invert().multiply(map.get(o));
-  const now = new Map(all.map(o => [o, o.matrixWorld])); now.set(root, root.matrixWorld); m0.set(root, root.matrixWorld);
-  // a mesh merges into the HIGHEST ancestor it stays rigid with: static props go to the root, a palm's
-  // leaves go to its swaying crown (so the crown becomes a few meshes that still sway), a fluttering
-  // part that moves on its own relative to everything stays as it is
   const nearEq = (a, b) => { const x = a.elements, y = b.elements; for (let i = 0; i < 16; i++) if (Math.abs(x[i] - y[i]) > 1e-4) return false; return true; };   // float slack: a rotated parent changes every descendant's world matrix by rounding
-  const anchorOf = o => { let best = null; for (let p = o.parent; p; p = p === root ? null : p.parent) { if (nearEq(rel(p, o, m0), rel(p, o, now))) best = p; else break; } return best; };
+  // a mesh merges into the HIGHEST ancestor it stays rigid with across EVERY sampled frame: static props go to
+  // the root, a palm's leaves go to its swaying crown (so the crown becomes a few meshes that still sway), a
+  // limb goes to its joint, and a part that moves on its own relative to everything stays as it is.
+  // (Comparing only first and last frame once let a forearm merge into the shoulder because the elbow happened
+  // to be straight in both: hands ended up detached from arms.)
+  const rel0 = new Map(); for (const o of cand) { const chain = []; for (let p = o.parent; p; p = p === root ? null : p.parent) chain.push([p, rel(p, o, m0)]); rel0.set(o, chain); }
+  const broken = new Map();                                                 // mesh -> Set of ancestors it is NOT rigid with
+  const now = new Map(all.map(o => [o, o.matrixWorld])); now.set(root, root.matrixWorld);
+  const scan = () => { root.updateMatrixWorld(true); for (const o of cand) { const chain = rel0.get(o); let b = broken.get(o); for (const [p, r0] of chain) { if (b && b.has(p)) continue; if (!nearEq(r0, rel(p, o, now))) { if (!b) { b = new Set(); broken.set(o, b); } b.add(p); } } } };
+  for (let i = 1; i <= 8; i++) { for (const a of animators) { try { a.update(t0 + i * 0.41, 0.41); } catch (e) { } } scan(); }
+  const anchorOf = o => { let best = null; const b = broken.get(o); for (let p = o.parent; p; p = p === root ? null : p.parent) { if (b && b.has(p)) break; best = p; } return best; };
   const groups = new Map(); let kept = 0;
   for (const o of cand) {
     const anc = anchorOf(o);
