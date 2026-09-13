@@ -244,7 +244,7 @@ function spikeGeom() {
 function doSpike(c) {
   if (!ballReach(highPos(), REACH_A, 0.6)) return false;                  // spike hitbox: 60% as tall
   const { tz, fwd, neutralPitch, clearPitch } = spikeGeom();
-  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.5 : 1);   // W tilt trades power for steepness; Double Spike hits 50% harder
+  const sp = (13 + 22 * c) * (tz > 0 ? lerp(1, 0.75, tz) : 1) * (P.doubleSpike ? 1.3 : 1);   // W tilt trades power for steepness; Double Spike hits 30% harder
   if (B.serve) {                                                // serve: slightly up, full gravity, tilt ignored (full charge ~ back line)
     const pitch = lerp(20, 5, c) * D, ss = 12 + 8 * c;         // softer serves arc higher; full charge is flat and lands near the far back line
     hitBall('spike', new V3(fwd.x * Math.cos(pitch) * ss, Math.sin(pitch) * ss, fwd.z * Math.cos(pitch) * ss), 1, c);
@@ -545,7 +545,7 @@ function remoteUpsert(sid, d) {
   if (!r) {
     const rig = new Rig(variant, model); scene.add(rig.root); rig.root.position.set(d.x || 0, d.y || 0, d.z || 0);
     const tag = document.createElement('div'); tag.className = 'tag'; $('#tags').appendChild(tag);
-    r = { rig, tag, buf: [], data: d, speed: 0, stamp: null, gap: 0.09, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
+    r = { rig, tag, name: d.name || '', buf: [], data: d, speed: 0, stamp: null, gap: 0.09, lastArrive: 0, ptx: null, pty: 0, ptz: 0 };
     remotes.set(sid, r);
   }
   // de-jitter: packets are stamped onto a steady timeline running at the sender's average rate, not at
@@ -624,9 +624,34 @@ function projectTags() {
     const vis = _v.z < 1 && _v.z > -1; r.tag.style.display = vis ? '' : 'none';
     if (vis) { r.tag.style.left = ((_v.x + 1) / 2 * W) + 'px'; r.tag.style.top = ((1 - _v.y) / 2 * H) + 'px'; }
   }
+  projectBubbles(W, H);
   const cb = $('#chargeBar');
   if (P.charging) { _v.copy(P.pos); _v.y += 1.2; _v.addScaledVector(cr(), 0.9); _v.project(camera); cb.style.left = ((_v.x + 1) / 2 * W) + 'px'; cb.style.top = ((1 - _v.y) / 2 * H) + 'px'; cb.querySelector('i').style.height = (P.charge * 100) + '%'; }
 }
+
+/* ---------------- Chat bubbles over heads ---------------- */
+const BUBBLES = new Map();                   // sid -> { el, items: [{ text, until }] }; newest at the bottom, older ones stack upward
+const BUBBLE_MS = 6000, BUBBLE_MAX = 4;
+function addBubble(sid, text) {
+  if (!sid || !text) return;
+  let b = BUBBLES.get(sid);
+  if (!b) { b = { el: document.createElement('div'), items: [] }; b.el.className = 'bubbles'; $('#tags').appendChild(b.el); BUBBLES.set(sid, b); }
+  b.items.push({ text, until: performance.now() + BUBBLE_MS }); while (b.items.length > BUBBLE_MAX) b.items.shift();
+  const d = document.createElement('div'); d.className = 'bub'; d.textContent = text; b.el.appendChild(d); while (b.el.children.length > BUBBLE_MAX) b.el.firstChild.remove();
+}
+function projectBubbles(W, H) {
+  const now = performance.now();
+  for (const [sid, b] of BUBBLES) {
+    while (b.items.length && b.items[0].until < now) { b.items.shift(); const c = b.el.querySelector('.bub:not(.fade)'); if (c) { c.classList.add('fade'); setTimeout(() => c.remove(), 400); } }   // oldest not-yet-fading bubble goes
+    if (!b.items.length && !b.el.children.length) { b.el.remove(); BUBBLES.delete(sid); continue; }
+    let pos = null; if (sid === SID) pos = P.pos; else { const r = remotes.get(sid); if (r) pos = r.rig.root.position; }
+    if (!pos) { b.el.style.display = 'none'; continue; }
+    _v.copy(pos); _v.y += 2.3; _v.project(camera);
+    const vis = _v.z < 1 && _v.z > -1; b.el.style.display = vis ? '' : 'none';
+    if (vis) { b.el.style.left = ((_v.x + 1) / 2 * W) + 'px'; b.el.style.top = ((1 - _v.y) / 2 * H) + 'px'; }
+  }
+}
+function sidForName(n) { for (const [sid, r] of remotes) if ((r.data && r.data.name) === n) return sid; return n === me.name ? SID : null; }
 
 /* ---------------- Camera ---------------- */
 const camRay = new THREE.Raycaster();
@@ -742,7 +767,7 @@ const TRAITS = {
   b1a:  { name: 'Lightning Drop', type: 'ability', sym: 'LD', desc: 'Tips rocket 3 m up, then slam straight down under heavy gravity.' },
   b2p1: { name: 'Spike Startup', type: 'passive', sym: 'SS', desc: 'Your spike charge bar starts at 50%.' },
   b2p2: { name: '4th Tempo', type: 'passive', sym: '4T', desc: 'Ground sets float higher with less gravity and carry further in the direction you run.' },
-  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.5x power, lightning on contact.' },
+  b2a:  { name: 'Double Spike', type: 'ability', sym: 'DS', desc: 'Whiff a spike mid-air and you get a second one: instantly full charge, 1.3x power, lightning on contact.' },
   b3p1: { name: 'Sky Walker', type: 'passive', sym: 'SW', desc: 'Placeholder passive trait.' },
   b3p2: { name: 'Steady Hands', type: 'passive', sym: 'ST', desc: 'Placeholder passive trait.' },
   b3a:  { name: 'Thunder Spike', type: 'ability', sym: 'TS', desc: 'Placeholder ability trait.' },
@@ -958,12 +983,12 @@ chatInput.addEventListener('keydown', e => {
   if (!S.online) { chatLine('<span class="sys">Offline - chat unavailable</span>'); return; }
   if (Date.now() - lastChatSend < 800) { chatLine('<span class="sys">Slow down</span>'); return; }
   lastChatSend = Date.now();
-  if (chatTab === 'party') { if (!S.party) { chatLine('<span class="sys">You are not in a party</span>', 'sys', 'party'); return; } db.ref('parties/' + S.party.pid + '/chat').push({ n: me.name, t: text.slice(0, 120), ts: firebase.database.ServerValue.TIMESTAMP }); }
-  else db.ref('chat/global').push({ n: me.name, t: text.slice(0, 120), ts: firebase.database.ServerValue.TIMESTAMP });
+  if (chatTab === 'party') { if (!S.party) { chatLine('<span class="sys">You are not in a party</span>', 'sys', 'party'); return; } db.ref('parties/' + S.party.pid + '/chat').push({ n: me.name, sid: SID, t: text.slice(0, 120), ts: firebase.database.ServerValue.TIMESTAMP }); }
+  else db.ref('chat/global').push({ n: me.name, sid: SID, t: text.slice(0, 120), ts: firebase.database.ServerValue.TIMESTAMP });
 });
 const CHAT_JOIN_T = Date.now();
 let chatSub = false;
-function subscribeChat() { if (chatSub) return; chatSub = true; db.ref('chat/global').orderByChild('ts').startAt(snow() - 1000).on('child_added', s => { const m = s.val(); if (m) chatLine(`<b>${esc(m.n)}:</b> ${esc(m.t)}`); }); }   // fresh chat every join: only messages sent after you arrived
+function subscribeChat() { if (chatSub) return; chatSub = true; db.ref('chat/global').orderByChild('ts').startAt(snow() - 1000).on('child_added', s => { const m = s.val(); if (m) { chatLine(`<b>${esc(m.n)}:</b> ${esc(m.t)}`); addBubble(m.sid || sidForName(m.n), m.t); } }); }   // fresh chat every join: only messages sent after you arrived
 function pruneChat() { try { const cutoff = snow() - 3 * 60 * 1000; db.ref('chat/global').orderByChild('ts').endAt(cutoff).limitToFirst(100).once('value').then(s => s.forEach(c => c.ref.remove())); } catch (e) { } }   // messages nobody can still see get erased
 setInterval(pruneChat, 60000);
 
@@ -996,7 +1021,7 @@ function joinPartyLocal(pid) {
     // follow the leader into a pad
     if (v.pad && v.leader !== SID && S.scene === 'lobby' && !S.padId && !S.queue && PADS[v.pad]) { const z = PADS[v.pad].zone; P.pos.set((z.x1 + z.x2) / 2, 0, (z.z1 + z.z2) / 2); P.vel.set(0, 0, 0); }
   });
-  const cref = ref.child('chat'); const ccb = cref.orderByChild('ts').startAt(snow() - 1000).on('child_added', s => { const m = s.val(); if (m) chatLine(`<b>${esc(m.n)}:</b> ${esc(m.t)}`, 'party'); });
+  const cref = ref.child('chat'); const ccb = cref.orderByChild('ts').startAt(snow() - 1000).on('child_added', s => { const m = s.val(); if (m) { chatLine(`<b>${esc(m.n)}:</b> ${esc(m.t)}`, 'party'); addBubble(m.sid || sidForName(m.n), m.t); } });
   partyUnsub = () => { ref.off('value', cb); cref.off('child_added', ccb); };
 }
 function leavePartyLocal() { if (partyUnsub) partyUnsub(); partyUnsub = null; S.party = null; renderParty(); for (const r of remotes.values()) r.tag.classList.remove('party'); }

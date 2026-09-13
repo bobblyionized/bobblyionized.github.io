@@ -156,6 +156,11 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 .toast{background:var(--bg);border:2px solid var(--line);padding:8px 14px;border-radius:6px;font-weight:700;font-size:14px}
 .toast.err{border-color:var(--red)}.toast.ok{border-color:var(--green)}
 #tags{position:absolute;inset:0;pointer-events:none}
+.bubbles{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;width:240px}
+.bub{background:rgba(255,255,255,.96);color:#111;font-size:12px;font-weight:700;padding:5px 9px;border-radius:7px;max-width:240px;text-align:center;box-shadow:0 2px 0 rgba(0,0,0,.35);word-wrap:break-word;position:relative;animation:bubIn .18s ease-out}
+.bub:last-child::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-top-color:rgba(255,255,255,.96);border-bottom:0}
+.bub.fade{opacity:0;transition:opacity .4s}
+@keyframes bubIn{from{transform:translateY(6px) scale(.85);opacity:0}to{transform:none;opacity:1}}
 .tag{position:absolute;transform:translate(-50%,-100%);font-weight:800;font-size:13px;color:#fff;text-shadow:0 0 3px #000,0 0 5px #000,0 2px 2px #000;white-space:nowrap}
 #chargeBar{position:absolute;width:12px;height:110px;border:2px solid #fff;border-radius:4px;background:rgba(0,0,0,.55);transform:translate(0,-50%);overflow:hidden;pointer-events:none}
 #chargeBar i{position:absolute;left:0;bottom:0;width:100%;background:var(--yellow);height:0}
