@@ -113,6 +113,13 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 .tier1{border-color:#cd7f32!important}.tier2{border-color:#d0d6dd!important}.tier3{border-color:#f5c542!important}
 /* trait shop */
 #traitPeekCards{display:flex;gap:12px;justify-content:center;padding-top:8px}
+/* confirm dialog */
+#confirmBox{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:5}
+#confirmBox .dlg{width:360px;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:18px 20px;text-align:center}
+#confirmBox h3{margin:0 0 8px;font-size:18px;font-weight:900;text-transform:uppercase}
+#confirmBox p{margin:0 0 14px;font-size:13px;font-weight:600;opacity:.8}
+#confirmBox .row{justify-content:center}
+.tcard.mini .del{position:absolute;top:-10px;left:-8px;width:22px;height:22px;padding:0;border-radius:6px;background:var(--red);font-size:11px;line-height:22px}
 /* box opening */
 #openFx{position:absolute;inset:0;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center}
 #openStage{position:relative;width:420px;height:540px}
@@ -360,6 +367,8 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
     </div>
   </div>
 
+  <div id="confirmBox" class="hidden"><div class="dlg"><h3 id="confirmTitle"></h3><p id="confirmText"></p><div class="row"><button class="btn grey" id="confirmNo">CANCEL</button><button class="btn red" id="confirmYes">DELETE</button></div></div></div>
+
   <div id="openFx" class="hidden">
     <div id="openStage">
       <img id="openChest" src="" alt="">
@@ -534,8 +543,16 @@ applyKeys();
 /* ---------------- Panels ---------------- */
 const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel', '#traitPanel', '#invPanel'];
 function openPanel(sel) { PANELS.forEach(p => $(p).classList.add('hidden')); if (sel) { $(sel).classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); } }
-function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); rebinding = null; }
-function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden'); }
+function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); $('#confirmBox').classList.add('hidden'); rebinding = null; }
+function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden') || !$('#confirmBox').classList.contains('hidden'); }
+function confirmDialog(title, text, okLabel = 'DELETE') {          // yes / no overlay on top of whatever panel is open; resolves true only on the red button
+  return new Promise(res => {
+    const box = $('#confirmBox'); $('#confirmTitle').textContent = title; $('#confirmText').textContent = text; $('#confirmYes').textContent = okLabel;
+    box.classList.remove('hidden');
+    const done = v => { box.classList.add('hidden'); $('#confirmYes').onclick = $('#confirmNo').onclick = null; res(v); };
+    $('#confirmYes').onclick = () => done(true); $('#confirmNo').onclick = () => done(false);
+  });
+}
 $$('[data-close]').forEach(b => b.onclick = () => { closePanels(); });
 $('#menuBtn').onclick = () => uiOpen() ? closePanels() : openPanel('#settingsPanel');
 $('#userBtn').onclick = () => { openPanel('#accountPanel'); renderAccount(); };
@@ -2496,8 +2513,8 @@ function renderTraitsTab() {
   }
   const trKeys = Object.keys(own).filter(k => !equipped.has(k) && TRAITS[own[k].id]).sort((a, b) => (own[a].t || 0) - (own[b].t || 0));
   for (const k of trKeys) {
-    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button>');
-    const d = w.firstChild; d.querySelector('button').onclick = (e) => { e.stopPropagation(); equipTrait(k); }; bag.appendChild(d);
+    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button><button class="del" title="Delete this trait">X</button>');
+    const d = w.firstChild; const [eqB, delB] = d.querySelectorAll('button'); eqB.onclick = (e) => { e.stopPropagation(); equipTrait(k); }; delB.onclick = (e) => { e.stopPropagation(); deleteTrait(k); }; bag.appendChild(d);
   }
   if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes on the yellow couch.</div>';
 }
@@ -2509,6 +2526,13 @@ function equipTrait(key) {
   else if (!lo.p2 || !own[lo.p2]) lo.p2 = key;
   else { toast('Both passive slots are full - unequip one first', 'err'); return; }
   db.ref('profiles/' + me.id + '/loadout').set(lo);
+}
+async function deleteTrait(key) {
+  const tr = (me.traits || {})[key]; if (!tr || me.guest) return; const T = TRAITS[tr.id]; if (!T) return;
+  if (!await confirmDialog('Delete ' + T.name + '?', 'This ' + T.type + ' trait will be gone for good. Boxes do not give refunds.')) return;
+  const lo = me.loadout || {}; const up = { ['traits/' + key]: null };
+  for (const s of ['p1', 'p2', 'a']) if (lo[s] === key) up['loadout/' + s] = null;   // pull it out of the loadout too, just in case
+  await db.ref('profiles/' + me.id).update(up); toast('Deleted ' + T.name, 'ok');
 }
 function unequipTrait(slot) { if (me.guest) return; db.ref('profiles/' + me.id + '/loadout/' + slot).remove(); }
 let opening = false;

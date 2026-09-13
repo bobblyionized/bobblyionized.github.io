@@ -113,6 +113,13 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 .tier1{border-color:#cd7f32!important}.tier2{border-color:#d0d6dd!important}.tier3{border-color:#f5c542!important}
 /* trait shop */
 #traitPeekCards{display:flex;gap:12px;justify-content:center;padding-top:8px}
+/* confirm dialog */
+#confirmBox{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:5}
+#confirmBox .dlg{width:360px;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:18px 20px;text-align:center}
+#confirmBox h3{margin:0 0 8px;font-size:18px;font-weight:900;text-transform:uppercase}
+#confirmBox p{margin:0 0 14px;font-size:13px;font-weight:600;opacity:.8}
+#confirmBox .row{justify-content:center}
+.tcard.mini .del{position:absolute;top:-10px;left:-8px;width:22px;height:22px;padding:0;border-radius:6px;background:var(--red);font-size:11px;line-height:22px}
 /* box opening */
 #openFx{position:absolute;inset:0;background:rgba(0,0,0,.74);display:flex;align-items:center;justify-content:center}
 #openStage{position:relative;width:420px;height:540px}
@@ -359,6 +366,8 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       </div>
     </div>
   </div>
+
+  <div id="confirmBox" class="hidden"><div class="dlg"><h3 id="confirmTitle"></h3><p id="confirmText"></p><div class="row"><button class="btn grey" id="confirmNo">CANCEL</button><button class="btn red" id="confirmYes">DELETE</button></div></div></div>
 
   <div id="openFx" class="hidden">
     <div id="openStage">

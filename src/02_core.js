@@ -147,8 +147,16 @@ applyKeys();
 /* ---------------- Panels ---------------- */
 const PANELS = ['#settingsPanel', '#accountPanel', '#keysPanel', '#friendsPanel', '#queuePanel', '#shopPanel', '#partyPanel', '#traitPanel', '#invPanel'];
 function openPanel(sel) { PANELS.forEach(p => $(p).classList.add('hidden')); if (sel) { $(sel).classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); } }
-function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); rebinding = null; }
-function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden'); }
+function closePanels() { PANELS.forEach(p => $(p).classList.add('hidden')); $('#openFx').classList.add('hidden'); $('#confirmBox').classList.add('hidden'); rebinding = null; }
+function uiOpen() { return PANELS.some(p => !$(p).classList.contains('hidden')) || !$('#openFx').classList.contains('hidden') || !$('#confirmBox').classList.contains('hidden'); }
+function confirmDialog(title, text, okLabel = 'DELETE') {          // yes / no overlay on top of whatever panel is open; resolves true only on the red button
+  return new Promise(res => {
+    const box = $('#confirmBox'); $('#confirmTitle').textContent = title; $('#confirmText').textContent = text; $('#confirmYes').textContent = okLabel;
+    box.classList.remove('hidden');
+    const done = v => { box.classList.add('hidden'); $('#confirmYes').onclick = $('#confirmNo').onclick = null; res(v); };
+    $('#confirmYes').onclick = () => done(true); $('#confirmNo').onclick = () => done(false);
+  });
+}
 $$('[data-close]').forEach(b => b.onclick = () => { closePanels(); });
 $('#menuBtn').onclick = () => uiOpen() ? closePanels() : openPanel('#settingsPanel');
 $('#userBtn').onclick = () => { openPanel('#accountPanel'); renderAccount(); };

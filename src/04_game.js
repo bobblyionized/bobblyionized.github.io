@@ -817,8 +817,8 @@ function renderTraitsTab() {
   }
   const trKeys = Object.keys(own).filter(k => !equipped.has(k) && TRAITS[own[k].id]).sort((a, b) => (own[a].t || 0) - (own[b].t || 0));
   for (const k of trKeys) {
-    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button>');
-    const d = w.firstChild; d.querySelector('button').onclick = (e) => { e.stopPropagation(); equipTrait(k); }; bag.appendChild(d);
+    const w = document.createElement('div'); w.innerHTML = traitCardHtml(own[k].id, 'mini', '<button>EQUIP</button><button class="del" title="Delete this trait">X</button>');
+    const d = w.firstChild; const [eqB, delB] = d.querySelectorAll('button'); eqB.onclick = (e) => { e.stopPropagation(); equipTrait(k); }; delB.onclick = (e) => { e.stopPropagation(); deleteTrait(k); }; bag.appendChild(d);
   }
   if (!boxKeys.length && !trKeys.length) bag.innerHTML = '<div id="invEmpty">No traits or boxes yet - Big Man Dealer sells trait boxes on the yellow couch.</div>';
 }
@@ -830,6 +830,13 @@ function equipTrait(key) {
   else if (!lo.p2 || !own[lo.p2]) lo.p2 = key;
   else { toast('Both passive slots are full - unequip one first', 'err'); return; }
   db.ref('profiles/' + me.id + '/loadout').set(lo);
+}
+async function deleteTrait(key) {
+  const tr = (me.traits || {})[key]; if (!tr || me.guest) return; const T = TRAITS[tr.id]; if (!T) return;
+  if (!await confirmDialog('Delete ' + T.name + '?', 'This ' + T.type + ' trait will be gone for good. Boxes do not give refunds.')) return;
+  const lo = me.loadout || {}; const up = { ['traits/' + key]: null };
+  for (const s of ['p1', 'p2', 'a']) if (lo[s] === key) up['loadout/' + s] = null;   // pull it out of the loadout too, just in case
+  await db.ref('profiles/' + me.id).update(up); toast('Deleted ' + T.name, 'ok');
 }
 function unequipTrait(slot) { if (me.guest) return; db.ref('profiles/' + me.id + '/loadout/' + slot).remove(); }
 let opening = false;
