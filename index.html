@@ -3439,7 +3439,7 @@ function groundTilt() {                      // WASD while on the ground, relati
   if (t.length() > 1) t.normalize(); return t;
 }
 
-const ACT_WINDOW = 0.3;                      // bump / set / jump set stay armed this long, so the ball can arrive a bit late
+const ACT_WINDOW = 0.3, BUMP_POWER = 1.25;         // bumps launch 25% harder than the aimed arc (so they carry further and higher)                      // bump / set / jump set stay armed this long, so the ball can arrive a bit late
 function doBump() { P.rig.setPose('bump', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'bump', until: T + ACT_WINDOW }; setTimeout(() => actionFx('bump', P.rig, cf()), 60); tryAct(); }
 function doGroundSet() { P.rig.setPose('set', T + 0.45); P.cd = GROUND_CD; P.act = { type: 'set', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
 function doJumpSet() { P.airUsed = true; P.airActed = true; P.rig.base = 'airDown'; P.rig.setPose('set', T + 0.45); P.act = { type: 'jset', until: T + ACT_WINDOW }; setTimeout(() => actionFx('set', P.rig, cf()), 80); tryAct(); }
@@ -3457,7 +3457,7 @@ function tryAct() {
     const gt = groundTilt();                                   // forward = stronger, back = softer bump
     const dist = 7.5 + 5.0 * gt.y; const dir = withLateral(cf(), gt.x, 25);
     const tg = P.pos.clone().addScaledVector(dir, dist); tg.y = 0;
-    hitBall('bump', launchTo(B.pos, tg, Math.max(5.8 - Math.max(0, gt.y) * 1.0, B.pos.y + 2)), 1);   // higher bump; forward tilt = flatter and faster
+    hitBall('bump', launchTo(B.pos, tg, Math.max(5.8 - Math.max(0, gt.y) * 1.0, B.pos.y + 2)).multiplyScalar(BUMP_POWER), 1);   // higher bump; forward tilt = flatter and faster; BUMP_POWER scales the whole launch
   } else if (a.type === 'set') {
     if (!ballReach(chestPos().add(new V3(0, 0.5, 0)), REACH_G + 0.2)) return; P.act = null;
     const dir = P.moving ? P.moveDir.clone() : cf().multiplyScalar(0.12);
