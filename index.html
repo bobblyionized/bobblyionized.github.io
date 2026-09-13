@@ -1117,6 +1117,39 @@ function jerseyMats(variant) {
   const sleeve = mat(variant === 'black' ? 0x151515 : 0xf5f5f5); const shorts = mat(variant === 'black' ? 0x1c1c1c : 0xffffff);
   return JERSEY[variant] = { torso: [side, side, side, side, front, back], sleeve, shorts };
 }
+/* ---- extra characters: an outfit is a set of materials plus a few accessory boxes; the body and animation are shared ----
+   mats(): torso / sleeve / shorts (+ optional waist); skin: face + hands colour; hair: colour or null (bald / covered);
+   longSleeves / pants: cover the arms / legs in the outfit colour; hands: glove colour; extras(): props hung on the neck / spine joints */
+const LOOK_CACHE = {};
+const stripeTex = (a, b, n = 6) => canvasTex(256, 256, (g, W, H) => { for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? b : a; g.fillRect(0, i * H / n, W, H / n); } });
+const MODEL_LOOKS = {
+  lifeguard: { skin: 0xd9a878, hair: 0x3b2a1a,
+    mats: () => LOOK_CACHE.lifeguard || (LOOK_CACHE.lifeguard = { torso: mat(0xffffff, { map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#e5342b'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff'; g.fillRect(W / 2 - 14, 60, 28, 90); g.fillRect(W / 2 - 45, 91, 90, 28); g.font = '900 34px Montserrat, Arial'; g.textAlign = 'center'; g.fillText('GUARD', W / 2, 205); }) }), sleeve: mat(0xe5342b), shorts: mat(0xe5342b) }),
+    extras: ({ neck, spine, box, mat, cyl }) => { box(0.42, 0.05, 0.3, mat(0xffffff), 0, 0.38, 0.2, neck); box(0.44, 0.06, 0.44, mat(0xffffff), 0, 0.42, 0, neck);   // sun visor
+      cyl(0.02, 0.02, 0.3, mat(0x222222), 0, 0.5, 0.17, spine, 5); box(0.07, 0.05, 0.05, mat(0xf5c542), 0, 0.36, 0.18, spine); } },   // whistle on a cord
+  surfer: { skin: 0xe6b27f, hair: 0xf2dc8a, longSleeves: true, pants: true,
+    mats: () => LOOK_CACHE.surfer || (LOOK_CACHE.surfer = { torso: mat(0xffffff, { map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#16181c'; g.fillRect(0, 0, W, H); g.fillStyle = '#20c9b8'; g.fillRect(0, 0, 34, H); g.fillRect(W - 34, 0, 34, H); g.fillStyle = '#ffffff'; g.fillRect(W / 2 - 4, 0, 8, H); }) }), sleeve: mat(0x16181c), shorts: mat(0x16181c) }),
+    extras: ({ neck, box, mat }) => { box(0.42, 0.08, 0.05, mat(0x1a1a1a), 0, 0.5, 0.17, neck); box(0.04, 0.03, 0.14, mat(0x1a1a1a), 0.2, 0.5, 0.1, neck); box(0.04, 0.03, 0.14, mat(0x1a1a1a), -0.2, 0.5, 0.1, neck);   // shades pushed up on the head
+      box(0.06, 0.28, 0.14, mat(0xf2dc8a), 0.23, 0.2, -0.04, neck); box(0.06, 0.28, 0.14, mat(0xf2dc8a), -0.23, 0.2, -0.04, neck); box(0.36, 0.34, 0.1, mat(0xf2dc8a), 0, 0.14, -0.21, neck); } },   // long surfer hair
+  pirate: { skin: 0xd5a57a, hair: null, pants: true,
+    mats: () => LOOK_CACHE.pirate || (LOOK_CACHE.pirate = { torso: mat(0xffffff, { map: stripeTex('#f4f4f4', '#b8262b', 8) }), sleeve: mat(0xffffff, { map: stripeTex('#f4f4f4', '#b8262b', 8) }), shorts: mat(0x2b2b33) }),
+    extras: ({ neck, spine, box, mat }) => { box(0.4, 0.14, 0.4, mat(0xb8262b), 0, 0.42, 0, neck); box(0.14, 0.1, 0.06, mat(0xb8262b), 0.18, 0.4, -0.2, neck); box(0.08, 0.2, 0.05, mat(0xb8262b), 0.24, 0.32, -0.2, neck);   // bandana with a knotted tail
+      box(0.1, 0.1, 0.03, mat(0x111111), 0.08, 0.3, 0.19, neck); box(0.38, 0.03, 0.03, mat(0x111111), 0, 0.34, 0.19, neck);   // eyepatch + strap
+      box(0.3, 0.1, 0.06, mat(0x2a1a10), 0, 0.08, 0.17, neck); box(0.34, 0.06, 0.1, mat(0x2a1a10), 0, 0.12, 0.14, neck);   // beard
+      box(0.48, 0.07, 0.28, mat(0x5a3a1a), 0, 0.02, 0, spine); box(0.09, 0.09, 0.03, mat(0xf5c542), 0, 0.02, 0.15, spine); } },   // belt + buckle
+  robot: { skin: 0x9aa4ad, hair: null, longSleeves: true, pants: true, hands: 0x6e7780, metal: true,
+    mats: () => LOOK_CACHE.robot || (LOOK_CACHE.robot = { torso: mat(0xb9c2cb, { metalness: .7, roughness: .35 }), sleeve: mat(0x8f99a3, { metalness: .7, roughness: .4 }), shorts: mat(0x8f99a3, { metalness: .7, roughness: .4 }) }),
+    extras: ({ neck, spine, box, mat, cyl, ball }) => { box(0.38, 0.09, 0.04, mat(0x22f3ff, { emissive: 0x22f3ff, emissiveIntensity: 1.2 }), 0, 0.3, 0.19, neck);   // glowing visor over the eyes
+      cyl(0.02, 0.02, 0.22, mat(0x6e7780), 0, 0.55, 0, neck, 6); ball(0.045, mat(0xff3b3b, { emissive: 0xff3b3b, emissiveIntensity: 1 }), 0, 0.67, 0, neck, 8);   // antenna
+      box(0.3, 0.16, 0.05, mat(0x3a4148), 0, 0.42, 0.16, spine); for (const x of [-0.08, 0, 0.08]) box(0.04, 0.04, 0.02, mat([0x22f3ff, 0xf5c542, 0xff3b3b][(x + 0.08) / 0.08 | 0], { emissive: [0x22f3ff, 0xf5c542, 0xff3b3b][(x + 0.08) / 0.08 | 0], emissiveIntensity: .9 }), x, 0.42, 0.19, spine);   // chest panel with lights
+      box(0.44, 0.1, 0.32, mat(0x6e7780, { metalness: .7, roughness: .4 }), 0, 0.02, 0, spine); } },   // waist plate
+  astronaut: { skin: 0xf3d1b0, hair: 0x5a3b22, longSleeves: true, pants: true, hands: 0xf2f2f2,
+    mats: () => LOOK_CACHE.astronaut || (LOOK_CACHE.astronaut = { torso: mat(0xffffff, { map: canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, W, H); g.fillStyle = '#ff7a1a'; g.fillRect(0, 96, W, 18); g.fillStyle = '#1f3b8a'; g.fillRect(W / 2 - 60, 30, 46, 30); g.fillStyle = '#c9c9c9'; g.fillRect(W / 2 + 14, 30, 46, 30); }) }), sleeve: mat(0xf2f2f2), shorts: mat(0xf2f2f2) }),
+    extras: ({ neck, spine, box, mat }) => { const glass = new THREE.MeshStandardMaterial({ color: 0xffc24a, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0.6 });
+      const helm = box(0.5, 0.52, 0.5, mat(0xf2f2f2), 0, 0.24, -0.02, neck); helm.material = glass;   // gold-tinted bubble helmet
+      box(0.52, 0.06, 0.52, mat(0xf2f2f2), 0, -0.01, -0.02, neck); box(0.52, 0.08, 0.52, mat(0xf2f2f2), 0, 0.5, -0.02, neck);   // neck ring + top
+      box(0.42, 0.44, 0.18, mat(0xe6e6e6), 0, 0.3, -0.24, spine); box(0.1, 0.16, 0.06, mat(0xff7a1a), 0.12, 0.42, -0.34, spine); box(0.1, 0.16, 0.06, mat(0xff7a1a), -0.12, 0.42, -0.34, spine); } },   // life-support pack
+};
 const POSES = {
   idle:        { shL: [0, 0, 3], shR: [0, 0, -3], elL: [-6, 0, 0], elR: [-6, 0, 0], hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0], spine: [0, 0, 0], neck: [0, 0, 0] },
   jumpUp:      { shL: [-150, 0, 18], shR: [-150, 0, -18], elL: [-40, 0, 0], elR: [-40, 0, 0], hipL: [-10, 0, 0], hipR: [-10, 0, 0], knL: [4, 0, 0], knR: [4, 0, 0], spine: [-6, 0, 0], neck: [-12, 0, 0] },   // take-off: both arms thrown up, legs driven straight
@@ -1170,16 +1203,17 @@ class Rig {
     this.body = new THREE.Group(); this.body.position.y = -HIP_Y; this.tilt.add(this.body);
     this.variant = variant; const J = this.j = {};
     const big = variant === 'bigdealer', wd = variant === 'wdealer'; const dealer = variant === 'dealer' || big || model === 'dealer'; const tux = model === 'tux';
-    const jm = wd ? { torso: mat(0xe0559a), sleeve: mat(0xe0559a), shorts: mat(0x2a2a2a) } : big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
+    const look = MODEL_LOOKS[model] || null;
+    const jm = look ? look.mats() : wd ? { torso: mat(0xe0559a), sleeve: mat(0xe0559a), shorts: mat(0x2a2a2a) } : big ? { torso: mat(0xb3242a), sleeve: mat(0xb3242a), shorts: mat(0x1a1a1a) } : dealer ? { torso: mat(0x111111), sleeve: mat(0x111111), shorts: mat(0x1a1a1a) } : tux ? tuxMats() : jerseyMats(variant);
     const joint = (n, parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); J[n] = g; return g; };
     const spine = joint('spine', this.body, 0, HIP_Y, 0);
     const sideM = Array.isArray(jm.torso) ? jm.torso[0] : jm.torso;
     box(girl ? 0.4 : 0.46, 0.3, 0.26, jm.waist || sideM, 0, 0.14, 0, spine);                       // waist / lower torso (the tux shirt continues down it)
     this.torso = box(girl ? 0.52 : 0.6, 0.34, girl ? 0.27 : 0.3, jm.torso, 0, TORSO_H - 0.17, 0, spine);   // chest (jersey front/back)
-    const skinM = dealer ? mat(0x6b4a30) : SKIN;
+    const skinM = look ? mat(look.skin, look.metal ? { metalness: .6, roughness: .4 } : {}) : dealer ? mat(0x6b4a30) : SKIN;
     cyl(0.08, 0.09, 0.1, skinM, 0, TORSO_H + 0.03, 0, spine, 12);                                    // neck
     const neck = joint('neck', spine, 0, TORSO_H + 0.04, 0);
-    const skinFace = mat(0xffffff, { map: dealer ? FACE_TEX_DARK : (girl ? FACE_TEX_GIRL : FACE_TEX) });
+    const skinFace = mat(0xffffff, { map: look ? faceTex('#' + look.skin.toString(16).padStart(6, '0'), girl) : dealer ? FACE_TEX_DARK : (girl ? FACE_TEX_GIRL : FACE_TEX) });
     const head = new THREE.Mesh(boxGeo(0.36, 0.4, 0.36, 0.025), [skinM, skinM, skinM, skinM, skinFace, skinM]); head.position.y = 0.24; head.castShadow = true; neck.add(head);
     if (dealer) {                                                             // Lil Man Dealer: black cap, shades, hoodie, gold chain
       box(0.4, 0.13, 0.4, mat(0x111111), 0, 0.43, 0, neck); box(0.38, 0.04, 0.2, mat(0x111111), 0, 0.39, 0.27, neck);
@@ -1188,9 +1222,10 @@ class Rig {
       box(0.56, 0.14, 0.32, big ? mat(0xb3242a) : mat(0x111111), 0, 0.56, -0.02, spine);          // hood
       if (big) { box(0.3, 0.1, 0.06, mat(0x2a1a10), 0, 0.08, 0.17, neck); box(0.34, 0.06, 0.1, mat(0x2a1a10), 0, 0.12, 0.14, neck); }   // beard
       this.torso.material = jm.torso;
+    } else if (look && look.hair === null) {                                  // outfit covers or removes the hair (bandana, helmet ring, chrome dome)
     } else {
     // hair: simple blond cap + bangs, blue tips on the sides (head stays visible)
-    const hairM = tux ? mat(0x111111) : HAIR, tipM = tux ? mat(0x111111) : HAIR_TIP;
+    const hairM = look ? mat(look.hair) : tux ? mat(0x111111) : HAIR, tipM = look ? mat(look.hair) : tux ? mat(0x111111) : HAIR_TIP;
     box(0.4, 0.12, 0.4, hairM, 0, 0.43, 0, neck);
     box(0.4, 0.1, 0.06, hairM, 0, 0.39, 0.19, neck);
     box(0.06, 0.16, 0.2, tipM, 0.21, 0.32, -0.06, neck); box(0.06, 0.16, 0.2, tipM, -0.21, 0.32, -0.06, neck);
@@ -1202,11 +1237,13 @@ class Rig {
     }
     if (wd) { box(0.38, 0.08, 0.05, mat(0x050505), 0, 0.29, 0.19, neck); box(0.28, 0.05, 0.05, mat(0xf5c542), 0, 0.5, 0.15, spine); box(0.56, 0.14, 0.32, mat(0xe0559a), 0, 0.56, -0.02, spine); }   // Lil Woman Dealer: shades, chain, pink hood
     }
+    if (look && look.extras) look.extras({ neck, spine, box, mat, cyl, ball, girl });
     /* Limbs. Every hinge gets a sphere cap in the same material as the segment below it: boxes alone tear
        open a wedge of empty space the moment a knee passes ~40 degrees, and this rig routinely folds them
        past 100. The caps cost one cached sphere geometry each and close the silhouette at every angle. */
-    const armM = dealer || tux || wd ? jm.sleeve : SKIN;
-    const legM = dealer || tux ? jm.shorts : SKIN;
+    const armM = look ? (look.longSleeves ? jm.sleeve : skinM) : dealer || tux || wd ? jm.sleeve : SKIN;
+    const legM = look ? (look.pants ? jm.shorts : skinM) : dealer || tux ? jm.shorts : SKIN;
+    const handM = look && look.hands ? mat(look.hands) : skinM;
     const soleM = mat(0xe8e4dc);
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
       const sh = joint('sh' + n, spine, sx * (girl ? 0.32 : 0.36), SHOULDER_Y - HIP_Y, 0);
@@ -1217,7 +1254,7 @@ class Rig {
       ball(0.082, armM, 0, 0, 0, el, 10);                                                            // elbow
       box(0.15, 0.3, 0.15, armM, 0, -0.15, 0, el);                                                   // forearm
       ball(0.068, armM, 0, -0.29, 0, el, 10);                                                        // wrist
-      this['hand' + n] = box(0.13, 0.13, 0.09, skinM, 0, -0.355, 0.01, el);                          // hand
+      this['hand' + n] = box(0.13, 0.13, 0.09, handM, 0, -0.355, 0.01, el);                          // hand
       const hip = joint('hip' + n, this.body, sx * (girl ? 0.14 : 0.13), HIP_Y, 0);
       ball(0.118, jm.shorts, 0, -0.03, 0, hip, 12);                                                  // hip
       box(0.23, 0.44, 0.23, jm.shorts, 0, -0.22, 0, hip);                                            // thigh
@@ -3157,7 +3194,12 @@ const SKINS = {
   soccer:     { name: 'Soccer Ball', price: 800, rarity: 'common' },
   neutron:    { name: 'Neutron Star', price: 25000, rarity: 'mythic' },
 };
-const MODELS = { boy: { name: 'Boy', price: 0, rarity: 'common' }, girl: { name: 'Girl', price: 0, rarity: 'common' }, dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' } };
+const MODELS = {
+  boy: { name: 'Boy', price: 0, rarity: 'common' }, girl: { name: 'Girl', price: 0, rarity: 'common' },
+  dealer: { name: 'Lil Man Dealer', price: 10000, rarity: 'epic' }, tux: { name: 'Tuxedo Man', price: 3000, rarity: 'rare' },
+  lifeguard: { name: 'Lifeguard', price: 2500, rarity: 'rare' }, surfer: { name: 'Surfer', price: 3000, rarity: 'rare' },
+  pirate: { name: 'Pirate', price: 7500, rarity: 'epic' }, robot: { name: 'Robot', price: 8000, rarity: 'epic' }, astronaut: { name: 'Astronaut', price: 9000, rarity: 'epic' },
+};
 const EMOTES = { wave: { name: 'Wave', price: 500, rarity: 'common' }, clap: { name: 'Clap', price: 500, rarity: 'common' }, worm: { name: 'Worm', price: 7500, rarity: 'epic' } };
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4 };
 const FXS = { none: { name: 'None', price: 0, rarity: 'common' }, confetti: { name: 'Confetti', price: 3000, rarity: 'rare' }, heart: { name: 'Heart', price: 5000, rarity: 'rare' }, smite: { name: 'Smite', price: 10000, rarity: 'legendary' }, timestop: { name: 'Time Stop', price: 12500, rarity: 'legendary' }, hammock: { name: 'Hammock', price: 10000, rarity: 'epic' }, blackhole: { name: 'Black Hole', price: 20000, rarity: 'mythic' } };
