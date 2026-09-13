@@ -127,6 +127,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 /* queue panel */
 #queuePanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:16px 18px 18px}
 #queuePanel h2{margin:0 0 12px;font-size:22px;font-weight:900;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+#mapPick button.on{background:#fff;color:#111}
 #queuePanel .team{background:var(--bg2);border-radius:8px;padding:12px 14px;min-height:200px}
 #queuePanel .team h3{margin:0 0 10px;font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:#b9bfcc;border-bottom:2px solid var(--line);padding-bottom:6px}
 #queuePanel .mem{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:16px;font-weight:800}
@@ -207,6 +208,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
+      <div class="card2" style="margin:0"><h3>Time of day</h3><select id="todSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="relative">Relative (real EST time)</option><option value="day">Day Time</option><option value="night">Night Time</option></select></div>
       <button id="sResume">Resume</button>
     </div>
   </div>
@@ -268,6 +270,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 
   <div id="queuePanel" class="hidden">
     <h2><span id="queueTitle">Queue - 2v2</span><button class="x" id="queueX">X</button></h2>
+    <div id="mapPick" class="hidden" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-weight:800;font-size:13px">MAP <button class="btn small grey" data-map="indoor">INDOORS</button><button class="btn small grey" data-map="beach">BEACH</button></div>
     <div class="team"><h3>Your Team</h3><div id="teamList"></div></div>
     <div class="bottom">
       <div class="lock">Lock to friends only <button id="lockToggle">OFF</button></div>
@@ -612,20 +615,21 @@ function estHours() {   // hours (0-24, fractional) in US Eastern time
 const DAY_SKY = new THREE.Color(0x8fd0f5), DUSK_SKY = new THREE.Color(0xf3a56b), NIGHT_SKY = new THREE.Color(0x0c1230);
 const LIGHT_SCALE = 1.45;   // overall scene shading (balls compensate with emissive so they stay the same brightness)
 let isNight = false;
+let TOD = 'relative'; try { TOD = localStorage.getItem('vg_tod') || 'relative'; } catch (e) { }
 function updateDayNight(force) {
-  const h = estHours(); const day = h >= 8 && h < 20; isNight = !day;
+  const h = TOD === 'day' ? 10.5 : TOD === 'night' ? 1 : estHours(); const day = h >= 8 && h < 20; isNight = !day;
   let a, el;
   if (day) { a = (h - 8) / 12 * Math.PI; el = Math.sin(a); }
   else { a = (((h - 20) + 24) % 24) / 12 * Math.PI; el = Math.sin(a); }
   SUN_DIR.set(Math.cos(a) * 0.9, Math.max(0.05, el), -0.35).normalize();   // rises in the east, sets in the west, over the sea side
-  sunMesh.visible = day; moonMesh.visible = !day;
+  sunMesh.visible = day; moonMesh.visible = !day; if (typeof applyGymLights === 'function') applyGymLights();
   if (day) {
-    sun.intensity = (0.3 + 0.6 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.32 + 0.32 * el) * LIGHT_SCALE; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
+    sun.intensity = (0.18 + 0.3 * el) * LIGHT_SCALE; sun.color.setHex(el < 0.25 ? 0xffb070 : 0xfff0d0); hemi.intensity = (0.22 + 0.16 * el) * LIGHT_SCALE; hemi.color.setHex(el < 0.25 ? 0xffd0b0 : 0xdff2ff); hemi.groundColor.setHex(0xd8b890);
     const sky = el < 0.25 ? DUSK_SKY.clone().lerp(DAY_SKY, el / 0.25) : DAY_SKY;
-    if (S.scene === 'lobby') { scene.background = sky; if (scene.fog) scene.fog.color = sky; }
+    if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = sky; if (scene.fog) scene.fog.color = sky; }
   } else {
     sun.intensity = 0.05 * LIGHT_SCALE; sun.color.setHex(0x8fa8ff); hemi.intensity = 0.045 * LIGHT_SCALE;
-    if (S.scene === 'lobby') { scene.background = NIGHT_SKY; if (scene.fog) scene.fog.color = NIGHT_SKY; }
+    if (S.scene === 'lobby' || (S.match && S.match.map === 'beach')) { scene.background = NIGHT_SKY; if (scene.fog) scene.fog.color = NIGHT_SKY; }
   }
 }
 setInterval(updateDayNight, 15000);
@@ -1269,9 +1273,17 @@ function updateMarks() {
    COURT
    ===================================================================== */
 const court = new THREE.Group();
-const NET_H = 2.43, COURT_W = 11.25, COURT_L = 22.5, GYM_X = 18, GYM_Z = 23, NET_HALF = 6.5;   // court is 1.25x regulation
-const MATCH_NETS = [{ cx: 0, cz: 0, nx: 0, nz: 1, half: NET_HALF }];
-const MATCH_COURTS = [{ cx: 0, cz: 0, hx: COURT_W / 2, hz: COURT_L / 2 }];
+const GYM_LIGHTS = []; const GYM_PANEL_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); const COURT_AMBIENT = [];
+function applyGymLights() { const on = isNight; for (const l of GYM_LIGHTS) l.intensity = on ? 0.55 : 0; GYM_PANEL_MAT.color.setHex(on ? 0xffffff : 0xc9ced8); }
+function updateCourtAmbient(t, dt) { for (const a of COURT_AMBIENT) a.update(t, dt); }
+const NET_H = 2.43, COURT_W = 11.25, COURT_L = 22.5, GYM_X = 27, GYM_Z = 34.5, NET_HALF = 6.5;   // beach court is 1.25x regulation; gym is 1.5x
+const INDOOR_SCALE = 1.1;                                                                         // the indoor court is 1.1x the beach court
+const COURTS_BY_MAP = {
+  indoor: { w: COURT_W * INDOOR_SCALE, l: COURT_L * INDOOR_SCALE, half: NET_HALF * INDOOR_SCALE, nets: [{ cx: 0, cz: 0, nx: 0, nz: 1, half: NET_HALF * INDOOR_SCALE }], courts: [{ cx: 0, cz: 0, hx: COURT_W * INDOOR_SCALE / 2, hz: COURT_L * INDOOR_SCALE / 2 }] },
+  beach:  { w: COURT_W, l: COURT_L, half: NET_HALF, nets: [{ cx: 0, cz: 0, nx: 0, nz: 1, half: NET_HALF }], courts: [{ cx: 0, cz: 0, hx: COURT_W / 2, hz: COURT_L / 2 }] },
+};
+const courtDims = () => COURTS_BY_MAP[(S.match && S.match.map) || 'indoor'];
+const MATCH_NETS = COURTS_BY_MAP.indoor.nets, MATCH_COURTS = COURTS_BY_MAP.indoor.courts;
 const BEACH_NETS = [], BEACH_COURTS = [];
 let scoreTex = null;
 const TEAM_NAME = { A: 'BLACK', B: 'WHITE' };
@@ -1281,22 +1293,79 @@ function buildCourt() {
     g.fillStyle = '#d8b67e'; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(0,0,0,${0.03 + (i % 3) * .02})`; g.fillRect(0, i * (h / 60), w, 3); }
     const cx = w / 2, cz = h / 2; g.strokeStyle = '#fff'; g.lineWidth = 6;
-    const hw = COURT_W / 2, hl = COURT_L / 2;
-    g.fillStyle = 'rgba(70,130,200,.28)'; g.fillRect(cx - hw * s, cz - hl * s, COURT_W * s, COURT_L * s);
-    g.strokeRect(cx - hw * s, cz - hl * s, COURT_W * s, COURT_L * s);
-    for (const zz of [0, -3.75, 3.75]) { g.beginPath(); g.moveTo(cx - hw * s, cz + zz * s); g.lineTo(cx + hw * s, cz + zz * s); g.stroke(); }
+    const CW = COURT_W * INDOOR_SCALE, CL = COURT_L * INDOOR_SCALE; const hw = CW / 2, hl = CL / 2;
+    g.fillStyle = 'rgba(70,130,200,.28)'; g.fillRect(cx - hw * s, cz - hl * s, CW * s, CL * s);
+    g.strokeRect(cx - hw * s, cz - hl * s, CW * s, CL * s);
+    for (const zz of [0, -3.75 * INDOOR_SCALE, 3.75 * INDOOR_SCALE]) { g.beginPath(); g.moveTo(cx - hw * s, cz + zz * s); g.lineTo(cx + hw * s, cz + zz * s); g.stroke(); }
   });
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(GYM_X * 2, GYM_Z * 2), mat(0xffffff, { map: floorTex })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; court.add(fl);
   const wallM = mat(0xf2f4f7), wallTop = mat(0x5670b5);
   const w = (x, z, sx, sz) => { COLLIDERS.push(box(sx, 6, sz, wallM, x, 3, z, court)); box(sx, 5, sz, wallTop, x, 8.5, z, court); };
   w(0, -GYM_Z, GYM_X * 2, 0.5); w(0, GYM_Z, GYM_X * 2, 0.5); w(-GYM_X, 0, 0.5, GYM_Z * 2); w(GYM_X, 0, 0.5, GYM_Z * 2);
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(GYM_X * 2, GYM_Z * 2), mat(0xaeb6c6)); ceil.rotation.x = Math.PI / 2; ceil.position.y = 11; court.add(ceil);
-  for (const z of [-12, -4, 4, 12]) for (const x of [-7, 7]) { const l = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 1), new THREE.MeshBasicMaterial({ color: 0xffffff })); l.position.set(x, 10.9, z); court.add(l); }
-  for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) box(1.2, 0.5 + i * 0.5, GYM_Z * 2 - 2, mat(0x4a6ad0), sx * (GYM_X - 1.2 - i * 1.2), (0.5 + i * 0.5) / 2, 0, court);
-  buildNet(court, 0, 0, 0, NET_HALF, COURT_W / 2);
+  for (const z of [-27, -18, -9, 0, 9, 18, 27]) for (const x of [-16, -5.5, 5.5, 16]) { const l = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 1.2), GYM_PANEL_MAT); l.position.set(x, 10.9, z); court.add(l); }
+  for (const z of [-22, -8, 8, 22]) for (const x of [-11, 11]) { const pl = new THREE.PointLight(0xfff4e0, 0.55, 40, 1.2); pl.position.set(x, 9.5, z); court.add(pl); GYM_LIGHTS.push(pl); }   // gym lights: on at night, off in daylight
+  // stands with a cheering crowd on both long sides
+  const seatM = mat(0x3f5fc4), stepM = mat(0x33448a);
+  for (const sx of [-1, 1]) for (let i = 0; i < 7; i++) { box(1.3, 0.5 + i * 0.55, GYM_Z * 2 - 2, i % 2 ? seatM : stepM, sx * (GYM_X - 1.0 - (6 - i) * 1.3), (0.5 + i * 0.55) / 2, 0, court); }   // lowest row nearest the court, rising toward the wall
+  const shirtCols = [0xe5484d, 0x3b8ff0, 0xf5c542, 0x3ecf5a, 0xffffff, 0x222222, 0xff7ac8, 0xff8c1a, 0xa259ff];
+  const skinCols = [0xf3d1b0, 0xd9a878, 0x8d5a3a, 0xf7e0c8];
+  const bodies = [], heads = [], seats = [];
+  for (const sx of [-1, 1]) for (let i = 0; i < 7; i++) for (let z = -GYM_Z + 3; z < GYM_Z - 2; z += 1.35) {
+    if (Math.random() < 0.18) continue;                                      // some empty seats
+    const x = sx * (GYM_X - 1.0 - (6 - i) * 1.3), y = 0.5 + i * 0.55;
+    seats.push({ x, y, z, ph: Math.random() * 6, spd: 1.4 + Math.random() * 1.2, sx });
+  }
+  const bodyGeo = new THREE.BoxGeometry(0.48, 0.62, 0.36), headGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32), armGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+  const bodyIM = new THREE.InstancedMesh(bodyGeo, mat(0xffffff), seats.length), headIM = new THREE.InstancedMesh(headGeo, mat(0xffffff), seats.length), armIM = new THREE.InstancedMesh(armGeo, mat(0xffffff), seats.length * 2);
+  const tmp = new THREE.Object3D(); const col = new THREE.Color();
+  seats.forEach((s, k) => { bodyIM.setColorAt(k, col.setHex(shirtCols[k % shirtCols.length])); const sk = skinCols[k % skinCols.length]; headIM.setColorAt(k, col.setHex(sk)); armIM.setColorAt(k * 2, col.setHex(sk)); armIM.setColorAt(k * 2 + 1, col.setHex(sk)); });
+  court.add(bodyIM); court.add(headIM); court.add(armIM);
+  COURT_AMBIENT.push({ update(t) {
+    const wave = ((t * 9) % (GYM_Z * 2 + 20)) - GYM_Z - 10;                  // a wave rolling along the stands
+    seats.forEach((s, k) => {
+      const near = Math.max(0, 1 - Math.abs(s.z - wave) / 4); const cheer = 0.5 + 0.5 * Math.sin(t * s.spd * 2 + s.ph);
+      const hop = near * 0.45 + cheer * 0.06; const y = s.y + 0.31 + hop;
+      tmp.position.set(s.x, y, s.z); tmp.rotation.set(0, s.sx < 0 ? -Math.PI / 2 : Math.PI / 2, 0); tmp.scale.setScalar(1); tmp.updateMatrix(); bodyIM.setMatrixAt(k, tmp.matrix);
+      tmp.position.set(s.x, y + 0.5, s.z); tmp.rotation.set(0, (s.sx < 0 ? -Math.PI / 2 : Math.PI / 2) + Math.sin(t * 1.3 + s.ph) * 0.3, 0); tmp.updateMatrix(); headIM.setMatrixAt(k, tmp.matrix);
+      const up = Math.max(near, cheer > 0.85 ? 1 : 0);                        // arms up in the wave or on a cheer beat
+      for (const side of [-1, 1]) { const ang = up ? -2.6 + Math.sin(t * 8 + s.ph + side) * 0.3 : -0.2; tmp.position.set(s.x, y + 0.15 + (up ? 0.35 : 0), s.z + side * 0.32); tmp.rotation.set(ang, 0, 0); tmp.updateMatrix(); armIM.setMatrixAt(k * 2 + (side > 0 ? 1 : 0), tmp.matrix); }
+    });
+    bodyIM.instanceMatrix.needsUpdate = true; headIM.instanceMatrix.needsUpdate = true; armIM.instanceMatrix.needsUpdate = true;
+  } });
+  // banners and pennants
+  const bannerTex = (text, bg, fg) => canvasTex(1024, 256, (g, W, H) => { g.fillStyle = bg; g.fillRect(0, 0, W, H); g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; fitText(g, text, 150, W * 0.9); g.fillText(text, W / 2, H / 2); });
+  const banner = (text, x, z, ry, bg, fg, w = 12) => { const b = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: bannerTex(text, bg, fg) })); b.position.set(x, 6.8, z); b.rotation.y = ry; court.add(b); COURT_AMBIENT.push({ ph: Math.random() * 6, update(t) { b.rotation.z = Math.sin(t * 1.6 + this.ph) * 0.02; } }); };
+  banner('VOLLEYBALL GAEM', 0, -GYM_Z + 0.3, 0, '#e5484d', '#fff', 16); banner("LET'S GO!", -12, -GYM_Z + 0.3, 0, '#111', '#f5c542', 8); banner('GO GO GO', 12, -GYM_Z + 0.3, 0, '#3b8ff0', '#fff', 8);
+  banner('HOME OF THE GAEM', 0, GYM_Z - 0.3, Math.PI, '#3b8ff0', '#fff', 16);
+  const penM = [mat(0xe5484d), mat(0x3b8ff0), mat(0xf5c542), mat(0x3ecf5a)];
+  for (let i = -24; i <= 24; i += 2) for (const sx of [-1, 1]) { const p = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.7, 3), penM[((i / 2) + 12) % 4]); p.position.set(sx * (GYM_X - 0.5), 9.6, i); p.rotation.set(Math.PI, 0, 0); court.add(p); COURT_AMBIENT.push({ ph: i, update(t) { p.rotation.z = Math.sin(t * 2 + this.ph) * 0.25; } }); }
+  for (let i = -24; i <= 24; i += 2) for (const sx of [-1, 1]) { const st = box(0.03, 0.03, 2, mat(0xdddddd), sx * (GYM_X - 0.5), 9.95, i + 1, court); st.castShadow = false; }
+  // a few balloons drifting near the ceiling
+  for (let i = 0; i < 8; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), mat(shirtCols[i % shirtCols.length], { emissive: shirtCols[i % shirtCols.length], emissiveIntensity: 0.25 })); const bx = -20 + Math.random() * 40, bz = -28 + Math.random() * 56; b.position.set(bx, 9.6, bz); court.add(b); COURT_AMBIENT.push({ ph: Math.random() * 6, update(t) { b.position.set(bx + Math.sin(t * 0.4 + this.ph) * 1.5, 9.3 + Math.sin(t * 0.9 + this.ph) * 0.4, bz + Math.cos(t * 0.35 + this.ph) * 1.5); } }); }
+  buildNet(court, 0, 0, 0, NET_HALF * INDOOR_SCALE, COURT_W * INDOOR_SCALE / 2);
   scoreTex = canvasTex(1024, 300, () => { });
   for (const sx of [-1, 1]) { const sb = new THREE.Mesh(new THREE.PlaneGeometry(10, 3), new THREE.MeshBasicMaterial({ map: scoreTex })); sb.position.set(sx * (GYM_X - 0.3), 7.5, 0); sb.rotation.y = -sx * Math.PI / 2; court.add(sb); }
   drawScore(0, 0, '');
+}
+/* ---- beach practice map: a mini beach with one court and the water ---- */
+const beachCourt = new THREE.Group();
+function buildBeachCourt() {
+  const sandM = mat(0xffffff, { map: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#f0dfae'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { g.fillStyle = ['#e6d29c', '#f7e8bd', '#dcc68f', '#fff3cf'][i % 4]; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [60, 60]) });
+  const sand = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), sandM); sand.rotation.x = -Math.PI / 2; sand.position.y = -0.03; beachCourt.add(sand);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(300, 160), mat(0x3fb4e6, { roughness: .4 })); water.rotation.x = -Math.PI / 2; water.position.set(100 + 30, -0.02, 0); beachCourt.add(water);   // sea along the +x side
+  const shore = new THREE.Mesh(new THREE.PlaneGeometry(3, 300), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45, depthWrite: false })); shore.rotation.x = -Math.PI / 2; shore.position.set(50, 0.01, 0); beachCourt.add(shore);
+  const lineM = mat(0xffffff); const hx = COURT_W / 2, hz = COURT_L / 2;
+  for (const [x, z, w, dd] of [[0, -hz, hx * 2, 0.12], [0, hz, hx * 2, 0.12], [-hx, 0, 0.12, hz * 2], [hx, 0, 0.12, hz * 2], [0, 0, hx * 2, 0.12]]) { const l = box(w, 0.03, dd, lineM, x, 0.0, z, beachCourt); l.castShadow = false; }
+  buildNet(beachCourt, 0, 0, 0, NET_HALF, COURT_W / 2);
+  const trunkM = mat(0xa9764f), leafM = mat(0x4fae5b);
+  const palm = (x, z, h = 5) => { const t = cyl(0.18, 0.28, h, trunkM, x, h / 2, z, beachCourt, 7); t.rotation.z = 0.08; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const leaf = box(2.6, 0.08, 0.7, leafM, x + Math.cos(a) * 1.3, h - 0.15, z + Math.sin(a) * 1.3, beachCourt); leaf.rotation.y = -a; leaf.rotation.z = 0.35; } };
+  palm(-18, -20, 6); palm(-20, 16, 5); palm(18, -22, 5.5); palm(22, 20, 6); palm(-28, 0, 5); palm(30, -6, 5.5);
+  const umbrella = (x, z, color) => { cyl(0.05, 0.05, 2.4, mat(0xf5f5f5), x, 1.2, z, beachCourt, 6); const top = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.6, 8), mat(color)); top.position.set(x, 2.4, z); beachCourt.add(top); };
+  umbrella(-16, 8, 0xe5484d); umbrella(24, -14, 0x3b8ff0); umbrella(-24, -10, 0xf5c542);
+  for (const [x, z] of [[-14, -14], [16, 12], [-22, 6], [26, 4]]) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6), mat(0xc9c2b4)); r.position.set(x, 0.25, z); beachCourt.add(r); }
+  const scoreBoard = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.4), new THREE.MeshBasicMaterial({ map: scoreTex })); scoreBoard.position.set(-14, 4.5, 0); scoreBoard.rotation.y = Math.PI / 2; beachCourt.add(scoreBoard);
+  box(0.2, 5.6, 0.2, mat(0x8a6a4a), -14, 2.8, -4.2, beachCourt); box(0.2, 5.6, 0.2, mat(0x8a6a4a), -14, 2.8, 4.2, beachCourt);
 }
 function drawScore(a, b, mode) {
   if (!scoreTex) return;
@@ -1591,10 +1660,10 @@ function ballisticPitch(s, gg, R, h) { const disc = s * s * s * s - gg * (gg * R
 function spikeGeom() {
   const tz = P.tilt.y; const fwd = P.jumpFwd.clone().normalize();      // aim = facing at the moment you jumped; tilt never steers it
   let toNet = netAhead(B.pos, fwd); if (!isFinite(toNet)) toNet = 7;
-  const dMid = clamp(toNet + COURT_L / 4, 3, 18);
+  const CL = S.scene === 'match' ? courtDims().l : COURT_L; const dMid = clamp(toNet + CL / 4, 3, 24);
   const clearPitch = toNet < 1.2 ? -Math.PI / 2 : Math.min(35 * D, Math.atan2((NET_H + 0.35) - B.pos.y, toNet));   // capped; right at the net TOO LOW handles it instead
   const neutralPitch = Math.max(Math.atan2(-B.pos.y, dMid), clearPitch);
-  const far = clamp((toNet - 3) / 8, 0, 1);                              // 0 at the net, 1 from the back line
+  const far = clamp((toNet - 3) / (8 * (S.scene === 'match' ? courtDims().l / COURT_L : 1)), 0, 1);   // 0 at the net, 1 from the back line
   return { tz, fwd, neutralPitch, clearPitch, toNet, far };
 }
 function doSpike(c) {
@@ -1612,7 +1681,7 @@ function doSpike(c) {
   let g = 0.18;
   if (far > 0) {                                                        // far from the net: aim higher with more gravity so every tilt can still land in
     const gFar = lerp(0.18, 2.6, far); const gg = BALL_G * gFar;      // heavier and heavier the further back you are
-    const R = tz >= 0 ? lerp(toNet + COURT_L / 4, toNet + 1.5, tz) : lerp(toNet + COURT_L / 4, toNet + COURT_L / 2 - 0.8, -tz);
+    const CL2 = S.scene === 'match' ? courtDims().l : COURT_L; const R = tz >= 0 ? lerp(toNet + CL2 / 4, toNet + 1.5, tz) : lerp(toNet + CL2 / 4, toNet + CL2 / 2 - 0.8, -tz);
     let pf = ballisticPitch(sp, gg, R, -B.pos.y); if (pf === null) pf = 40 * D;
     for (let i = 0; i < 6; i++) {                                       // make sure it clears the net on the way
       const t = toNet / (sp * Math.cos(pf)); const y = B.pos.y + sp * Math.sin(pf) * t - 0.5 * gg * t * t;
@@ -1731,8 +1800,9 @@ function updatePlayer(dt) {
   if (S.scene === 'lobby') {
     if (walkable(nx, nz)) { P.pos.x = nx; P.pos.z = nz; } else if (walkable(nx, P.pos.z)) P.pos.x = nx; else if (walkable(P.pos.x, nz)) P.pos.z = nz;
   } else {
-    P.pos.x = clamp(nx, -GYM_X + 1, GYM_X - 1);
-    let z = clamp(nz, -GYM_Z + 1, GYM_Z - 1);
+    const mb = matchBounds();
+    P.pos.x = clamp(nx, -mb.x + 1, mb.x - 1);
+    let z = clamp(nz, -mb.z + 1, mb.z - 1);
     if (S.match && !S.match.practice) z = P.team === 'A' ? Math.min(z, -0.45) : Math.max(z, 0.45);
     P.pos.z = z;
   }
@@ -1755,8 +1825,9 @@ function updatePlayer(dt) {
 }
 
 /* ---------------- Ball physics ---------------- */
-const netsFor = () => S.scene === 'match' ? MATCH_NETS : BEACH_NETS;
-const courtsFor = () => S.scene === 'match' ? MATCH_COURTS : BEACH_COURTS;
+const matchBounds = () => (S.match && S.match.map === 'beach') ? { x: 26, z: 32, walls: false } : { x: GYM_X, z: GYM_Z, walls: true };
+const netsFor = () => S.scene === 'match' ? courtDims().nets : BEACH_NETS;
+const courtsFor = () => S.scene === 'match' ? courtDims().courts : BEACH_COURTS;
 const inAnyCourt = (x, z) => courtsFor().some(c => Math.abs(x - c.cx) <= c.hx + BALL_R && Math.abs(z - c.cz) <= c.hz + BALL_R);
 function blockNetCrossing(prev, pos) {          // players stop at the net (they can walk around the posts)
   for (const n of netsFor()) {
@@ -1794,7 +1865,7 @@ function simBall(b, dt) {
     if (b.scene === 'lobby' && b.pos.y > 0.5) { b.vel.x += WIND.x * 0.35 * h; b.vel.z += WIND.z * 0.35 * h; }   // wind drift outside
     b.pos.addScaledVector(b.vel, h);
     ballNets(b, prev);
-    if (S.scene === 'match') {
+    if (S.scene === 'match' && matchBounds().walls) {
       if (Math.abs(b.pos.x) > GYM_X - 0.5) { b.pos.x = Math.sign(b.pos.x) * (GYM_X - 0.5); b.vel.x *= -0.5; }
       if (Math.abs(b.pos.z) > GYM_Z - 0.5) { b.pos.z = Math.sign(b.pos.z) * (GYM_Z - 0.5); b.vel.z *= -0.5; }
       if (b.pos.y > 10.7) { b.pos.y = 10.7; b.vel.y *= -0.5; }
@@ -1900,7 +1971,7 @@ function remoteUpsert(sid, d) {
 }
 function remoteRemove(sid) { const r = remotes.get(sid); if (!r) return; scene.remove(r.rig.root); r.tag.remove(); remotes.delete(sid); }
 function remotesClear() { for (const sid of Array.from(remotes.keys())) remoteRemove(sid); }
-const INTERP_DELAY = 0.2;                       // render other players 200 ms in the past so their movement is smooth
+const INTERP_DELAY = 0.13;                       // render other players 200 ms in the past so their movement is smooth
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
     const buf = r.buf; if (!buf.length) continue;
@@ -1956,15 +2027,15 @@ function updateCamera() {
   const f = camF();
   const target = P.pos.clone().add(new V3(0, 1.5, 0));                     // shift lock keeps the character centered
   const off = f.clone().multiplyScalar(-camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0));
-  const pos = target.clone().add(off); pos.y = clamp(pos.y, 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? 4.6 : 10.5);
+  const pos = target.clone().add(off); pos.y = clamp(pos.y, 0.3, S.scene === 'lobby' && indoors(P.pos.x, P.pos.z) ? 4.6 : (S.match && S.match.map === 'beach' ? 40 : 10.5));
   const dirC = pos.clone().sub(target); const len = dirC.length(); dirC.normalize();
   camRay.set(target, dirC); camRay.far = len;
-  const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : COURT_COLL, false);
+  const hits = camRay.intersectObjects(S.scene === 'lobby' ? LOBBY_COLL : (S.match && S.match.map === 'beach' ? [] : COURT_COLL), false);
   if (hits.length) pos.copy(target).addScaledVector(dirC, Math.max(0.6, hits[0].distance - 0.35));
   camera.position.lerp(pos, hits.length ? 1 : 0.5); camera.lookAt(target.add(f.multiplyScalar(1.5)));
   sun.target.position.copy(P.pos); sun.position.copy(P.pos).addScaledVector(SUN_DIR, 40);
   sunMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230); moonMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 230);
-  sunMesh.visible = !isNight && S.scene === 'lobby'; moonMesh.visible = isNight && S.scene === 'lobby';
+  const outside = S.scene === 'lobby' || (S.match && S.match.map === 'beach'); sunMesh.visible = !isNight && outside; moonMesh.visible = isNight && outside;
 }
 
 /* ---------------- Action cards ---------------- */
@@ -2187,7 +2258,7 @@ $('#inviteDecline').onclick = () => { const inv = inviteQueue.shift(); showInvit
 const lobbyRef = db.ref('lobby/' + SID);
 let lastSync = 0, lastSyncSig = '', lastChangeT = 0;
 function syncSelf() {
-  if (!S.online || T - lastSync < 0.1) return;
+  const fast = !P.onGround || P.moving || P.dive; if (!S.online || T - lastSync < (fast ? 0.066 : 0.12)) return;
   const st = myState(); const sig = JSON.stringify(st);
   if (sig !== lastSyncSig) lastChangeT = T;
   else if (T - lastChangeT > 0.45) return;                              // settled: after a few repeat packets, stop writing
@@ -2258,16 +2329,18 @@ function renderQueuePanel(pad, pd) {
   const isOwner = owner === SID;
   $('#lockToggle').textContent = pd.lock ? 'ON' : 'OFF'; $('#lockToggle').classList.toggle('on', !!pd.lock); $('#lockToggle').disabled = !isOwner;
   const qb = $('#queueBtn'); qb.disabled = !isOwner; qb.textContent = isOwner ? (pad.practice ? 'START' : 'QUEUE') : 'WAITING FOR LEADER';
+  $('#mapPick').classList.toggle('hidden', !pad.practice); const curMap = pd.map || 'indoor'; $$('#mapPick button').forEach(b => { b.classList.toggle('on', b.dataset.map === curMap); b.disabled = !isOwner; });
 }
 $('#lockToggle').onclick = () => { if (!S.padId) return; const pd = padsData[S.padId] || {}; if (padOwner(pd) !== SID) return; if (!S.online) { toast('Offline', 'err'); return; } db.ref(`pads/${S.padId}/lock`).set(!pd.lock); };
+$$('#mapPick button').forEach(b => b.onclick = () => { if (!S.padId) return; const pd = padsData[S.padId] || {}; if (padOwner(pd) !== SID) return; if (S.online) db.ref(`pads/${S.padId}/map`).set(b.dataset.map); else { pd.map = b.dataset.map; renderQueuePanel(PADS[S.padId], pd); } });
 $('#queueX').onclick = () => { leavePad(true); closePanels(); };
 $('#queueBtn').onclick = () => { if (!S.padId) return; const pad = PADS[S.padId], pd = padsData[S.padId] || {}; if (padOwner(pd) !== SID) return; if (pad.practice) startPractice(pad, pd); else startQueue(pad, pd); };
 
 async function startPractice(pad, pd) {
   const players = {}; for (const sid in (pd.players || {})) players[sid] = { name: pd.players[sid].name, id: pd.players[sid].id };
-  if (!S.online) { leavePad(false); closePanels(); enterLocalPractice(); return; }
+  if (!S.online) { const map = pd.map || 'indoor'; leavePad(false); closePanels(); enterLocalPractice(map); return; }
   const mid = 'm' + rnd() + Date.now().toString(36);
-  await db.ref('matches/' + mid).set({ mode: 'practice', practice: true, created: firebase.database.ServerValue.TIMESTAMP, teams: { A: players, B: {} }, state: 'practice', score: { A: 0, B: 0 }, msg: '' });
+  await db.ref('matches/' + mid).set({ mode: 'practice', practice: true, map: pd.map || 'indoor', created: firebase.database.ServerValue.TIMESTAMP, teams: { A: players, B: {} }, state: 'practice', score: { A: 0, B: 0 }, msg: '' });
   const forP = {}; for (const sid in players) forP[sid] = true;
   await db.ref(`pads/${pad.id}/match`).set({ mid, for: forP });
   setTimeout(() => db.ref(`pads/${pad.id}/match`).remove(), 3000);
@@ -2343,7 +2416,7 @@ function hostCheckHit() {
 }
 function hostBallLanded() {
   const M = S.match, b = matchBall(); if (!M || !b || M.state !== 'rally') return;
-  const inCourt = Math.abs(b.pos.x) <= COURT_W / 2 + BALL_R && Math.abs(b.pos.z) <= COURT_L / 2 + BALL_R;
+  const cd = courtDims(); const inCourt = Math.abs(b.pos.x) <= cd.w / 2 + BALL_R && Math.abs(b.pos.z) <= cd.l / 2 + BALL_R;
   if (inCourt) { const side = b.pos.z < 0 ? 'A' : 'B'; endPoint(opp(side), TEAM_NAME[opp(side)] + ' SCORES'); }
   else { const lastTeam = b.hitter ? teamOf(b.hitter) : (M.serve ? M.serve.team : 'A'); endPoint(opp(lastTeam), 'OUT'); }
 }
@@ -2373,18 +2446,18 @@ function onStateChange(st) {
   }
 }
 function spawnPos(team, idx, n) {
-  const zs = team === 'A' ? -1 : 1; const cols = Math.min(n, 3); const row = Math.floor(idx / 3);
-  return new V3((idx % cols - (cols - 1) / 2) * 3.0, 0, zs * (5.25 + row * 3.0));
+  const zs = team === 'A' ? -1 : 1; const cols = Math.min(n, 3); const row = Math.floor(idx / 3); const k = courtDims().l / COURT_L;
+  return new V3((idx % cols - (cols - 1) / 2) * 3.0 * k, 0, zs * (5.25 + row * 3.0) * k);
 }
 async function enterMatch(mid, pad) {
   if (S.match) return;
   let m = null;
   if (S.online) m = (await db.ref('matches/' + mid).once('value')).val();
   if (!m) { toast('Match not found', 'err'); return; }
-  beginMatch({ id: mid, mode: m.mode, practice: !!m.practice, teams: m.teams || { A: {}, B: {} }, players: {}, score: m.score || { A: 0, B: 0 }, state: m.state, serve: m.serve || null, serveIdx: m.serveIdx || { A: -1, B: -1 }, msg: m.msg || '', local: false });
+  beginMatch({ id: mid, mode: m.mode, practice: !!m.practice, map: m.map || 'indoor', teams: m.teams || { A: {}, B: {} }, players: {}, score: m.score || { A: 0, B: 0 }, state: m.state, serve: m.serve || null, serveIdx: m.serveIdx || { A: -1, B: -1 }, msg: m.msg || '', local: false });
 }
-function enterLocalPractice() {
-  beginMatch({ id: 'local', mode: 'practice', practice: true, teams: { A: { [SID]: { name: me.name } }, B: {} }, players: {}, score: { A: 0, B: 0 }, state: 'practice', serve: null, serveIdx: {}, msg: '', local: true });
+function enterLocalPractice(map = 'indoor') {
+  beginMatch({ id: 'local', mode: 'practice', practice: true, map, teams: { A: { [SID]: { name: me.name } }, B: {} }, players: {}, score: { A: 0, B: 0 }, state: 'practice', serve: null, serveIdx: {}, msg: '', local: true });
 }
 function setMyRig(variant) {
   const model = me.model || 'boy';
@@ -2397,7 +2470,9 @@ function beginMatch(M) {
   S.match = M; S.scene = 'match'; closePanels(); remotesClear();
   if (S.online) { lobbyRef.remove(); db.ref('lobbyBalls/' + SID).remove(); }
   removeBall(SID);
-  scene.remove(lobby); scene.add(court); scene.background = new THREE.Color(0xdfe6ee); scene.fog = null; sunMesh.visible = moonMesh.visible = false;
+  scene.remove(lobby);
+  if (M.map === 'beach') { scene.add(beachCourt); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true); }
+  else { scene.add(court); scene.background = new THREE.Color(0xdfe6ee); scene.fog = null; sunMesh.visible = moonMesh.visible = false; }
   P.team = M.teams.B && M.teams.B[SID] ? 'B' : 'A';
   const mates = Object.keys(M.teams[P.team] || {}).sort(); const idx = Math.max(0, mates.indexOf(SID));
   P.pos.copy(spawnPos(P.team, idx, mates.length)); P.vel.set(0, 0, 0); P.onGround = true; P.ry = camYaw = P.team === 'A' ? 0 : Math.PI; camPitch = 0.3;
@@ -2439,7 +2514,7 @@ function leaveMatch() {
   }
   S.match = null; S.scene = 'lobby'; remotesClear(); removeBall('match'); B = null;
   if (S.online) db.ref('lobby').once('value').then(s => { if (S.scene !== 'lobby') return; s.forEach(c => { remoteUpsert(c.key, c.val()); }); });   // players who are standing still don't send updates, so re-fetch them
-  scene.remove(court); scene.add(lobby); scene.background = new THREE.Color(SKY); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true);
+  scene.remove(court); scene.remove(beachCourt); scene.add(lobby); scene.background = new THREE.Color(SKY); scene.fog = new THREE.Fog(SKY, 60, 160); updateDayNight(true);
   P.pos.set(0, 0, 7); P.vel.set(0, 0, 0); P.ry = camYaw = Math.PI; P.onGround = true; P.holding = false; P.serveMode = false; P.dive = null; P.charging = false; setMyRig('white'); P.rig.base = 'idle'; P.rig.setPose('idle');
   $('#chargeBar').classList.add('hidden');
   $('#matchHud').classList.add('hidden'); $('#bigMsg').textContent = '';
@@ -2470,7 +2545,7 @@ let last = performance.now(), acc = 0;
 function simulate(dt) {
   T += dt;
   updatePlayer(dt); P.rig.update(dt, T);
-  updateBalls(dt); updateRemotes(dt); checkPads(); if (S.scene === 'lobby') updateAmbient(T, dt); updateDust(dt);
+  updateBalls(dt); updateRemotes(dt); checkPads(); if (S.scene === 'lobby') updateAmbient(T, dt); else if (S.match && S.match.map !== 'beach') updateCourtAmbient(T, dt); updateDust(dt);
 }
 function tick(nowMs) {
   let dt = (nowMs - last) / 1000; last = nowMs;
@@ -2501,7 +2576,8 @@ async function cleanupStale() {
 }
 async function boot(online) {
   if (S.booted) return; S.online = online;
-  buildLobby(); buildCourt(); renderPoseIcons(); updateDayNight(true);
+  buildLobby(); buildCourt(); buildBeachCourt(); renderPoseIcons(); updateDayNight(true);
+  $('#todSel').value = TOD; $('#todSel').onchange = () => { TOD = $('#todSel').value; try { localStorage.setItem('vg_tod', TOD); } catch (e) { } updateDayNight(true); };
   LOBBY_COLL = COLLIDERS.filter(c => c.parent === lobby); COURT_COLL = COLLIDERS.filter(c => c.parent === court);
   setMyRig('white');
   if (online) { db.ref('lobbyBalls/' + SID).onDisconnect().remove(); $('#loadMsg').textContent = 'Signing in...'; const ok = await resumeSession(); if (!ok) await becomeGuest(); else onIdentityChanged(); writePresence(); lobbyRef.set(myState()); lobbyRef.onDisconnect().remove(); }
