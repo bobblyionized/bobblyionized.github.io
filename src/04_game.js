@@ -92,7 +92,7 @@ document.addEventListener('mousemove', e => {
 });
 function toggleShiftLock() {
   shiftLock = !shiftLock;
-  if (shiftLock) { if (!uiOpen()) canvas.requestPointerLock(); } else if (document.pointerLockElement && !rightDrag) document.exitPointerLock();   // a held right click keeps looking after shift lock comes off
+  if (shiftLock) { if (!uiOpen() && !TOUCH.on) canvas.requestPointerLock(); } else if (document.pointerLockElement && !rightDrag) document.exitPointerLock();   // a held right click keeps looking after shift lock comes off; on touch there is no cursor to lock
   updateLockHint();
 }
 $('#lockHint').onclick = () => canvas.requestPointerLock();
@@ -735,7 +735,7 @@ function projectTags() {
    talk, dive, dash, emotes, practice-mode ball + serve) works unchanged. Buttons can be dragged anywhere in
    Menu > Touch controls > Edit layout; the layout is saved per device. */
 const TOUCH = { on: false, x: 0, y: 0, edit: false, joyId: null, joyOrigin: null, lookId: null, lookLast: null, pressed: new Map(), layout: null, drag: null };
-const TOUCH_DEFAULT = { jump: [30, 110], action: [130, 40], q: [40, 212], e: [140, 150], dive: [230, 60], dash: [230, 140], emote: [320, 26], ball: [400, 26], serve: [470, 26] };   // [right, bottom] in px - fits a landscape phone (390 px tall)
+const TOUCH_DEFAULT = { jump: [30, 110], action: [130, 40], q: [40, 212], e: [140, 150], dive: [230, 60], dash: [230, 140], emote: [320, 26], lock: [320, 100], ball: [400, 26], serve: [470, 26] };   // [right, bottom] in px - fits a landscape phone (390 px tall)
 function touchWanted() { let pref = 'auto'; try { pref = localStorage.getItem('vg_touch') || 'auto'; } catch (e) { } if (pref === 'on') return true; if (pref === 'off') return false; const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return touch && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile|CrOS.*Touch/i.test(navigator.userAgent)); }
 function applyTouch(on) {
   TOUCH.on = on; $('#touchUi').classList.toggle('hidden', !on); document.body.classList.toggle('touch', on);
@@ -767,7 +767,7 @@ function updateTouchLabels() {                   // labels follow the situation,
   set('dive', 'DIVE', true, !ground);
   const dash = hasTrait('b3a'); const cd = Math.max(0, (P.dashReady || 0) - T); set('dash', cd > 0 ? cd.toFixed(1) : 'DASH', dash, cd > 0);
   set('ball', 'BALL', spawn); set('serve', 'SERVE', spawn);
-  set('jump', 'JUMP', true, !ground); set('emote', 'EMOTE');
+  set('jump', 'JUMP', true, !ground); set('emote', 'EMOTE'); set('lock', 'LOCK'); const lb = $('#touchUi .tbtn[data-act="lock"]'); if (lb) lb.classList.toggle('on', shiftLock);
 }
 (function initTouch() {
   const ui = $('#touchUi'); if (!ui) return;
@@ -788,6 +788,7 @@ function updateTouchLabels() {                   // labels follow the situation,
       e.preventDefault(); e.stopPropagation();
       if (TOUCH.edit) { const t = e.touches ? e.touches[0] : e; const r = b.getBoundingClientRect(); TOUCH.drag = { b, dx: r.right - t.clientX, dy: r.bottom - t.clientY }; return; }
       if (uiOpen()) return;
+      if (b.dataset.act === 'lock') { toggleShiftLock(); return; }                        // camera lock: the character faces where you look
       const code = touchCode(b.dataset.act); if (!code) return;
       if (b.dataset.act === 'emote' && e.changedTouches) wheelOpenTouch = e.changedTouches[0].identifier;
       TOUCH.pressed.set(b, code); b.classList.add('on'); if (!keys.has(code)) { keys.add(code); onPress(code); }
