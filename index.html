@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Volleyball Gaem</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=swap" rel="stylesheet">
 <style>
@@ -22,6 +22,23 @@ input:focus{border-color:#fff}
 .btn.green{background:var(--green);color:#0c2412}.btn.red{background:var(--red)}.btn.blue{background:var(--blue)}.btn.grey{background:var(--bg2)}
 .btn.small{padding:6px 10px;font-size:12px}
 
+/* touch controls (phones / tablets): joystick on the left, drag-to-look on the right, movable buttons */
+#touchUi{position:absolute;inset:0;pointer-events:none}
+#touchUi .zone{position:absolute;top:0;bottom:0;pointer-events:auto;touch-action:none}
+#joyZone{left:0;width:45%}#lookZone{right:0;width:55%}
+#joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;pointer-events:none;display:none}
+#joyBase{position:absolute;inset:0;border-radius:50%;background:rgba(20,20,26,.45);border:2px solid rgba(255,255,255,.35)}
+#joyKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.tbtn{position:absolute;width:64px;height:64px;border-radius:50%;background:rgba(20,20,26,.72);border:2px solid rgba(255,255,255,.4);color:#fff;font-weight:900;font-size:11px;line-height:1.05;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;text-shadow:0 1px 2px #000}
+.tbtn.big{width:84px;height:84px;font-size:13px}
+.tbtn.on{background:var(--yellow);color:#111;text-shadow:none}
+.tbtn.dim{opacity:.45}
+.tbtn .cd{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:18px}
+body.touch #actions,body.touch #utilCards,body.touch #lockHint,body.touch #crosshair{display:none!important}
+body.touch #chat{width:min(300px,55vw)}
+body.touch .card2,body.touch .panel{-webkit-user-select:none}
+#touchUi.edit .tbtn{outline:2px dashed var(--yellow);outline-offset:3px;opacity:1!important}
+#touchEdit{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:var(--bg);border:2px solid var(--yellow);border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;display:flex;gap:10px;align-items:center;pointer-events:auto}
 /* top bar */
 #topbar{position:absolute;top:12px;right:12px;display:grid;grid-template-columns:auto auto;gap:8px;align-items:center;justify-items:end}
 #invBtn{grid-column:2;background:#222}
@@ -257,6 +274,20 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 <body>
 <canvas id="c" tabindex="0"></canvas>
 <div id="ui">
+  <div id="touchUi" class="hidden">
+    <div id="joyZone" class="zone"></div><div id="lookZone" class="zone"></div>
+    <div id="joy"><div id="joyBase"></div><div id="joyKnob"></div></div>
+    <div class="tbtn big" data-act="jump">JUMP</div>
+    <div class="tbtn big" data-act="action">SET</div>
+    <div class="tbtn" data-act="q">BUMP</div>
+    <div class="tbtn" data-act="e">JUMP SET</div>
+    <div class="tbtn" data-act="dive">DIVE</div>
+    <div class="tbtn" data-act="dash">DASH</div>
+    <div class="tbtn" data-act="emote">EMOTE</div>
+    <div class="tbtn" data-act="ball">BALL</div>
+    <div class="tbtn" data-act="serve">SERVE</div>
+    <div id="touchEdit" class="hidden">Drag the buttons where you want them <button class="btn grey small" id="touchEditReset">RESET</button><button class="btn green small" id="touchEditDone">DONE</button></div>
+  </div>
   <div id="loading">VOLLEYBALL GAEM<small id="loadMsg">Connecting...</small><div id="loadBar"><i></i></div><div id="loadPct">0%</div></div>
   <div id="online"><span class="dot"></span><span><b id="onlineCount">0</b> online</span></div>
   <div id="topbar">
@@ -302,6 +333,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
+      <div class="card2" style="margin:0"><h3>Touch controls</h3><div class="row"><select id="touchSel" style="flex:1;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="auto">Auto (touch screens)</option><option value="on">On</option><option value="off">Off</option></select><button class="btn blue small" id="touchEditBtn">Edit layout</button></div></div>
       <div class="card2" style="margin:0"><h3>Shaders</h3><select id="shSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="simple">Simple (default)</option><option value="full">Advanced (env lighting, wave water - needs a good GPU)</option></select><small id="shNote" style="display:block;opacity:.6;font-weight:600;margin-top:6px"></small></div>
       <div class="card2" style="margin:0"><h3>Graphics</h3><select id="gfxSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="high">High (shadows, full detail)</option><option value="medium">Medium (softer shadows, 1x pixels)</option><option value="low">Low (no shadows, fewer pixels)</option><option value="ultra">Ultra low (no effects, no animated scenery, classic balls)</option></select></div>
       <div class="card2" style="margin:0"><h3>Field of view <span id="fovVal" style="color:#fff">70</span></h3><input type="range" id="fovSel" min="55" max="110" step="1" value="70" style="width:100%;padding:0;border:0;background:transparent"></div>
@@ -3477,10 +3509,15 @@ function launchTo(from, target, apexY, g = BALL_G) {
 function netDir() { if (S.match && !S.match.practice) return new V3(0, 0, P.team === 'A' ? 1 : -1); return cf(); }
 function tiltWorld() { return cr().multiplyScalar(P.tilt.x).add(cf().multiplyScalar(P.tilt.y)); }
 function withLateral(dir, tx, deg = 30) { const a = tx * deg * D; const r = new V3(-dir.z, 0, dir.x); return dir.clone().multiplyScalar(Math.cos(a)).add(r.multiplyScalar(Math.sin(a))).normalize(); }
+function inputAxes(ui) {                     // keyboard + joystick, each clamped to a unit square
+  if (ui) return { ix: 0, iz: 0 };
+  const ix = clamp((keys.has(KEYS.moveR) ? 1 : 0) - (keys.has(KEYS.moveL) ? 1 : 0) + TOUCH.x, -1, 1);
+  const iz = clamp((keys.has(KEYS.moveF) ? 1 : 0) - (keys.has(KEYS.moveB) ? 1 : 0) + TOUCH.y, -1, 1);
+  return { ix, iz };
+}
 function groundTilt() {                      // WASD while on the ground, relative to the character (W = forward)
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); const t = new THREE.Vector2(w.dot(cr()), w.dot(cf()));
   if (t.length() > 1) t.normalize(); return t;
 }
@@ -3665,8 +3702,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
   if (!hasTrait('b3a') || P.dash || P.dive || P.holding || P.emote) return;
   if (T < (P.dashReady || 0)) return;
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
   P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 4; P.vel.set(0, 0, 0); P.glide = null; P.dashCharge = true;   // the next spike after a dash starts half charged
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
@@ -3731,8 +3767,7 @@ function hitBall(type, vel, g, charge = 0) {
 /* ---------------- Player update ---------------- */
 function updatePlayer(dt) {
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
@@ -4053,6 +4088,90 @@ function projectTags() {
   if (P.charging) { _v.copy(P.pos); _v.y += 1.2; _v.addScaledVector(cr(), 0.9); _v.project(camera); cb.style.left = ((_v.x + 1) / 2 * W) + 'px'; cb.style.top = ((1 - _v.y) / 2 * H) + 'px'; cb.querySelector('i').style.height = (P.charge * 100) + '%'; }
 }
 
+/* ---------------- Touch controls ----------------
+   Left of the screen: a joystick that appears under your thumb (movement, air tilt, serve aim - the same
+   axes the keyboard drives). Right of the screen: drag to look. Round buttons press the same key codes the
+   keyboard would, so every mechanic (charge spikes, contextual set / spike / toss, bump / block, jump set /
+   talk, dive, dash, emotes, practice-mode ball + serve) works unchanged. Buttons can be dragged anywhere in
+   Menu > Touch controls > Edit layout; the layout is saved per device. */
+const TOUCH = { on: false, x: 0, y: 0, edit: false, joyId: null, joyOrigin: null, lookId: null, lookLast: null, pressed: new Map(), layout: null, drag: null };
+const TOUCH_DEFAULT = { jump: [30, 110], action: [130, 40], q: [40, 212], e: [140, 150], dive: [230, 60], dash: [230, 140], emote: [320, 26], ball: [400, 26], serve: [470, 26] };   // [right, bottom] in px - fits a landscape phone (390 px tall)
+function touchWanted() { let pref = 'auto'; try { pref = localStorage.getItem('vg_touch') || 'auto'; } catch (e) { } if (pref === 'on') return true; if (pref === 'off') return false; const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return touch && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile|CrOS.*Touch/i.test(navigator.userAgent)); }
+function applyTouch(on) {
+  TOUCH.on = on; $('#touchUi').classList.toggle('hidden', !on); document.body.classList.toggle('touch', on);
+  if (!on) { TOUCH.x = TOUCH.y = 0; for (const [el, code] of TOUCH.pressed) { keys.delete(code); onRelease(code); } TOUCH.pressed.clear(); }
+  if (on && document.pointerLockElement) document.exitPointerLock();
+  layoutTouch();
+}
+function layoutTouch() {
+  if (!TOUCH.layout) { try { TOUCH.layout = JSON.parse(localStorage.getItem('vg_touch_layout') || 'null'); } catch (e) { } if (!TOUCH.layout) TOUCH.layout = Object.assign({}, TOUCH_DEFAULT); }
+  $$('#touchUi .tbtn').forEach(b => { const p = TOUCH.layout[b.dataset.act] || TOUCH_DEFAULT[b.dataset.act]; const sz = b.classList.contains('big') ? 84 : 64; b.style.right = clamp(p[0], 0, Math.max(0, innerWidth - sz)) + 'px'; b.style.bottom = clamp(p[1], 0, Math.max(0, innerHeight - sz)) + 'px'; });   // kept on screen whatever the screen size
+}
+function touchCode(act) {                        // the key each button presses, decided at press time so the contextual ones match what the keyboard would do
+  switch (act) {
+    case 'jump': return KEYS.jump;
+    case 'action': return P.holding ? KEYS.toss : P.onGround ? KEYS.groundSet : KEYS.spike;
+    case 'q': return P.onGround ? KEYS.bump : KEYS.block;
+    case 'e': return P.onGround ? KEYS.interact : KEYS.jumpSet;
+    case 'dive': return KEYS.dive; case 'dash': return KEYS.ability; case 'emote': return KEYS.emote; case 'ball': return KEYS.spawnBall; case 'serve': return KEYS.serve;
+  } return null;
+}
+function updateTouchLabels() {                   // labels follow the situation, like the action cards do
+  if (!TOUCH.on) return;
+  const ground = P.onGround, hold = P.holding, spawn = canSpawnHere();
+  const near = nearNPC() || nearNPC2() || nearNPC3();
+  const set = (act, text, show = true, dim = false) => { const b = $(`#touchUi .tbtn[data-act="${act}"]`); if (!b) return; if (!TOUCH.edit) b.style.display = show ? '' : 'none'; if (b.dataset.txt !== text) { b.dataset.txt = text; b.textContent = text; } b.classList.toggle('dim', dim && !TOUCH.edit); };
+  set('action', hold ? 'TOSS' : ground ? 'SET' : 'SPIKE');
+  set('q', ground ? 'BUMP' : 'BLOCK');
+  set('e', ground ? (near ? 'TALK' : 'JUMP SET') : 'JUMP SET', true, ground && !near);
+  set('dive', 'DIVE', true, !ground);
+  const dash = hasTrait('b3a'); const cd = Math.max(0, (P.dashReady || 0) - T); set('dash', cd > 0 ? cd.toFixed(1) : 'DASH', dash, cd > 0);
+  set('ball', 'BALL', spawn); set('serve', 'SERVE', spawn);
+  set('jump', 'JUMP', true, !ground); set('emote', 'EMOTE');
+}
+(function initTouch() {
+  const ui = $('#touchUi'); if (!ui) return;
+  const joyZone = $('#joyZone'), lookZone = $('#lookZone'), joy = $('#joy'), knob = $('#joyKnob');
+  const R = 46;
+  const joyMove = (t) => { const dx = t.clientX - TOUCH.joyOrigin.x, dy = t.clientY - TOUCH.joyOrigin.y; const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; TOUCH.x = dx * k / R; TOUCH.y = -dy * k / R; knob.style.transform = `translate(${dx * k}px,${dy * k}px)`; };
+  joyZone.addEventListener('touchstart', e => { e.preventDefault(); if (TOUCH.joyId !== null || wheelOpen) return; const t = e.changedTouches[0]; TOUCH.joyId = t.identifier; TOUCH.joyOrigin = { x: t.clientX, y: t.clientY }; joy.style.left = t.clientX + 'px'; joy.style.top = t.clientY + 'px'; joy.style.display = 'block'; knob.style.transform = ''; }, { passive: false });
+  const joyEnd = e => { for (const t of e.changedTouches) if (t.identifier === TOUCH.joyId) { TOUCH.joyId = null; TOUCH.x = TOUCH.y = 0; joy.style.display = 'none'; } };
+  joyZone.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === TOUCH.joyId) joyMove(t); }, { passive: false });
+  joyZone.addEventListener('touchend', joyEnd); joyZone.addEventListener('touchcancel', joyEnd);
+  lookZone.addEventListener('touchstart', e => { e.preventDefault(); if (TOUCH.lookId !== null || wheelOpen) return; const t = e.changedTouches[0]; TOUCH.lookId = t.identifier; TOUCH.lookLast = { x: t.clientX, y: t.clientY }; }, { passive: false });
+  lookZone.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === TOUCH.lookId) { const k = 3.4 / Math.max(480, innerWidth); camYaw -= (t.clientX - TOUCH.lookLast.x) * k; camPitch = clamp(camPitch + (t.clientY - TOUCH.lookLast.y) * k, -0.35, 1.25); TOUCH.lookLast = { x: t.clientX, y: t.clientY }; } }, { passive: false });
+  const lookEnd = e => { for (const t of e.changedTouches) if (t.identifier === TOUCH.lookId) TOUCH.lookId = null; };
+  lookZone.addEventListener('touchend', lookEnd); lookZone.addEventListener('touchcancel', lookEnd);
+  // buttons: press / release the mapped key; in edit mode they drag instead
+  for (const b of $$('#touchUi .tbtn')) {
+    const press = e => {
+      e.preventDefault(); e.stopPropagation();
+      if (TOUCH.edit) { const t = e.touches ? e.touches[0] : e; const r = b.getBoundingClientRect(); TOUCH.drag = { b, dx: r.right - t.clientX, dy: r.bottom - t.clientY }; return; }
+      if (uiOpen()) return;
+      const code = touchCode(b.dataset.act); if (!code) return;
+      if (b.dataset.act === 'emote' && e.changedTouches) wheelOpenTouch = e.changedTouches[0].identifier;
+      TOUCH.pressed.set(b, code); b.classList.add('on'); if (!keys.has(code)) { keys.add(code); onPress(code); }
+    };
+    const release = e => {
+      e.preventDefault(); e.stopPropagation(); b.classList.remove('on');
+      const code = TOUCH.pressed.get(b); if (code === undefined) return; TOUCH.pressed.delete(b);
+      if (keys.has(code)) { keys.delete(code); onRelease(code); }
+    };
+    b.addEventListener('touchstart', press, { passive: false }); b.addEventListener('touchend', release); b.addEventListener('touchcancel', release);
+    b.addEventListener('mousedown', press); b.addEventListener('mouseup', release); b.addEventListener('mouseleave', e => { if (TOUCH.pressed.has(b)) release(e); });
+  }
+  const dragMove = e => { const d = TOUCH.drag; if (!d) return; const t = e.touches ? e.touches[0] : e; const right = clamp(innerWidth - t.clientX - d.dx, 0, innerWidth - 64), bottom = clamp(innerHeight - t.clientY - d.dy, 0, innerHeight - 64); d.b.style.right = right + 'px'; d.b.style.bottom = bottom + 'px'; TOUCH.layout[d.b.dataset.act] = [Math.round(right), Math.round(bottom)]; e.preventDefault(); };
+  const dragEnd = () => { TOUCH.drag = null; };
+  document.addEventListener('touchmove', dragMove, { passive: false }); document.addEventListener('touchend', dragEnd); document.addEventListener('mousemove', dragMove); document.addEventListener('mouseup', dragEnd);
+  $('#touchEditDone').onclick = () => { TOUCH.edit = false; ui.classList.remove('edit'); $('#touchEdit').classList.add('hidden'); try { localStorage.setItem('vg_touch_layout', JSON.stringify(TOUCH.layout)); } catch (e) { } toast('Touch layout saved', 'ok'); };
+  $('#touchEditReset').onclick = () => { TOUCH.layout = Object.assign({}, TOUCH_DEFAULT); layoutTouch(); };
+  $('#touchEditBtn').onclick = () => { closePanels(); if (!TOUCH.on) applyTouch(true); TOUCH.edit = true; ui.classList.add('edit'); $('#touchEdit').classList.remove('hidden'); $$('#touchUi .tbtn').forEach(b => { b.style.display = ''; }); };
+  $('#touchSel').onchange = () => { try { localStorage.setItem('vg_touch', $('#touchSel').value); } catch (e) { } applyTouch(touchWanted()); };
+  try { $('#touchSel').value = localStorage.getItem('vg_touch') || 'auto'; } catch (e) { }
+  canvas.addEventListener('touchstart', e => { if (TOUCH.on) e.preventDefault(); }, { passive: false });   // no synthetic mouse clicks from stray touches on the canvas
+  addEventListener('resize', () => { if (TOUCH.on) layoutTouch(); });
+})();
+
 /* ---------------- Chat bubbles over heads ---------------- */
 const BUBBLES = new Map();                   // sid -> { el, items: [{ text, until }] }; newest at the bottom, older ones stack upward
 const BUBBLE_MS = 6000, BUBBLE_MAX = 4;
@@ -4143,6 +4262,7 @@ function updateCards() {
   const dash = set !== 'hold' && hasTrait('b3a'); const dcd = dash ? Math.max(0, (P.dashReady || 0) - T) : 0;
   const sig = set + '|' + CARD_SETS[set].map(c => KEYS[c[0]]).join(',') + (dash ? '|D' + KEYS.ability + ':' + Math.ceil(dcd * 10) : '');
   if (sig !== cardSig) { cardSig = sig; $('#actions').innerHTML = CARD_SETS[set].map(c => cardHtml(...c)).join('') + (dash ? cardHtml(...CARD_SETS.dash, false, dcd) : ''); }
+  updateTouchLabels();
   // spawn / serve cards in practice and outside on the beach
   const show = (S.match && S.match.practice) || (S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z));
   const usig = (show ? 1 : 0) + '|' + KEYS.spawnBall + KEYS.serve;
@@ -4412,6 +4532,11 @@ document.addEventListener('mousemove', e => {
   $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel));
 });
 document.addEventListener('mousedown', e => { if (wheelOpen && e.button === 0) { e.preventDefault(); e.stopPropagation(); closeWheel(true); } }, true);
+const wheelPick = (x, y) => { const dx = x - innerWidth / 2, dy = y - innerHeight / 2; const dist = Math.hypot(dx, dy); wheelSel = dist < 40 ? -1 : ((Math.round((Math.atan2(dy, dx) + Math.PI / 2) / (Math.PI / 4)) % 8) + 8) % 8; $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel)); };
+let wheelOpenTouch = null;                       // the finger that opened the wheel via the touch button must not also close it when it lifts
+document.addEventListener('touchstart', e => { if (!wheelOpen) return; if ([...e.changedTouches].some(t => t.identifier === wheelOpenTouch)) return; e.preventDefault(); wheelPick(e.touches[0].clientX, e.touches[0].clientY); }, { capture: true, passive: false });
+document.addEventListener('touchmove', e => { if (!wheelOpen) return; e.preventDefault(); wheelPick(e.touches[0].clientX, e.touches[0].clientY); }, { capture: true, passive: false });
+document.addEventListener('touchend', e => { if (!wheelOpen) return; if ([...e.changedTouches].some(t => t.identifier === wheelOpenTouch)) { wheelOpenTouch = null; return; } e.preventDefault(); closeWheel(true); }, { capture: true, passive: false });
 document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape' || e.code === KEYS.menu)) closeWheel(false); }, true);
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
@@ -4967,7 +5092,7 @@ async function boot(online) {
   $('#online .dot').classList.toggle('on', online);
   if (online) { cleanupStale(); pruneChat(); subscribeChat(); db.ref('invites/' + SID).onDisconnect().remove(); }
   await setLoad(100, 'Ready!');
-  S.booted = true; last = performance.now(); $('#loading').classList.add('hidden'); updateLockHint(); renderKeys();
+  S.booted = true; last = performance.now(); $('#loading').classList.add('hidden'); updateLockHint(); renderKeys(); applyTouch(touchWanted());
   toast('Welcome, ' + me.name, 'ok', 3000);
 }
 let bootTimer = setTimeout(() => boot(false), 8000);

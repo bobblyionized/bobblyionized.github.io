@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Volleyball Gaem</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=swap" rel="stylesheet">
 <style>
@@ -22,6 +22,23 @@ input:focus{border-color:#fff}
 .btn.green{background:var(--green);color:#0c2412}.btn.red{background:var(--red)}.btn.blue{background:var(--blue)}.btn.grey{background:var(--bg2)}
 .btn.small{padding:6px 10px;font-size:12px}
 
+/* touch controls (phones / tablets): joystick on the left, drag-to-look on the right, movable buttons */
+#touchUi{position:absolute;inset:0;pointer-events:none}
+#touchUi .zone{position:absolute;top:0;bottom:0;pointer-events:auto;touch-action:none}
+#joyZone{left:0;width:45%}#lookZone{right:0;width:55%}
+#joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;pointer-events:none;display:none}
+#joyBase{position:absolute;inset:0;border-radius:50%;background:rgba(20,20,26,.45);border:2px solid rgba(255,255,255,.35)}
+#joyKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.tbtn{position:absolute;width:64px;height:64px;border-radius:50%;background:rgba(20,20,26,.72);border:2px solid rgba(255,255,255,.4);color:#fff;font-weight:900;font-size:11px;line-height:1.05;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;text-shadow:0 1px 2px #000}
+.tbtn.big{width:84px;height:84px;font-size:13px}
+.tbtn.on{background:var(--yellow);color:#111;text-shadow:none}
+.tbtn.dim{opacity:.45}
+.tbtn .cd{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:18px}
+body.touch #actions,body.touch #utilCards,body.touch #lockHint,body.touch #crosshair{display:none!important}
+body.touch #chat{width:min(300px,55vw)}
+body.touch .card2,body.touch .panel{-webkit-user-select:none}
+#touchUi.edit .tbtn{outline:2px dashed var(--yellow);outline-offset:3px;opacity:1!important}
+#touchEdit{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:var(--bg);border:2px solid var(--yellow);border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;display:flex;gap:10px;align-items:center;pointer-events:auto}
 /* top bar */
 #topbar{position:absolute;top:12px;right:12px;display:grid;grid-template-columns:auto auto;gap:8px;align-items:center;justify-items:end}
 #invBtn{grid-column:2;background:#222}
@@ -257,6 +274,20 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
 <body>
 <canvas id="c" tabindex="0"></canvas>
 <div id="ui">
+  <div id="touchUi" class="hidden">
+    <div id="joyZone" class="zone"></div><div id="lookZone" class="zone"></div>
+    <div id="joy"><div id="joyBase"></div><div id="joyKnob"></div></div>
+    <div class="tbtn big" data-act="jump">JUMP</div>
+    <div class="tbtn big" data-act="action">SET</div>
+    <div class="tbtn" data-act="q">BUMP</div>
+    <div class="tbtn" data-act="e">JUMP SET</div>
+    <div class="tbtn" data-act="dive">DIVE</div>
+    <div class="tbtn" data-act="dash">DASH</div>
+    <div class="tbtn" data-act="emote">EMOTE</div>
+    <div class="tbtn" data-act="ball">BALL</div>
+    <div class="tbtn" data-act="serve">SERVE</div>
+    <div id="touchEdit" class="hidden">Drag the buttons where you want them <button class="btn grey small" id="touchEditReset">RESET</button><button class="btn green small" id="touchEditDone">DONE</button></div>
+  </div>
   <div id="loading">VOLLEYBALL GAEM<small id="loadMsg">Connecting...</small><div id="loadBar"><i></i></div><div id="loadPct">0%</div></div>
   <div id="online"><span class="dot"></span><span><b id="onlineCount">0</b> online</span></div>
   <div id="topbar">
@@ -302,6 +333,7 @@ canvas#c.impact{filter:grayscale(1) brightness(1.05) contrast(60)}   /* hard bla
       <button id="sKeys">Keybinds<small>Controls</small></button>
       <button id="sFriends">Friends<small id="friendBadge"></small></button>
       <button id="sParty">Party<small id="partyBadge"></small></button>
+      <div class="card2" style="margin:0"><h3>Touch controls</h3><div class="row"><select id="touchSel" style="flex:1;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="auto">Auto (touch screens)</option><option value="on">On</option><option value="off">Off</option></select><button class="btn blue small" id="touchEditBtn">Edit layout</button></div></div>
       <div class="card2" style="margin:0"><h3>Shaders</h3><select id="shSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="simple">Simple (default)</option><option value="full">Advanced (env lighting, wave water - needs a good GPU)</option></select><small id="shNote" style="display:block;opacity:.6;font-weight:600;margin-top:6px"></small></div>
       <div class="card2" style="margin:0"><h3>Graphics</h3><select id="gfxSel" style="width:100%;padding:8px;font-family:inherit;font-weight:800;background:#000;color:#fff;border:2px solid var(--line)"><option value="high">High (shadows, full detail)</option><option value="medium">Medium (softer shadows, 1x pixels)</option><option value="low">Low (no shadows, fewer pixels)</option><option value="ultra">Ultra low (no effects, no animated scenery, classic balls)</option></select></div>
       <div class="card2" style="margin:0"><h3>Field of view <span id="fovVal" style="color:#fff">70</span></h3><input type="range" id="fovSel" min="55" max="110" step="1" value="70" style="width:100%;padding:0;border:0;background:transparent"></div>

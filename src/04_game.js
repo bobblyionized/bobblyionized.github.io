@@ -149,10 +149,15 @@ function launchTo(from, target, apexY, g = BALL_G) {
 function netDir() { if (S.match && !S.match.practice) return new V3(0, 0, P.team === 'A' ? 1 : -1); return cf(); }
 function tiltWorld() { return cr().multiplyScalar(P.tilt.x).add(cf().multiplyScalar(P.tilt.y)); }
 function withLateral(dir, tx, deg = 30) { const a = tx * deg * D; const r = new V3(-dir.z, 0, dir.x); return dir.clone().multiplyScalar(Math.cos(a)).add(r.multiplyScalar(Math.sin(a))).normalize(); }
+function inputAxes(ui) {                     // keyboard + joystick, each clamped to a unit square
+  if (ui) return { ix: 0, iz: 0 };
+  const ix = clamp((keys.has(KEYS.moveR) ? 1 : 0) - (keys.has(KEYS.moveL) ? 1 : 0) + TOUCH.x, -1, 1);
+  const iz = clamp((keys.has(KEYS.moveF) ? 1 : 0) - (keys.has(KEYS.moveB) ? 1 : 0) + TOUCH.y, -1, 1);
+  return { ix, iz };
+}
 function groundTilt() {                      // WASD while on the ground, relative to the character (W = forward)
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   const w = camR().multiplyScalar(ix).add(camF().multiplyScalar(iz)); const t = new THREE.Vector2(w.dot(cr()), w.dot(cf()));
   if (t.length() > 1) t.normalize(); return t;
 }
@@ -337,8 +342,7 @@ function tryDash() {                          // Dash (ability trait): a burst i
   if (!hasTrait('b3a') || P.dash || P.dive || P.holding || P.emote) return;
   if (T < (P.dashReady || 0)) return;
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   const dir = (ix || iz) ? camF().multiplyScalar(iz).add(camR().multiplyScalar(ix)).normalize() : cf();
   P.dash = { t0: T, dur: 0.15, dir }; P.dashReady = T + 4; P.vel.set(0, 0, 0); P.glide = null; P.dashCharge = true;   // the next spike after a dash starts half charged
   if (!P.onGround) {                                                       // reset the jump: spike, dash, spike again
@@ -403,8 +407,7 @@ function hitBall(type, vel, g, charge = 0) {
 /* ---------------- Player update ---------------- */
 function updatePlayer(dt) {
   const ui = uiOpen();
-  const ix = (!ui && keys.has(KEYS.moveR) ? 1 : 0) - (!ui && keys.has(KEYS.moveL) ? 1 : 0);
-  const iz = (!ui && keys.has(KEYS.moveF) ? 1 : 0) - (!ui && keys.has(KEYS.moveB) ? 1 : 0);
+  const { ix, iz } = inputAxes(ui);
   if (P.cd > 0) P.cd -= dt;
   const steering = !!(P.holding && P.serveAim);
   tryAct();
@@ -725,6 +728,90 @@ function projectTags() {
   if (P.charging) { _v.copy(P.pos); _v.y += 1.2; _v.addScaledVector(cr(), 0.9); _v.project(camera); cb.style.left = ((_v.x + 1) / 2 * W) + 'px'; cb.style.top = ((1 - _v.y) / 2 * H) + 'px'; cb.querySelector('i').style.height = (P.charge * 100) + '%'; }
 }
 
+/* ---------------- Touch controls ----------------
+   Left of the screen: a joystick that appears under your thumb (movement, air tilt, serve aim - the same
+   axes the keyboard drives). Right of the screen: drag to look. Round buttons press the same key codes the
+   keyboard would, so every mechanic (charge spikes, contextual set / spike / toss, bump / block, jump set /
+   talk, dive, dash, emotes, practice-mode ball + serve) works unchanged. Buttons can be dragged anywhere in
+   Menu > Touch controls > Edit layout; the layout is saved per device. */
+const TOUCH = { on: false, x: 0, y: 0, edit: false, joyId: null, joyOrigin: null, lookId: null, lookLast: null, pressed: new Map(), layout: null, drag: null };
+const TOUCH_DEFAULT = { jump: [30, 110], action: [130, 40], q: [40, 212], e: [140, 150], dive: [230, 60], dash: [230, 140], emote: [320, 26], ball: [400, 26], serve: [470, 26] };   // [right, bottom] in px - fits a landscape phone (390 px tall)
+function touchWanted() { let pref = 'auto'; try { pref = localStorage.getItem('vg_touch') || 'auto'; } catch (e) { } if (pref === 'on') return true; if (pref === 'off') return false; const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; return touch && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile|CrOS.*Touch/i.test(navigator.userAgent)); }
+function applyTouch(on) {
+  TOUCH.on = on; $('#touchUi').classList.toggle('hidden', !on); document.body.classList.toggle('touch', on);
+  if (!on) { TOUCH.x = TOUCH.y = 0; for (const [el, code] of TOUCH.pressed) { keys.delete(code); onRelease(code); } TOUCH.pressed.clear(); }
+  if (on && document.pointerLockElement) document.exitPointerLock();
+  layoutTouch();
+}
+function layoutTouch() {
+  if (!TOUCH.layout) { try { TOUCH.layout = JSON.parse(localStorage.getItem('vg_touch_layout') || 'null'); } catch (e) { } if (!TOUCH.layout) TOUCH.layout = Object.assign({}, TOUCH_DEFAULT); }
+  $$('#touchUi .tbtn').forEach(b => { const p = TOUCH.layout[b.dataset.act] || TOUCH_DEFAULT[b.dataset.act]; const sz = b.classList.contains('big') ? 84 : 64; b.style.right = clamp(p[0], 0, Math.max(0, innerWidth - sz)) + 'px'; b.style.bottom = clamp(p[1], 0, Math.max(0, innerHeight - sz)) + 'px'; });   // kept on screen whatever the screen size
+}
+function touchCode(act) {                        // the key each button presses, decided at press time so the contextual ones match what the keyboard would do
+  switch (act) {
+    case 'jump': return KEYS.jump;
+    case 'action': return P.holding ? KEYS.toss : P.onGround ? KEYS.groundSet : KEYS.spike;
+    case 'q': return P.onGround ? KEYS.bump : KEYS.block;
+    case 'e': return P.onGround ? KEYS.interact : KEYS.jumpSet;
+    case 'dive': return KEYS.dive; case 'dash': return KEYS.ability; case 'emote': return KEYS.emote; case 'ball': return KEYS.spawnBall; case 'serve': return KEYS.serve;
+  } return null;
+}
+function updateTouchLabels() {                   // labels follow the situation, like the action cards do
+  if (!TOUCH.on) return;
+  const ground = P.onGround, hold = P.holding, spawn = canSpawnHere();
+  const near = nearNPC() || nearNPC2() || nearNPC3();
+  const set = (act, text, show = true, dim = false) => { const b = $(`#touchUi .tbtn[data-act="${act}"]`); if (!b) return; if (!TOUCH.edit) b.style.display = show ? '' : 'none'; if (b.dataset.txt !== text) { b.dataset.txt = text; b.textContent = text; } b.classList.toggle('dim', dim && !TOUCH.edit); };
+  set('action', hold ? 'TOSS' : ground ? 'SET' : 'SPIKE');
+  set('q', ground ? 'BUMP' : 'BLOCK');
+  set('e', ground ? (near ? 'TALK' : 'JUMP SET') : 'JUMP SET', true, ground && !near);
+  set('dive', 'DIVE', true, !ground);
+  const dash = hasTrait('b3a'); const cd = Math.max(0, (P.dashReady || 0) - T); set('dash', cd > 0 ? cd.toFixed(1) : 'DASH', dash, cd > 0);
+  set('ball', 'BALL', spawn); set('serve', 'SERVE', spawn);
+  set('jump', 'JUMP', true, !ground); set('emote', 'EMOTE');
+}
+(function initTouch() {
+  const ui = $('#touchUi'); if (!ui) return;
+  const joyZone = $('#joyZone'), lookZone = $('#lookZone'), joy = $('#joy'), knob = $('#joyKnob');
+  const R = 46;
+  const joyMove = (t) => { const dx = t.clientX - TOUCH.joyOrigin.x, dy = t.clientY - TOUCH.joyOrigin.y; const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; TOUCH.x = dx * k / R; TOUCH.y = -dy * k / R; knob.style.transform = `translate(${dx * k}px,${dy * k}px)`; };
+  joyZone.addEventListener('touchstart', e => { e.preventDefault(); if (TOUCH.joyId !== null || wheelOpen) return; const t = e.changedTouches[0]; TOUCH.joyId = t.identifier; TOUCH.joyOrigin = { x: t.clientX, y: t.clientY }; joy.style.left = t.clientX + 'px'; joy.style.top = t.clientY + 'px'; joy.style.display = 'block'; knob.style.transform = ''; }, { passive: false });
+  const joyEnd = e => { for (const t of e.changedTouches) if (t.identifier === TOUCH.joyId) { TOUCH.joyId = null; TOUCH.x = TOUCH.y = 0; joy.style.display = 'none'; } };
+  joyZone.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === TOUCH.joyId) joyMove(t); }, { passive: false });
+  joyZone.addEventListener('touchend', joyEnd); joyZone.addEventListener('touchcancel', joyEnd);
+  lookZone.addEventListener('touchstart', e => { e.preventDefault(); if (TOUCH.lookId !== null || wheelOpen) return; const t = e.changedTouches[0]; TOUCH.lookId = t.identifier; TOUCH.lookLast = { x: t.clientX, y: t.clientY }; }, { passive: false });
+  lookZone.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === TOUCH.lookId) { const k = 3.4 / Math.max(480, innerWidth); camYaw -= (t.clientX - TOUCH.lookLast.x) * k; camPitch = clamp(camPitch + (t.clientY - TOUCH.lookLast.y) * k, -0.35, 1.25); TOUCH.lookLast = { x: t.clientX, y: t.clientY }; } }, { passive: false });
+  const lookEnd = e => { for (const t of e.changedTouches) if (t.identifier === TOUCH.lookId) TOUCH.lookId = null; };
+  lookZone.addEventListener('touchend', lookEnd); lookZone.addEventListener('touchcancel', lookEnd);
+  // buttons: press / release the mapped key; in edit mode they drag instead
+  for (const b of $$('#touchUi .tbtn')) {
+    const press = e => {
+      e.preventDefault(); e.stopPropagation();
+      if (TOUCH.edit) { const t = e.touches ? e.touches[0] : e; const r = b.getBoundingClientRect(); TOUCH.drag = { b, dx: r.right - t.clientX, dy: r.bottom - t.clientY }; return; }
+      if (uiOpen()) return;
+      const code = touchCode(b.dataset.act); if (!code) return;
+      if (b.dataset.act === 'emote' && e.changedTouches) wheelOpenTouch = e.changedTouches[0].identifier;
+      TOUCH.pressed.set(b, code); b.classList.add('on'); if (!keys.has(code)) { keys.add(code); onPress(code); }
+    };
+    const release = e => {
+      e.preventDefault(); e.stopPropagation(); b.classList.remove('on');
+      const code = TOUCH.pressed.get(b); if (code === undefined) return; TOUCH.pressed.delete(b);
+      if (keys.has(code)) { keys.delete(code); onRelease(code); }
+    };
+    b.addEventListener('touchstart', press, { passive: false }); b.addEventListener('touchend', release); b.addEventListener('touchcancel', release);
+    b.addEventListener('mousedown', press); b.addEventListener('mouseup', release); b.addEventListener('mouseleave', e => { if (TOUCH.pressed.has(b)) release(e); });
+  }
+  const dragMove = e => { const d = TOUCH.drag; if (!d) return; const t = e.touches ? e.touches[0] : e; const right = clamp(innerWidth - t.clientX - d.dx, 0, innerWidth - 64), bottom = clamp(innerHeight - t.clientY - d.dy, 0, innerHeight - 64); d.b.style.right = right + 'px'; d.b.style.bottom = bottom + 'px'; TOUCH.layout[d.b.dataset.act] = [Math.round(right), Math.round(bottom)]; e.preventDefault(); };
+  const dragEnd = () => { TOUCH.drag = null; };
+  document.addEventListener('touchmove', dragMove, { passive: false }); document.addEventListener('touchend', dragEnd); document.addEventListener('mousemove', dragMove); document.addEventListener('mouseup', dragEnd);
+  $('#touchEditDone').onclick = () => { TOUCH.edit = false; ui.classList.remove('edit'); $('#touchEdit').classList.add('hidden'); try { localStorage.setItem('vg_touch_layout', JSON.stringify(TOUCH.layout)); } catch (e) { } toast('Touch layout saved', 'ok'); };
+  $('#touchEditReset').onclick = () => { TOUCH.layout = Object.assign({}, TOUCH_DEFAULT); layoutTouch(); };
+  $('#touchEditBtn').onclick = () => { closePanels(); if (!TOUCH.on) applyTouch(true); TOUCH.edit = true; ui.classList.add('edit'); $('#touchEdit').classList.remove('hidden'); $$('#touchUi .tbtn').forEach(b => { b.style.display = ''; }); };
+  $('#touchSel').onchange = () => { try { localStorage.setItem('vg_touch', $('#touchSel').value); } catch (e) { } applyTouch(touchWanted()); };
+  try { $('#touchSel').value = localStorage.getItem('vg_touch') || 'auto'; } catch (e) { }
+  canvas.addEventListener('touchstart', e => { if (TOUCH.on) e.preventDefault(); }, { passive: false });   // no synthetic mouse clicks from stray touches on the canvas
+  addEventListener('resize', () => { if (TOUCH.on) layoutTouch(); });
+})();
+
 /* ---------------- Chat bubbles over heads ---------------- */
 const BUBBLES = new Map();                   // sid -> { el, items: [{ text, until }] }; newest at the bottom, older ones stack upward
 const BUBBLE_MS = 6000, BUBBLE_MAX = 4;
@@ -815,6 +902,7 @@ function updateCards() {
   const dash = set !== 'hold' && hasTrait('b3a'); const dcd = dash ? Math.max(0, (P.dashReady || 0) - T) : 0;
   const sig = set + '|' + CARD_SETS[set].map(c => KEYS[c[0]]).join(',') + (dash ? '|D' + KEYS.ability + ':' + Math.ceil(dcd * 10) : '');
   if (sig !== cardSig) { cardSig = sig; $('#actions').innerHTML = CARD_SETS[set].map(c => cardHtml(...c)).join('') + (dash ? cardHtml(...CARD_SETS.dash, false, dcd) : ''); }
+  updateTouchLabels();
   // spawn / serve cards in practice and outside on the beach
   const show = (S.match && S.match.practice) || (S.scene === 'lobby' && !indoors(P.pos.x, P.pos.z));
   const usig = (show ? 1 : 0) + '|' + KEYS.spawnBall + KEYS.serve;
@@ -1084,6 +1172,11 @@ document.addEventListener('mousemove', e => {
   $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel));
 });
 document.addEventListener('mousedown', e => { if (wheelOpen && e.button === 0) { e.preventDefault(); e.stopPropagation(); closeWheel(true); } }, true);
+const wheelPick = (x, y) => { const dx = x - innerWidth / 2, dy = y - innerHeight / 2; const dist = Math.hypot(dx, dy); wheelSel = dist < 40 ? -1 : ((Math.round((Math.atan2(dy, dx) + Math.PI / 2) / (Math.PI / 4)) % 8) + 8) % 8; $$('#emoteWheel .slot').forEach((el, i) => el.classList.toggle('sel', i === wheelSel)); };
+let wheelOpenTouch = null;                       // the finger that opened the wheel via the touch button must not also close it when it lifts
+document.addEventListener('touchstart', e => { if (!wheelOpen) return; if ([...e.changedTouches].some(t => t.identifier === wheelOpenTouch)) return; e.preventDefault(); wheelPick(e.touches[0].clientX, e.touches[0].clientY); }, { capture: true, passive: false });
+document.addEventListener('touchmove', e => { if (!wheelOpen) return; e.preventDefault(); wheelPick(e.touches[0].clientX, e.touches[0].clientY); }, { capture: true, passive: false });
+document.addEventListener('touchend', e => { if (!wheelOpen) return; if ([...e.changedTouches].some(t => t.identifier === wheelOpenTouch)) { wheelOpenTouch = null; return; } e.preventDefault(); closeWheel(true); }, { capture: true, passive: false });
 document.addEventListener('keydown', e => { if (wheelOpen && (e.code === 'Escape' || e.code === KEYS.menu)) closeWheel(false); }, true);
 function equipEmote(id) {                        // put an owned emote into the first free wheel slot (or take it out)
   const wheel = Object.assign({}, me.wheel || {}); const slots = wheelSlots(); const idx = slots.indexOf(id);
@@ -1639,7 +1732,7 @@ async function boot(online) {
   $('#online .dot').classList.toggle('on', online);
   if (online) { cleanupStale(); pruneChat(); subscribeChat(); db.ref('invites/' + SID).onDisconnect().remove(); }
   await setLoad(100, 'Ready!');
-  S.booted = true; last = performance.now(); $('#loading').classList.add('hidden'); updateLockHint(); renderKeys();
+  S.booted = true; last = performance.now(); $('#loading').classList.add('hidden'); updateLockHint(); renderKeys(); applyTouch(touchWanted());
   toast('Welcome, ' + me.name, 'ok', 3000);
 }
 let bootTimer = setTimeout(() => boot(false), 8000);
